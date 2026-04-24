@@ -1,6 +1,7 @@
 import io
 import queue
 import threading
+from concurrent.futures import Future
 from typing import Optional
 
 import numpy as np
@@ -16,32 +17,10 @@ _model: Optional[object] = None
 _cancel_flag = threading.Event()
 _task_queue: queue.Queue = queue.Queue()
 _worker_thread: Optional[threading.Thread] = None
-_model_loaded_event = threading.Event()
 
 
 class GenerationCancelled(Exception):
     pass
-
-
-class _Future:
-    def __init__(self):
-        self._event = threading.Event()
-        self._result = None
-        self._exc = None
-
-    def set_result(self, value):
-        self._result = value
-        self._event.set()
-
-    def set_exception(self, exc):
-        self._exc = exc
-        self._event.set()
-
-    def result(self, timeout=None):
-        self._event.wait(timeout=timeout)
-        if self._exc is not None:
-            raise self._exc
-        return self._result
 
 
 def _worker_loop():
@@ -64,9 +43,9 @@ def _ensure_worker_started():
     _worker_thread.start()
 
 
-def _dispatch(fn) -> _Future:
+def _dispatch(fn) -> Future:
     _ensure_worker_started()
-    future = _Future()
+    future: Future = Future()
     _task_queue.put((fn, future))
     return future
 
@@ -130,3 +109,7 @@ def request_cancel() -> None:
 
 def get_model() -> Optional[object]:
     return _model
+
+
+def is_loaded() -> bool:
+    return _model is not None

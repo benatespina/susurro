@@ -1,34 +1,23 @@
-import argparse
-import signal
 import sys
-import time
 
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Susurro TTS backend")
-    parser.add_argument("--port", type=int, required=True, help="Port to listen on")
-    return parser.parse_args()
+from susurro_backend.handshake import AlreadyRunning, acquire_or_fail, register_cleanup
 
 
 def main() -> None:
-    args = parse_args()
+    try:
+        port, token = acquire_or_fail()
+    except AlreadyRunning as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
 
-    import susurro_backend.tts as tts
-    from susurro_backend.server import app
+    register_cleanup()
 
-    def handle_signal(signum, frame):
-        sys.exit(0)
+    from susurro_backend.server import create_app
 
-    signal.signal(signal.SIGINT, handle_signal)
-    signal.signal(signal.SIGTERM, handle_signal)
-
-    start = time.monotonic()
-    tts.load_model()
-    elapsed = time.monotonic() - start
-    print(f"Model loaded in {elapsed:.2f}s")
+    app = create_app(token)
 
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="info")
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
 
 
 if __name__ == "__main__":

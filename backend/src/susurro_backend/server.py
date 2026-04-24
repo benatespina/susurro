@@ -1,11 +1,17 @@
+import logging
+from contextlib import asynccontextmanager
 from typing import Optional, Literal
 
-from fastapi import FastAPI, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from pydantic import BaseModel
 
 import susurro_backend.lang as lang
 import susurro_backend.tts as tts
 from susurro_backend.tts import GenerationCancelled
+
+logger = logging.getLogger(__name__)
+
+_expected_token: Optional[str] = None
 
 
 class TTSRequest(BaseModel):
@@ -13,12 +19,28 @@ class TTSRequest(BaseModel):
     language: Optional[Literal["es", "en"]] = None
 
 
-def create_app() -> FastAPI:
-    app = FastAPI(title="Susurro Backend")
+def verify_token(authorization: Optional[str] = Header(None)) -> None:
+    expected = f"Bearer {_expected_token}"
+    if authorization != expected:
+        raise HTTPException(status_code=401)
+
+
+def create_app(token: str) -> FastAPI:
+    global _expected_token
+    _expected_token = token
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        import asyncio
+        # schedule model load in the MLX worker thread without blocking uvicorn
+        asyncio.get_event_loop().run_in_executor(None, tts.load_model)
+        yield
+
+    app = FastAPI(title="Susurro Backend", lifespan=lifespan)
 
     @app.get("/health")
     def health():
-        if tts.get_model() is not None:
+        if tts.is_loaded():
             return {"status": "ready"}
         return Response(
             content='{"status": "loading"}',
@@ -27,9 +49,9 @@ def create_app() -> FastAPI:
         )
 
     @app.post("/tts")
-    def synthesize(request: TTSRequest):
+    def synthesize(request: TTSRequest, _: None = Depends(verify_token)):
         resolved_language = request.language or lang.detect(request.text)
-        print(f"TTS language={resolved_language!r} text={request.text[:60]!r}", flush=True)
+        logger.info("tts language=%s text=%.60s", resolved_language, request.text)
         try:
             wav_bytes = tts.synthesize(request.text, resolved_language)
         except GenerationCancelled:
@@ -41,10 +63,7 @@ def create_app() -> FastAPI:
         return Response(content=wav_bytes, media_type="audio/wav")
 
     @app.post("/stop", status_code=204)
-    def stop():
+    def stop(_: None = Depends(verify_token)):
         tts.request_cancel()
 
     return app
-
-
-app = create_app()
