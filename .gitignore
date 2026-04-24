@@ -9,3 +9,5 @@ __pycache__/
 build/
 *.xcuserdata/
 DerivedData/
+app/Susurro.xcodeproj/xcuserdata/
+app/Susurro.xcodeproj/project.xcworkspace/xcuserdata/
