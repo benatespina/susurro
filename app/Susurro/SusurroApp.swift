@@ -30,6 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let backend = BackendProcess()
     let appState = AppState()
     private var permissionCoordinator: PermissionCoordinator?
+    private var selectionObserver: SelectionObserver?
+    private var panelController: PanelController?
+    private var accessibilityPollTask: Task<Void, Never>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSigtermHandler()
@@ -50,6 +53,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+        startSelectionSystemWhenPermitted()
+    }
+
+    private func startSelectionSystemWhenPermitted() {
+        if appState.accessibilityStatus == .granted {
+            activateSelectionSystem()
+            return
+        }
+        accessibilityPollTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self else { return }
+                if self.appState.accessibilityStatus == .granted {
+                    self.activateSelectionSystem()
+                    return
+                }
+            }
+        }
+    }
+
+    private func activateSelectionSystem() {
+        accessibilityPollTask?.cancel()
+        accessibilityPollTask = nil
+        guard selectionObserver == nil else { return }
+        selectionObserver = SelectionObserver()
+        panelController = PanelController(observer: selectionObserver!)
+        panelController?.onRead = { text in
+            AppLogger.selection.info("read requested for: \(text.prefix(60))")
+        }
+        AppLogger.selection.info("selection system activated")
     }
 
     private func installSigtermHandler() {

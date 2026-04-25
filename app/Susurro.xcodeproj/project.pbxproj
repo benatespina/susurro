@@ -7,9 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		07D47CA272A50AEA9C996256 /* PanelPositionerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4322ABB9A3F040AFB47572B2 /* PanelPositionerTests.swift */; };
+		082C4F277CA44BFE20D0FF8C /* PanelContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 650355487092FBF1CD90489F /* PanelContent.swift */; };
+		09E8CB980C3F94FB8CAED707 /* FloatingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84A0E093A4F12DCF05C29F9B /* FloatingPanel.swift */; };
+		0B851284326536C287346916 /* SelectionReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3EC8D0AE60105669D2E128A /* SelectionReaderTests.swift */; };
+		10536B68C9C3B043F4282591 /* PanelPositioner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0D54F8279EA5840ACB6EA3 /* PanelPositioner.swift */; };
 		1CB5E01E1DBCF5F653916558 /* AccessibilityPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F68DF7F4E55F0D3C431D5E7 /* AccessibilityPermission.swift */; };
 		35723048FD8093B09ECE82F7 /* PermissionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23560E679E1BCEE96C6197B3 /* PermissionCoordinator.swift */; };
 		449C34B48F54E84EAD7C0984 /* BackendProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECC3E034930CEA0A13CD4CB9 /* BackendProcess.swift */; };
+		5307A5F0CE739BED8FF4E000 /* PanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873D1F69608895E123A8D6FC /* PanelController.swift */; };
 		5D31E40F58E85208F80C00B0 /* BackendClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6798A4F7ED2CB2C41A01D0DF /* BackendClient.swift */; };
 		68B16A789DE1E93D0CFBB9F1 /* SusurroApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA2C69786A97D2FD135087F5 /* SusurroApp.swift */; };
 		74ECFEBBDF0E479263A8BA00 /* Logging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C6622D79F394C34231FB27 /* Logging.swift */; };
@@ -17,6 +23,8 @@
 		A233636E3438EFC1D58BE900 /* AccessibilityPermissionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EFE953F37BB457E966830CF /* AccessibilityPermissionTests.swift */; };
 		A2812E7BDC5FFBE8074A4350 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 914A132B59FC2B0FD7A9A2E3 /* AppStateTests.swift */; };
 		B5520466B0F9A6B5FC3D245E /* BackendProcessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A36E4C7E534D1021B0B99611 /* BackendProcessTests.swift */; };
+		CE506843F7D8A6E856FD459F /* SelectionReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBC21D43392AD604C426CBC7 /* SelectionReader.swift */; };
+		F6DBA5F2F7B810874B8B4CBC /* SelectionObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 231B243B6DF5B6D310D7F80D /* SelectionObserver.swift */; };
 		F895A09CCC35935BFEDDC5BC /* Lockfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3796972D80C57F41F931879D /* Lockfile.swift */; };
 		FB6D022ACB2D77A1AD588FEE /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492D62CBF47CFBADC2106DAA /* MenuBarView.swift */; };
 		FE9337EA1BFEC2405E813D6F /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D71EA7FAD737A685ABC513E /* AppState.swift */; };
@@ -35,24 +43,54 @@
 /* Begin PBXFileReference section */
 		16C6622D79F394C34231FB27 /* Logging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logging.swift; sourceTree = "<group>"; };
 		19180225883D9D48C4DB3822 /* Susurro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Susurro.entitlements; sourceTree = "<group>"; };
+		231B243B6DF5B6D310D7F80D /* SelectionObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionObserver.swift; sourceTree = "<group>"; };
 		23560E679E1BCEE96C6197B3 /* PermissionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionCoordinator.swift; sourceTree = "<group>"; };
 		2EFE953F37BB457E966830CF /* AccessibilityPermissionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPermissionTests.swift; sourceTree = "<group>"; };
 		3796972D80C57F41F931879D /* Lockfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Lockfile.swift; sourceTree = "<group>"; };
 		3827E70F2F6E561D053A47A4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		4322ABB9A3F040AFB47572B2 /* PanelPositionerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPositionerTests.swift; sourceTree = "<group>"; };
 		45A8E0314B400FAB476BB330 /* SusurroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SusurroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		492D62CBF47CFBADC2106DAA /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		4E0D54F8279EA5840ACB6EA3 /* PanelPositioner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPositioner.swift; sourceTree = "<group>"; };
 		5F68DF7F4E55F0D3C431D5E7 /* AccessibilityPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPermission.swift; sourceTree = "<group>"; };
+		650355487092FBF1CD90489F /* PanelContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelContent.swift; sourceTree = "<group>"; };
 		6798A4F7ED2CB2C41A01D0DF /* BackendClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendClient.swift; sourceTree = "<group>"; };
 		6D71EA7FAD737A685ABC513E /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		84A0E093A4F12DCF05C29F9B /* FloatingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanel.swift; sourceTree = "<group>"; };
+		873D1F69608895E123A8D6FC /* PanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelController.swift; sourceTree = "<group>"; };
 		914A132B59FC2B0FD7A9A2E3 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		A36E4C7E534D1021B0B99611 /* BackendProcessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendProcessTests.swift; sourceTree = "<group>"; };
 		A6A7B83C6B89CC2599DDE044 /* PermissionWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionWindow.swift; sourceTree = "<group>"; };
 		B14D602A59AFD8E07526996B /* Susurro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Susurro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BA2C69786A97D2FD135087F5 /* SusurroApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SusurroApp.swift; sourceTree = "<group>"; };
+		D3EC8D0AE60105669D2E128A /* SelectionReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionReaderTests.swift; sourceTree = "<group>"; };
+		DBC21D43392AD604C426CBC7 /* SelectionReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionReader.swift; sourceTree = "<group>"; };
 		ECC3E034930CEA0A13CD4CB9 /* BackendProcess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendProcess.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		08F41DA4B5E88FBA80EAF3CE /* Panel */ = {
+			isa = PBXGroup;
+			children = (
+				84A0E093A4F12DCF05C29F9B /* FloatingPanel.swift */,
+				650355487092FBF1CD90489F /* PanelContent.swift */,
+				873D1F69608895E123A8D6FC /* PanelController.swift */,
+				4E0D54F8279EA5840ACB6EA3 /* PanelPositioner.swift */,
+				4322ABB9A3F040AFB47572B2 /* PanelPositionerTests.swift */,
+			);
+			path = Panel;
+			sourceTree = "<group>";
+		};
+		435C31EE73E4CA7F1ED9ED7A /* Selection */ = {
+			isa = PBXGroup;
+			children = (
+				231B243B6DF5B6D310D7F80D /* SelectionObserver.swift */,
+				DBC21D43392AD604C426CBC7 /* SelectionReader.swift */,
+				D3EC8D0AE60105669D2E128A /* SelectionReaderTests.swift */,
+			);
+			path = Selection;
+			sourceTree = "<group>";
+		};
 		6C0F23C7037FB9DD5D1893EB /* Backend */ = {
 			isa = PBXGroup;
 			children = (
@@ -104,6 +142,8 @@
 				BA2C69786A97D2FD135087F5 /* SusurroApp.swift */,
 				AA5405596110305D0D271723 /* Accessibility */,
 				6C0F23C7037FB9DD5D1893EB /* Backend */,
+				08F41DA4B5E88FBA80EAF3CE /* Panel */,
+				435C31EE73E4CA7F1ED9ED7A /* Selection */,
 			);
 			path = Susurro;
 			sourceTree = "<group>";
@@ -192,11 +232,17 @@
 				FE9337EA1BFEC2405E813D6F /* AppState.swift in Sources */,
 				5D31E40F58E85208F80C00B0 /* BackendClient.swift in Sources */,
 				449C34B48F54E84EAD7C0984 /* BackendProcess.swift in Sources */,
+				09E8CB980C3F94FB8CAED707 /* FloatingPanel.swift in Sources */,
 				F895A09CCC35935BFEDDC5BC /* Lockfile.swift in Sources */,
 				74ECFEBBDF0E479263A8BA00 /* Logging.swift in Sources */,
 				FB6D022ACB2D77A1AD588FEE /* MenuBarView.swift in Sources */,
+				082C4F277CA44BFE20D0FF8C /* PanelContent.swift in Sources */,
+				5307A5F0CE739BED8FF4E000 /* PanelController.swift in Sources */,
+				10536B68C9C3B043F4282591 /* PanelPositioner.swift in Sources */,
 				35723048FD8093B09ECE82F7 /* PermissionCoordinator.swift in Sources */,
 				8E1C8BF6F218A301D0AC304C /* PermissionWindow.swift in Sources */,
+				F6DBA5F2F7B810874B8B4CBC /* SelectionObserver.swift in Sources */,
+				CE506843F7D8A6E856FD459F /* SelectionReader.swift in Sources */,
 				68B16A789DE1E93D0CFBB9F1 /* SusurroApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -208,6 +254,8 @@
 				A233636E3438EFC1D58BE900 /* AccessibilityPermissionTests.swift in Sources */,
 				A2812E7BDC5FFBE8074A4350 /* AppStateTests.swift in Sources */,
 				B5520466B0F9A6B5FC3D245E /* BackendProcessTests.swift in Sources */,
+				07D47CA272A50AEA9C996256 /* PanelPositionerTests.swift in Sources */,
+				0B851284326536C287346916 /* SelectionReaderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
