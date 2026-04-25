@@ -29,9 +29,11 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let backend = BackendProcess()
     let appState = AppState()
+    private var permissionCoordinator: PermissionCoordinator?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSigtermHandler()
+        permissionCoordinator = PermissionCoordinator(appState: appState)
         Task { [weak self] in
             guard let self else { return }
             do {

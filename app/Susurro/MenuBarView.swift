@@ -7,7 +7,7 @@ struct MenuBarView: View {
     var body: some View {
         VStack(alignment: .leading) {
             backendStatusRow
-            Text("Accessibility: \(accessibilityLabel)")
+            accessibilityStatusRow
             Text("Playing: \(appState.isPlaying ? "yes" : "no")")
             Divider()
             Button("Quit Susurro") { NSApp.terminate(nil) }
@@ -42,11 +42,19 @@ struct MenuBarView: View {
         }
     }
 
-    private var accessibilityLabel: String {
+    @ViewBuilder
+    private var accessibilityStatusRow: some View {
         switch appState.accessibilityStatus {
-        case .unknown: "unknown"
-        case .denied: "denied"
-        case .granted: "granted"
+        case .unknown:
+            Text("Accessibility: checking…")
+        case .denied:
+            HStack(spacing: 4) {
+                Text("Accessibility: denied")
+                Button("Open Accessibility Settings…", action: AccessibilityPermission.openSystemSettings)
+                    .buttonStyle(.borderless)
+            }
+        case .granted:
+            Text("Accessibility: ✓ granted")
         }
     }
 }
