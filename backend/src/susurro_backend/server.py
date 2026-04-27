@@ -1,4 +1,6 @@
 import logging
+import os
+import time
 from contextlib import asynccontextmanager
 from typing import Optional, Literal
 
@@ -8,6 +10,8 @@ from pydantic import BaseModel
 import susurro_backend.lang as lang
 import susurro_backend.tts as tts
 from susurro_backend.tts import GenerationCancelled
+
+_PROFILE = os.environ.get("SUSURRO_PROFILE") == "1"
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +54,7 @@ def create_app(token: str) -> FastAPI:
 
     @app.post("/tts")
     def synthesize(request: TTSRequest, _: None = Depends(verify_token)):
+        t0 = time.perf_counter()
         resolved_language = request.language or lang.detect(request.text)
         logger.info("tts language=%s text=%.60s", resolved_language, request.text)
         try:
@@ -60,6 +65,9 @@ def create_app(token: str) -> FastAPI:
                 status_code=499,
                 media_type="application/json",
             )
+        if _PROFILE:
+            total_ms = (time.perf_counter() - t0) * 1000
+            print(f"[PROFILE] /tts handler total={total_ms:.0f}ms", flush=True)
         return Response(content=wav_bytes, media_type="audio/wav")
 
     @app.post("/stop", status_code=204)
