@@ -1,115 +1,69 @@
 import io
-import queue
 import threading
-from concurrent.futures import Future
-from typing import Optional
+import wave
+from pathlib import Path
+from typing import Literal
 
-import numpy as np
+from piper import PiperVoice
+from piper.download_voices import download_voice
 
-from susurro_backend.config import MODEL_ID, SAMPLE_RATE
+VOICE_DIR = Path.home() / "Library/Application Support/Susurro/piper-voices"
 
-# MLX requires that the GPU stream is created and used on the same OS thread.
-# We dedicate one background thread for all model load and generate calls.
-# Requests are posted as (fn, Future) pairs; the worker thread executes fn and
-# resolves the Future.
+VOICE_BY_LANG: dict[str, str] = {
+    "es": "es_ES-davefx-medium",
+    "en": "en_US-lessac-medium",
+}
 
-_model: Optional[object] = None
+_voices: dict[str, PiperVoice] = {}
+_loaded = False
 _cancel_flag = threading.Event()
-_task_queue: queue.Queue = queue.Queue()
-_worker_thread: Optional[threading.Thread] = None
 
 
 class GenerationCancelled(Exception):
     pass
 
 
-def _worker_loop():
-    global _model
-    while True:
-        fn, future = _task_queue.get()
-        if fn is None:
-            break
-        try:
-            future.set_result(fn())
-        except Exception as exc:
-            future.set_exception(exc)
-
-
-def _ensure_worker_started():
-    global _worker_thread
-    if _worker_thread is not None:
-        return
-    _worker_thread = threading.Thread(target=_worker_loop, daemon=True, name="mlx-worker")
-    _worker_thread.start()
-
-
-def _dispatch(fn) -> Future:
-    _ensure_worker_started()
-    future: Future = Future()
-    _task_queue.put((fn, future))
-    return future
+def _ensure_voice_file(voice_name: str) -> Path:
+    VOICE_DIR.mkdir(parents=True, exist_ok=True)
+    model_path = VOICE_DIR / f"{voice_name}.onnx"
+    if not model_path.exists() or model_path.stat().st_size == 0:
+        download_voice(voice_name, VOICE_DIR)
+    return model_path
 
 
 def load_model() -> None:
-    global _model
-    if _model is not None:
+    global _loaded
+    if _loaded:
         return
-
-    def _load():
-        global _model
-        from mlx_audio.tts.utils import load_model as mlx_load_model
-        _model = mlx_load_model(MODEL_ID)
-
-    _dispatch(_load).result()
+    for lang, voice_name in VOICE_BY_LANG.items():
+        model_path = _ensure_voice_file(voice_name)
+        _voices[lang] = PiperVoice.load(model_path, use_cuda=False)
+    _loaded = True
 
 
-def synthesize(text: str, language: str) -> bytes:
-    if _model is None:
+def is_loaded() -> bool:
+    return _loaded
+
+
+def synthesize(text: str, language: Literal["es", "en"]) -> bytes:
+    if not _loaded:
         raise RuntimeError("Model not loaded — call load_model() first")
 
     _cancel_flag.clear()
 
-    def _generate():
-        audio_chunks = []
+    voice = _voices[language]
 
-        # mlx-audio has no native cancellation hook — the flag is checked between
-        # generator iterations (segment boundaries), which is best-effort.
-        for result in _model.generate(
-            text=text,
-            lang_code=language,
-            verbose=False,
-            stream=False,
-        ):
-            if _cancel_flag.is_set():
-                _cancel_flag.clear()
-                raise GenerationCancelled()
-            audio_chunks.append(np.array(result.audio))
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav_file:
+        voice.synthesize_wav(text, wav_file)
 
-        if not audio_chunks:
-            raise RuntimeError("Model returned no audio")
+    if _cancel_flag.is_set():
+        _cancel_flag.clear()
+        raise GenerationCancelled()
 
-        combined = (
-            np.concatenate(audio_chunks, axis=0)
-            if len(audio_chunks) > 1
-            else audio_chunks[0]
-        )
-
-        buffer = io.BytesIO()
-        import soundfile as sf
-        sf.write(buffer, combined, SAMPLE_RATE, format="WAV")
-        buffer.seek(0)
-        return buffer.read()
-
-    return _dispatch(_generate).result()
+    buffer.seek(0)
+    return buffer.read()
 
 
 def request_cancel() -> None:
     _cancel_flag.set()
-
-
-def get_model() -> Optional[object]:
-    return _model
-
-
-def is_loaded() -> bool:
-    return _model is not None

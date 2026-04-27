@@ -55,12 +55,15 @@ struct BackendClient: Sendable {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             guard statusCode == 200 else {
                 let body = String(data: data, encoding: .utf8)
+                AppLogger.backend.error("tts http failed status=\(statusCode, privacy: .public) body=\(body ?? "<nil>", privacy: .public)")
                 throw BackendClientError.http(status: statusCode, body: body)
             }
+            AppLogger.backend.info("tts ok status=200 bytes=\(data.count, privacy: .public)")
             return data
         } catch let error as BackendClientError {
             throw error
         } catch {
+            AppLogger.backend.error("tts transport error: \(error.localizedDescription, privacy: .public)")
             throw BackendClientError.transport(error)
         }
     }

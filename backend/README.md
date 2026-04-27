@@ -1,6 +1,6 @@
 # susurro-backend
 
-Local FastAPI server providing TTS via mlx-audio + Chatterbox-Multilingual-MLX-v2-Q8.
+Local FastAPI server providing TTS via Piper (ONNX-based, non-autoregressive VITS).
 
 ## Install
 
@@ -31,8 +31,13 @@ It picks a free port and writes `~/Library/Application Support/Susurro/backend.l
 .venv/bin/pytest -v src/susurro_backend/
 ```
 
-Slow tests (model load) are skipped by default. Run with `pytest -m slow` to include.
+Slow tests (voice synthesis) are skipped by default. Run with `pytest -m slow` to include.
 
-## Cache
+## Voice cache
 
-First request downloads ~1.7 GB of model weights to `~/Library/Application Support/Susurro/models/` (set via `HF_HOME`).
+On first startup, Piper downloads voice models to `~/Library/Application Support/Susurro/piper-voices/`:
+
+- Spanish: `es_ES-davefx-medium.onnx` (~60 MB)
+- English: `en_US-lessac-medium.onnx` (~60 MB)
+
+Subsequent startups load directly from disk — no network access needed.

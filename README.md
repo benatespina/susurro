@@ -8,7 +8,7 @@ Pre-release. Personal dogfood. Not distributed, not signed for App Store.
 
 ## Architecture
 
-- **Backend** (`backend/`): Python FastAPI server serving local Chatterbox-Multilingual TTS via mlx-audio. Runs as child process of the Swift app.
+- **Backend** (`backend/`): Python FastAPI server serving local TTS via Piper (ONNX-based VITS). Runs as child process of the Swift app.
 - **App** (`app/`): Swift macOS menu bar app. Detects text selection via Accessibility API, shows a floating button, plays generated WAV via AVAudioPlayer.
 
 ## Requirements
@@ -44,7 +44,7 @@ Direct invocation of `Susurro.app/Contents/MacOS/Susurro` from a terminal can in
 2. Permission window appears — click "Open System Settings".
 3. Toggle Susurro on in Privacy & Security → Accessibility.
 4. Bring Susurro frontmost (click menu icon) → permission window auto-closes.
-5. Backend loads model on first launch (~10-15s, model cached after).
+5. Backend loads voices on first launch (downloads ~120 MB once, then instant from cache).
 
 ## Usage
 
@@ -64,7 +64,7 @@ Direct invocation of `Susurro.app/Contents/MacOS/Susurro` from a terminal can in
 ## Known issues
 
 - **Slack and other Electron apps**: `kAXSelectedTextChangedNotification` is unreliable; the panel's mouse-up fallback usually still works but bounds may be off → panel positions near the cursor.
-- **Long text latency**: Chatterbox doesn't support streaming generation, so the full WAV is produced before playback starts. ~6s wait for ~10s of audio. Use shorter selections for snappier response. Sentence chunking is a planned follow-up.
+- **First-run voice download**: Piper downloads ~120 MB of voice models on first startup (Spanish + English). Subsequent launches are instant.
 - **TCC entry invalidates on rebuild**: ad-hoc-signed binaries identify by CDHash; every rebuild changes it. After rebuild you'll need to re-grant Accessibility:
   ```
   tccutil reset Accessibility com.benatespina.susurro
@@ -80,7 +80,7 @@ The menu bar has a Diagnostics submenu:
 - Restart backend manually
 - Copy diagnostics to clipboard (paste into bug reports)
 
-Backend writes a lockfile at `~/Library/Application Support/Susurro/backend.lock` containing port + bearer token. Cached models live in `~/Library/Application Support/Susurro/models/`.
+Backend writes a lockfile at `~/Library/Application Support/Susurro/backend.lock` containing port + bearer token. Piper voice models are cached in `~/Library/Application Support/Susurro/piper-voices/`.
 
 ## Resetting Accessibility for testing
 
@@ -92,7 +92,7 @@ Then relaunch.
 
 ## Architecture decisions
 
-- **Local-only TTS**: Python FastAPI + Chatterbox-Multilingual via mlx-audio runs entirely on device; no cloud calls, no subscription.
+- **Local-only TTS**: Python FastAPI + Piper (ONNX VITS) runs entirely on device; no cloud calls, no subscription. Non-autoregressive synthesis delivers <100ms for short utterances on Apple Silicon.
 - **Child-process backend**: The Swift app spawns the Python server as a child process and communicates via a lockfile (`backend.lock`) that carries port + bearer token; this avoids a launchd daemon and keeps the two processes tightly coupled to the app lifecycle.
 - **Accessibility API for selection detection**: Text selection is captured via `kAXSelectedTextChangedNotification` rather than a global keyboard shortcut, so it works across any app without requiring Input Monitoring permission.
 - **Floating-button UX**: A small borderless window appears near the selection bounds and dismisses automatically, keeping the interaction lightweight and non-intrusive.

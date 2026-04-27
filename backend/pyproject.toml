@@ -9,8 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi",
     "uvicorn[standard]",
-    "mlx-audio==0.4.2",
-    "mlx==0.31.2",
+    "piper-tts",
     "lingua-language-detector",
     "numpy",
     "soundfile",
@@ -30,5 +29,5 @@ packages = ["src/susurro_backend"]
 testpaths = ["src"]
 addopts = "-m 'not slow'"
 markers = [
-    "slow: marks tests as slow (loads the TTS model, ~1.7 GB). Run with: pytest -m slow",
+    "slow: marks tests as slow (downloads Piper voices on first run). Run with: pytest -m slow",
 ]
