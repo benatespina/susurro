@@ -14,6 +14,7 @@ actor BackendProcess {
         case stopped
         case starting
         case ready(BackendClient)
+        case restarting(attempt: Int)
         case crashed(reason: String)
     }
 
@@ -21,12 +22,13 @@ actor BackendProcess {
     private var process: Process?
     private var stateContinuations: [AsyncStream<State>.Continuation] = []
     private var isStopping: Bool = false
+    private var restartAttempts: Int = 0
 
     func start() async throws {
         switch state {
         case .starting, .ready:
             return
-        case .stopped, .crashed:
+        case .stopped, .crashed, .restarting:
             break
         }
 
@@ -91,6 +93,7 @@ actor BackendProcess {
         let client = BackendClient(lockfile: lockfile)
         try await waitForHealth(client: client)
 
+        restartAttempts = 0
         await setState(.ready(client))
     }
 
@@ -140,12 +143,27 @@ actor BackendProcess {
             return
         }
         switch state {
-        case .stopped, .crashed:
+        case .stopped, .crashed, .restarting:
             break
         case .starting, .ready:
             let exitCode = process?.terminationStatus ?? -1
-            await setState(.crashed(reason: "process exited with code \(exitCode)"))
+            await scheduleRestart(reason: "process exited with code \(exitCode)")
         }
+    }
+
+    private func scheduleRestart(reason: String) async {
+        let maxAttempts = 3
+        guard restartAttempts < maxAttempts else {
+            await setState(.crashed(reason: "\(reason); max restart attempts reached"))
+            return
+        }
+        restartAttempts += 1
+        let attempt = restartAttempts
+        await setState(.restarting(attempt: attempt))
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        guard case .restarting = state else { return }
+        AppLogger.backend.info("auto-restart attempt \(attempt)/\(maxAttempts)")
+        try? await start()
     }
 
     private func waitForLockfile() async throws -> Lockfile {

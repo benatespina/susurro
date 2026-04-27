@@ -146,6 +146,44 @@ struct BackendClientTests {
     }
 }
 
+// MARK: - BackendProcess.State unit tests
+
+struct BackendProcessStateTests {
+    // BackendProcess.State is not Equatable (BackendClient in .ready prevents it),
+    // but we can verify pattern-matching behaviour for the cases we care about.
+
+    @Test func restartingAssociatedValueDistinction() {
+        let a = BackendProcess.State.restarting(attempt: 1)
+        let b = BackendProcess.State.restarting(attempt: 2)
+        // These are different attempts — confirm via pattern matching.
+        if case .restarting(let n) = a { #expect(n == 1) } else { Issue.record("Expected .restarting") }
+        if case .restarting(let n) = b { #expect(n == 2) } else { Issue.record("Expected .restarting") }
+        // They must differ.
+        if case .restarting(let na) = a, case .restarting(let nb) = b {
+            #expect(na != nb)
+        }
+    }
+
+    @Test func stateSendableCompileCheck() {
+        // BackendProcess.State is declared Sendable.  If this test compiles, the
+        // conformance is satisfied — no runtime assertion needed.
+        func acceptSendable<T: Sendable>(_ value: T) {}
+        acceptSendable(BackendProcess.State.stopped)
+        acceptSendable(BackendProcess.State.starting)
+        acceptSendable(BackendProcess.State.restarting(attempt: 1))
+        acceptSendable(BackendProcess.State.crashed(reason: "test"))
+    }
+
+    // NOTE: Full unit-test coverage of handleTermination / scheduleRestart is not
+    // practical without risky refactoring because both methods are private and
+    // intertwined with real Process spawning, a 2-second async sleep, and actor
+    // state.  To integration-test restart behaviour, run with
+    // SUSURRO_RUN_INTEGRATION=1 and extend startStopRealBackend to kill the
+    // Python child via `kill -9 <pid>` read from the lockfile, then assert the
+    // state stream passes through .restarting(attempt:1) before returning to
+    // .ready within ~30 s.
+}
+
 // MARK: - Integration tests (disabled by default)
 
 struct BackendIntegrationTests {

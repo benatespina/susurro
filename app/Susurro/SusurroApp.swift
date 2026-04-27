@@ -23,6 +23,12 @@ import SwiftUI
                 backend: appDelegate.backend,
                 onStop: { [weak appDelegate] in
                     Task { await appDelegate?.playbackCoordinator?.stop() }
+                },
+                onRestartBackend: { [weak appDelegate] in
+                    Task { [weak appDelegate] in
+                        await appDelegate?.backend.stop()
+                        try? await appDelegate?.backend.start()
+                    }
                 }
             )
             .environment(appDelegate.appState)

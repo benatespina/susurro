@@ -2,7 +2,10 @@ import Observation
 
 @MainActor @Observable
 final class AppState {
-    enum BackendStatus: Equatable { case unknown, starting, ready, crashed }
+    enum BackendStatus: Equatable {
+        case unknown, starting, ready, crashed
+        case restarting(attempt: Int)
+    }
     enum AccessibilityStatus { case unknown, denied, granted }
     var backendStatus: BackendStatus = .unknown
     var accessibilityStatus: AccessibilityStatus = .unknown
@@ -16,6 +19,8 @@ final class AppState {
             backendStatus = .starting
         case .ready:
             backendStatus = .ready
+        case .restarting(let attempt):
+            backendStatus = .restarting(attempt: attempt)
         case .crashed:
             backendStatus = .crashed
         }

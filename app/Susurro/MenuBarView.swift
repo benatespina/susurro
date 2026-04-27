@@ -4,12 +4,15 @@ struct MenuBarView: View {
     @Environment(AppState.self) private var appState
     let backend: BackendProcess
     let onStop: () -> Void
+    let onRestartBackend: () -> Void
 
     var body: some View {
         VStack(alignment: .leading) {
             backendStatusRow
             accessibilityStatusRow
             playbackRow
+            Divider()
+            DiagnosticsMenu(state: appState, onRestartBackend: onRestartBackend)
             Divider()
             Button("Quit Susurro") { NSApp.terminate(nil) }
         }
@@ -42,6 +45,11 @@ struct MenuBarView: View {
                     .fill(.green)
                     .frame(width: 8, height: 8)
                 Text("Backend: ready")
+            }
+        case .restarting(let attempt):
+            HStack(spacing: 4) {
+                ProgressView().controlSize(.mini)
+                Text("Backend: restarting (\(attempt)/3)…")
             }
         case .crashed:
             HStack(spacing: 4) {

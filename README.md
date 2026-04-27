@@ -1,34 +1,99 @@
-Susurro — local TTS for macOS via text selection. MVP in progress.
+# Susurro
+
+Local TTS for macOS. Select text in any app → click the floating button → hear it read aloud. No cloud, no subscription. Personal MVP.
+
+## Status
+
+Pre-release. Personal dogfood. Not distributed, not signed for App Store.
+
+## Architecture
+
+- **Backend** (`backend/`): Python FastAPI server serving local Chatterbox-Multilingual TTS via mlx-audio. Runs as child process of the Swift app.
+- **App** (`app/`): Swift macOS menu bar app. Detects text selection via Accessibility API, shows a floating button, plays generated WAV via AVAudioPlayer.
+
+## Requirements
+
+- macOS 26 Tahoe (Apple Silicon — M1+)
+- Xcode 26.4 + Swift 6.3
+- Homebrew Python 3.12 at `/opt/homebrew/bin/python3.12`
+
+## Build
+
+```bash
+cd backend
+python3.12 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+
+cd ../app
+xcodegen generate
+xcodebuild -project Susurro.xcodeproj -scheme Susurro -configuration Debug -derivedDataPath build build
+```
+
+## Run
+
+**Important**: launch via Launch Services so macOS routes Accessibility/TCC correctly:
+
+```bash
+open ./app/build/Build/Products/Debug/Susurro.app
+```
+
+Direct invocation of `Susurro.app/Contents/MacOS/Susurro` from a terminal can interfere with the native AX prompt.
+
+## First-run
+
+1. App launches, shows speaker icon in menu bar.
+2. Permission window appears — click "Open System Settings".
+3. Toggle Susurro on in Privacy & Security → Accessibility.
+4. Bring Susurro frontmost (click menu icon) → permission window auto-closes.
+5. Backend loads model on first launch (~10-15s, model cached after).
+
+## Usage
+
+- Select text in any supported app → floating button appears near selection
+- Click button → text is read aloud (Spanish or English auto-detected)
+- New click during playback → cancels current, starts new
+- Stop button in menu bar → interrupts playback
+- Cmd-Q → clean shutdown (stops backend)
+
+## Supported apps (tested)
+
+- Safari (HTML, PDF)
+- Notes
+- Preview (PDF)
+- Terminal (with Secure Keyboard Entry **off**)
+
+## Known issues
+
+- **Slack and other Electron apps**: `kAXSelectedTextChangedNotification` is unreliable; the panel's mouse-up fallback usually still works but bounds may be off → panel positions near the cursor.
+- **Long text latency**: Chatterbox doesn't support streaming generation, so the full WAV is produced before playback starts. ~6s wait for ~10s of audio. Use shorter selections for snappier response. Sentence chunking is a planned follow-up.
+- **TCC entry invalidates on rebuild**: ad-hoc-signed binaries identify by CDHash; every rebuild changes it. After rebuild you'll need to re-grant Accessibility:
+  ```
+  tccutil reset Accessibility com.benatespina.susurro
+  ```
+  Then relaunch and accept the prompt again. Future improvement: use a stable self-signed identity.
+- **Terminal**: requires `Terminal → "Secure Keyboard Entry"` off.
+
+## Diagnostics
+
+The menu bar has a Diagnostics submenu:
+- Show backend logs (opens Console.app)
+- Reveal lockfile in Finder
+- Restart backend manually
+- Copy diagnostics to clipboard (paste into bug reports)
+
+Backend writes a lockfile at `~/Library/Application Support/Susurro/backend.lock` containing port + bearer token. Cached models live in `~/Library/Application Support/Susurro/models/`.
 
 ## Resetting Accessibility for testing
 
-Susurro is registered with TCC under bundle ID `com.benatespina.susurro`. To force the
-permission flow again for testing:
+```
+tccutil reset Accessibility com.benatespina.susurro
+```
 
-    tccutil reset Accessibility com.benatespina.susurro
+Then relaunch.
 
-Then relaunch Susurro.
+## Architecture decisions
 
-## Known Issues (Phase 6)
-
-### Per-app AX API findings
-
-The AX spike could not be executed from the command line (`xcrun swift` runs as an untrusted process). Findings below are based on documented macOS AX behaviour and in-app testing.
-
-**Safari (HTML)** — `kAXSelectedTextAttribute` works. `AXSelectedTextBounds` available via `kAXBoundsForRangeParameterizedAttribute` fallback when the direct attribute is missing. Panel positioning works.
-
-**Safari (PDF)** — PDF plugin uses a different AX tree; `kAXSelectedTextAttribute` may return an empty string for PDF text selections in some Safari versions. Panel falls back to mouse-cursor positioning when bounds are nil.
-
-**Slack** — Electron-based. `AXSelectedTextBounds` is typically absent; the `kAXBoundsForRangeParameterizedAttribute` fallback also often fails. Panel appears near the mouse cursor. Known limitation.
-
-**Notes** — Full AX support. `kAXSelectedTextAttribute` and bounds both available. Panel positions correctly above/below selection.
-
-**Preview (PDF)** — PDFKit exposes `kAXSelectedTextAttribute` on the PDF view element. Bounds available via `kAXBoundsForRangeParameterizedAttribute`. Panel positioning works.
-
-**Terminal** — `kAXSelectedTextAttribute` returns the selected text when Secure Keyboard Entry is **disabled**. With Secure Keyboard Entry enabled (Terminal → Secure Keyboard Entry), AX reads are blocked entirely and the panel will not appear. To test: disable via Terminal menu → uncheck "Secure Keyboard Entry".
-
-### General limitations
-
-- `kAXSelectedTextChangedNotification` fires on the app-level AX element for most apps. Some apps (notably Electron apps like Slack) do not fire this notification reliably. The observer also subscribes to the focused window element as a fallback.
-- Rapid selection changes are rate-limited to at most one panel update per 50 ms to avoid excessive AX reads.
-- Panel bounds positioning uses the global AX coordinate system (top-left origin). The `PanelPositioner` converts to Cocoa bottom-left coordinates. Some apps return bounds in an unexpected coordinate space; the panel may appear slightly misaligned in those cases.
+- **Local-only TTS**: Python FastAPI + Chatterbox-Multilingual via mlx-audio runs entirely on device; no cloud calls, no subscription.
+- **Child-process backend**: The Swift app spawns the Python server as a child process and communicates via a lockfile (`backend.lock`) that carries port + bearer token; this avoids a launchd daemon and keeps the two processes tightly coupled to the app lifecycle.
+- **Accessibility API for selection detection**: Text selection is captured via `kAXSelectedTextChangedNotification` rather than a global keyboard shortcut, so it works across any app without requiring Input Monitoring permission.
+- **Floating-button UX**: A small borderless window appears near the selection bounds and dismisses automatically, keeping the interaction lightweight and non-intrusive.
+- **Restart policy**: The backend auto-restarts up to three times on unexpected exit (with a 2-second back-off) before entering a permanent `.crashed` state visible in the menu bar.
