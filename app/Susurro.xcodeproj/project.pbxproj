@@ -13,6 +13,7 @@
 		0B851284326536C287346916 /* SelectionReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3EC8D0AE60105669D2E128A /* SelectionReaderTests.swift */; };
 		10536B68C9C3B043F4282591 /* PanelPositioner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0D54F8279EA5840ACB6EA3 /* PanelPositioner.swift */; };
 		1CB5E01E1DBCF5F653916558 /* AccessibilityPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F68DF7F4E55F0D3C431D5E7 /* AccessibilityPermission.swift */; };
+		281EA51ABC606C15DCDAAF93 /* PlaybackCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D275F65A78100F5AEC139ED /* PlaybackCoordinatorTests.swift */; };
 		35723048FD8093B09ECE82F7 /* PermissionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23560E679E1BCEE96C6197B3 /* PermissionCoordinator.swift */; };
 		449C34B48F54E84EAD7C0984 /* BackendProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECC3E034930CEA0A13CD4CB9 /* BackendProcess.swift */; };
 		5307A5F0CE739BED8FF4E000 /* PanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873D1F69608895E123A8D6FC /* PanelController.swift */; };
@@ -22,6 +23,7 @@
 		8E1C8BF6F218A301D0AC304C /* PermissionWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6A7B83C6B89CC2599DDE044 /* PermissionWindow.swift */; };
 		A233636E3438EFC1D58BE900 /* AccessibilityPermissionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EFE953F37BB457E966830CF /* AccessibilityPermissionTests.swift */; };
 		A2812E7BDC5FFBE8074A4350 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 914A132B59FC2B0FD7A9A2E3 /* AppStateTests.swift */; };
+		B02BF00A400FE627995DA36E /* PlaybackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F458D52C278864FCEBC915 /* PlaybackCoordinator.swift */; };
 		B5520466B0F9A6B5FC3D245E /* BackendProcessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A36E4C7E534D1021B0B99611 /* BackendProcessTests.swift */; };
 		CE506843F7D8A6E856FD459F /* SelectionReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBC21D43392AD604C426CBC7 /* SelectionReader.swift */; };
 		F6DBA5F2F7B810874B8B4CBC /* SelectionObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 231B243B6DF5B6D310D7F80D /* SelectionObserver.swift */; };
@@ -59,10 +61,12 @@
 		84A0E093A4F12DCF05C29F9B /* FloatingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanel.swift; sourceTree = "<group>"; };
 		873D1F69608895E123A8D6FC /* PanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelController.swift; sourceTree = "<group>"; };
 		914A132B59FC2B0FD7A9A2E3 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
+		9D275F65A78100F5AEC139ED /* PlaybackCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinatorTests.swift; sourceTree = "<group>"; };
 		A36E4C7E534D1021B0B99611 /* BackendProcessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendProcessTests.swift; sourceTree = "<group>"; };
 		A6A7B83C6B89CC2599DDE044 /* PermissionWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionWindow.swift; sourceTree = "<group>"; };
 		B14D602A59AFD8E07526996B /* Susurro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Susurro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BA2C69786A97D2FD135087F5 /* SusurroApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SusurroApp.swift; sourceTree = "<group>"; };
+		C8F458D52C278864FCEBC915 /* PlaybackCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinator.swift; sourceTree = "<group>"; };
 		D3EC8D0AE60105669D2E128A /* SelectionReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionReaderTests.swift; sourceTree = "<group>"; };
 		DBC21D43392AD604C426CBC7 /* SelectionReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionReader.swift; sourceTree = "<group>"; };
 		ECC3E034930CEA0A13CD4CB9 /* BackendProcess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendProcess.swift; sourceTree = "<group>"; };
@@ -79,6 +83,15 @@
 				4322ABB9A3F040AFB47572B2 /* PanelPositionerTests.swift */,
 			);
 			path = Panel;
+			sourceTree = "<group>";
+		};
+		210262572B5A722B59F7E900 /* Playback */ = {
+			isa = PBXGroup;
+			children = (
+				C8F458D52C278864FCEBC915 /* PlaybackCoordinator.swift */,
+				9D275F65A78100F5AEC139ED /* PlaybackCoordinatorTests.swift */,
+			);
+			path = Playback;
 			sourceTree = "<group>";
 		};
 		435C31EE73E4CA7F1ED9ED7A /* Selection */ = {
@@ -143,6 +156,7 @@
 				AA5405596110305D0D271723 /* Accessibility */,
 				6C0F23C7037FB9DD5D1893EB /* Backend */,
 				08F41DA4B5E88FBA80EAF3CE /* Panel */,
+				210262572B5A722B59F7E900 /* Playback */,
 				435C31EE73E4CA7F1ED9ED7A /* Selection */,
 			);
 			path = Susurro;
@@ -241,6 +255,7 @@
 				10536B68C9C3B043F4282591 /* PanelPositioner.swift in Sources */,
 				35723048FD8093B09ECE82F7 /* PermissionCoordinator.swift in Sources */,
 				8E1C8BF6F218A301D0AC304C /* PermissionWindow.swift in Sources */,
+				B02BF00A400FE627995DA36E /* PlaybackCoordinator.swift in Sources */,
 				F6DBA5F2F7B810874B8B4CBC /* SelectionObserver.swift in Sources */,
 				CE506843F7D8A6E856FD459F /* SelectionReader.swift in Sources */,
 				68B16A789DE1E93D0CFBB9F1 /* SusurroApp.swift in Sources */,
@@ -255,6 +270,7 @@
 				A2812E7BDC5FFBE8074A4350 /* AppStateTests.swift in Sources */,
 				B5520466B0F9A6B5FC3D245E /* BackendProcessTests.swift in Sources */,
 				07D47CA272A50AEA9C996256 /* PanelPositionerTests.swift in Sources */,
+				281EA51ABC606C15DCDAAF93 /* PlaybackCoordinatorTests.swift in Sources */,
 				0B851284326536C287346916 /* SelectionReaderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

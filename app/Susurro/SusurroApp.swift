@@ -19,8 +19,13 @@ import SwiftUI
 
     var body: some Scene {
         MenuBarExtra("Susurro", systemImage: "speaker.wave.2") {
-            MenuBarView(backend: appDelegate.backend)
-                .environment(appDelegate.appState)
+            MenuBarView(
+                backend: appDelegate.backend,
+                onStop: { [weak appDelegate] in
+                    Task { await appDelegate?.playbackCoordinator?.stop() }
+                }
+            )
+            .environment(appDelegate.appState)
         }
     }
 }
@@ -29,6 +34,7 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let backend = BackendProcess()
     let appState = AppState()
+    var playbackCoordinator: PlaybackCoordinator?
     private var permissionCoordinator: PermissionCoordinator?
     private var selectionObserver: SelectionObserver?
     private var panelController: PanelController?
@@ -37,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSigtermHandler()
         permissionCoordinator = PermissionCoordinator(appState: appState)
+        playbackCoordinator = PlaybackCoordinator(backend: backend)
         Task { [weak self] in
             guard let self else { return }
             do {
@@ -51,6 +58,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await MainActor.run {
                     self.appState.update(from: state)
                 }
+            }
+        }
+        Task { [weak self] in
+            guard let self, let pc = self.playbackCoordinator else { return }
+            for await playing in await pc.playingStates() {
+                await MainActor.run { self.appState.isPlaying = playing }
             }
         }
         startSelectionSystemWhenPermitted()
@@ -79,8 +92,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard selectionObserver == nil else { return }
         selectionObserver = SelectionObserver()
         panelController = PanelController(observer: selectionObserver!)
-        panelController?.onRead = { text in
+        panelController?.onRead = { [weak self] text in
             AppLogger.selection.info("read requested for: \(text.prefix(60), privacy: .public)")
+            Task { await self?.playbackCoordinator?.read(text: text) }
         }
         AppLogger.selection.info("selection system activated")
     }

@@ -3,14 +3,26 @@ import SwiftUI
 struct MenuBarView: View {
     @Environment(AppState.self) private var appState
     let backend: BackendProcess
+    let onStop: () -> Void
 
     var body: some View {
         VStack(alignment: .leading) {
             backendStatusRow
             accessibilityStatusRow
-            Text("Playing: \(appState.isPlaying ? "yes" : "no")")
+            playbackRow
             Divider()
             Button("Quit Susurro") { NSApp.terminate(nil) }
+        }
+    }
+
+    @ViewBuilder
+    private var playbackRow: some View {
+        if appState.isPlaying {
+            HStack(spacing: 4) {
+                Text("Playing…")
+                Button("Stop", action: onStop)
+                    .buttonStyle(.borderless)
+            }
         }
     }
 
