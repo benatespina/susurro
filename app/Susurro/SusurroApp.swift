@@ -80,7 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         selectionObserver = SelectionObserver()
         panelController = PanelController(observer: selectionObserver!)
         panelController?.onRead = { text in
-            AppLogger.selection.info("read requested for: \(text.prefix(60))")
+            AppLogger.selection.info("read requested for: \(text.prefix(60), privacy: .public)")
         }
         AppLogger.selection.info("selection system activated")
     }

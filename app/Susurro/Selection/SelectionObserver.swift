@@ -13,6 +13,8 @@ final class SelectionObserver {
     private var continuations: [UUID: AsyncStream<Event>.Continuation] = [:]
     private var lastEmit: ContinuousClock.Instant?
     private static let minimumEmitInterval: Duration = .milliseconds(50)
+    nonisolated(unsafe) private var globalMouseMonitor: Any?
+    private var lastSeenSelection: String?
 
     init() {
         let token = NSWorkspace.shared.notificationCenter.addObserver(
@@ -24,6 +26,7 @@ final class SelectionObserver {
             let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
             Task { @MainActor [weak self] in
                 guard let self, let pid else { return }
+                try? await Task.sleep(for: .milliseconds(200))
                 self.rebuild(forPid: pid)
             }
         }
@@ -31,12 +34,30 @@ final class SelectionObserver {
         if let app = NSWorkspace.shared.frontmostApplication {
             rebuild(forPid: app.processIdentifier)
         }
+
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                try? await Task.sleep(for: .milliseconds(80))
+                guard let selection = SelectionReader.current(), !selection.text.isEmpty else {
+                    self.lastSeenSelection = nil
+                    return
+                }
+                if selection.text != self.lastSeenSelection {
+                    self.lastSeenSelection = selection.text
+                    self.emit(.changed)
+                }
+            }
+        }
     }
 
     deinit {
         // workspaceObserverToken is AnyObject (not actor-isolated), safe from nonisolated deinit
         if let token = workspaceObserverToken {
             NSWorkspace.shared.notificationCenter.removeObserver(token)
+        }
+        if let monitor = globalMouseMonitor {
+            NSEvent.removeMonitor(monitor)
         }
         for continuation in continuations.values {
             continuation.finish()
