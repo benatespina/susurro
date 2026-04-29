@@ -14,6 +14,8 @@ final class SelectionObserver {
     private var lastEmit: ContinuousClock.Instant?
     private static let minimumEmitInterval: Duration = .milliseconds(50)
     nonisolated(unsafe) private var globalMouseMonitor: Any?
+    nonisolated(unsafe) private var globalMouseDownMonitor: Any?
+    private var isMouseDown: Bool = false
     private var lastSeenSelection: String?
 
     init() {
@@ -35,9 +37,16 @@ final class SelectionObserver {
             rebuild(forPid: app.processIdentifier)
         }
 
+        globalMouseDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.isMouseDown = true
+            }
+        }
+
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.isMouseDown = false
                 try? await Task.sleep(for: .milliseconds(80))
                 guard let selection = SelectionReader.current(), !selection.text.isEmpty else {
                     self.lastSeenSelection = nil
@@ -57,6 +66,9 @@ final class SelectionObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(token)
         }
         if let monitor = globalMouseMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        if let monitor = globalMouseDownMonitor {
             NSEvent.removeMonitor(monitor)
         }
         for continuation in continuations.values {
@@ -79,6 +91,7 @@ final class SelectionObserver {
     }
 
     fileprivate func emit(_ event: Event) {
+        if event == .changed, isMouseDown { return }
         let now = ContinuousClock.now
         if let last = lastEmit, now - last < Self.minimumEmitInterval {
             return

@@ -1,26 +1,31 @@
 import AppKit
 
 enum PanelPositioner {
-    static let panelOffset: CGFloat = 4
+    static let panelOffset: CGFloat = 8
 
     /// Computes the panel's bottom-left position (NSWindow origin) given the selection rect.
     ///
     /// `selectionRect` from AX uses a **top-left** origin in the global screen coordinate space.
     /// NSWindow uses a **bottom-left** origin. We convert here.
     ///
-    /// Placement: panel appears just below the selection, horizontally centered.
-    /// Clamped so the panel stays within the visible frame of `screen`.
+    /// Placement: prefer below the selection, horizontally centered. If the panel
+    /// would clip below the visible frame, place it above the selection instead.
     static func position(
         for selectionRect: CGRect,
         panelSize: CGSize,
         on screen: NSScreen
     ) -> CGPoint {
-        // AX bounds: origin is top-left of screen. Convert Y to Cocoa bottom-left:
-        // cocoaY = screen.frame.maxY - axRect.maxY
+        // AX bounds use top-left origin; convert to Cocoa bottom-left.
         let cocoaSelectionBottom = screen.frame.maxY - selectionRect.maxY
+        let cocoaSelectionTop = screen.frame.maxY - selectionRect.minY
 
         let x = selectionRect.midX - panelSize.width / 2
-        let y = cocoaSelectionBottom - panelSize.height - panelOffset
+        let yBelow = cocoaSelectionBottom - panelSize.height - panelOffset
+        let yAbove = cocoaSelectionTop + panelOffset
+
+        let visible = screen.visibleFrame
+        let preferAbove = yBelow < visible.minY
+        let y = preferAbove ? yAbove : yBelow
 
         return clamp(CGPoint(x: x, y: y), panelSize: panelSize, on: screen)
     }

@@ -37,8 +37,10 @@ enum SelectionReader {
     private static func readBounds(from element: AXUIElement) -> CGRect? {
         var boundsRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXSelectedTextBounds" as CFString, &boundsRef) == .success,
-           let boundsRef {
-            return cgRect(from: boundsRef as! AXValue) // swiftlint:disable:this force_cast
+           let boundsRef,
+           let rect = cgRect(from: boundsRef as! AXValue), // swiftlint:disable:this force_cast
+           isUsable(rect) {
+            return rect
         }
 
         var rangeRef: CFTypeRef?
@@ -56,6 +58,14 @@ enum SelectionReader {
               let paramBoundsRef
         else { return nil }
 
-        return cgRect(from: paramBoundsRef as! AXValue) // swiftlint:disable:this force_cast
+        guard let rect = cgRect(from: paramBoundsRef as! AXValue), // swiftlint:disable:this force_cast
+              isUsable(rect)
+        else { return nil }
+        return rect
+    }
+
+    private static func isUsable(_ rect: CGRect) -> Bool {
+        guard rect.width > 0, rect.height > 0 else { return false }
+        return NSScreen.screens.contains { $0.frame.intersects(rect) }
     }
 }

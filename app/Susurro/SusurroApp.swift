@@ -102,10 +102,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         accessibilityPollTask = nil
         guard selectionObserver == nil else { return }
         selectionObserver = SelectionObserver()
-        panelController = PanelController(observer: selectionObserver!)
+        panelController = PanelController(observer: selectionObserver!, appState: appState)
         panelController?.onRead = { [weak self] text in
             AppLogger.selection.info("read requested for: \(text.prefix(60), privacy: .public)")
             Task { await self?.playbackCoordinator?.read(text: text) }
+        }
+        panelController?.onStop = { [weak self] in
+            Task { await self?.playbackCoordinator?.stop() }
         }
         AppLogger.selection.info("selection system activated")
     }

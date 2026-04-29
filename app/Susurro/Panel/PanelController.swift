@@ -4,13 +4,16 @@ import SwiftUI
 @MainActor
 final class PanelController {
     private let observer: SelectionObserver
+    private let appState: AppState
     private var panel: FloatingPanel?
     private var observationTask: Task<Void, Never>?
     private var lastSelectionText: String?
     var onRead: ((String) -> Void)?
+    var onStop: (() -> Void)?
 
-    init(observer: SelectionObserver) {
+    init(observer: SelectionObserver, appState: AppState) {
         self.observer = observer
+        self.appState = appState
         startObserving()
         installGlobalMouseAndKeyMonitor()
     }
@@ -57,7 +60,7 @@ final class PanelController {
         }
         lastSelectionText = selection.text
 
-        let panelSize = CGSize(width: 44, height: 44)
+        let panelSize = CGSize(width: 38, height: 38)
         let screen = screenForSelection(bounds: selection.bounds)
         let position: CGPoint
         if let bounds = selection.bounds {
@@ -76,10 +79,15 @@ final class PanelController {
     }
 
     private func showPanel(at point: CGPoint, size: CGSize) {
-        let host = NSHostingView(rootView: PanelContent(onRead: { [weak self] in
-            guard let text = self?.lastSelectionText ?? SelectionReader.current()?.text else { return }
-            self?.onRead?(text)
-        }))
+        let content = PanelContent(
+            appState: appState,
+            onRead: { [weak self] in
+                guard let text = self?.lastSelectionText ?? SelectionReader.current()?.text else { return }
+                self?.onRead?(text)
+            },
+            onStop: { [weak self] in self?.onStop?() }
+        )
+        let host = NSHostingView(rootView: content)
         host.frame = NSRect(origin: .zero, size: size)
 
         if let panel {
