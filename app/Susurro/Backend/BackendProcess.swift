@@ -75,13 +75,13 @@ actor BackendProcess {
 
         Task {
             for await line in lines(from: stdoutPipe) {
-                AppLogger.backend.info("\(line)")
+                AppLogger.backend.info("\(line, privacy: .public)")
             }
         }
 
         Task {
             for await line in lines(from: stderrPipe) {
-                AppLogger.backend.error("\(line)")
+                AppLogger.backend.error("\(line, privacy: .public)")
             }
         }
 

@@ -1,9 +1,11 @@
 import os
+import re
 import threading
 from typing import AsyncIterator, Literal
-from xml.sax.saxutils import escape
 
 import httpx
+
+import susurro_backend.pronunciations as pronunciations
 
 VOICE_BY_LANG: dict[str, str] = {
     "es": "es-ES-AlvaroNeural",
@@ -39,11 +41,25 @@ def is_loaded() -> bool:
     return _loaded
 
 
-def _build_ssml(text: str, voice: str, lang_code: str) -> str:
+_PARAGRAPH_BREAK = '<break time="700ms"/>'
+_LINE_BREAK = '<break time="300ms"/>'
+
+
+def _inject_breaks(ssml_body: str) -> str:
+    body = re.sub(r"￼+", _PARAGRAPH_BREAK, ssml_body)
+    body = re.sub(r"(\r?\n[ \t]*){2,}", _PARAGRAPH_BREAK, body)
+    body = re.sub(r"\r?\n", _LINE_BREAK, body)
+    body = re.sub(r"([.!?])([A-ZÁÉÍÓÚÑ])", r"\1" + _PARAGRAPH_BREAK + r" \2", body)
+    return body
+
+
+def _build_ssml(text: str, voice: str, lang_code: str, language: str) -> str:
+    body = pronunciations.apply(text, language)
+    body = _inject_breaks(body)
     return (
-        f"<speak version='1.0' xml:lang='{lang_code}'>"
+        f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='{lang_code}'>"
         f"<voice xml:lang='{lang_code}' name='{voice}'>"
-        f"{escape(text)}"
+        f"{body}"
         "</voice>"
         "</speak>"
     )
@@ -60,7 +76,7 @@ async def synthesize_stream(text: str, language: Literal["es", "en"]) -> AsyncIt
 
     _cancel_flag.clear()
     voice = VOICE_BY_LANG[language]
-    ssml = _build_ssml(text, voice, _lang_code(language))
+    ssml = _build_ssml(text, voice, _lang_code(language), language)
 
     url = f"https://{_region}.tts.speech.microsoft.com/cognitiveservices/v1"
     headers = {
