@@ -17,6 +17,23 @@ Pre-release. Personal dogfood. Not distributed, not signed for App Store.
 - Xcode 26.4 + Swift 6.3
 - Homebrew Python 3.12 at `/opt/homebrew/bin/python3.12`
 
+## One-time setup: stable code-signing cert
+
+By default this project uses a self-signed cert called "Susurro Dev" so
+that rebuilds preserve the Accessibility (TCC) grant. To install it:
+
+```bash
+bash scripts/create_signing_cert.sh
+```
+
+You'll be prompted for your macOS password once (to trust the cert for code signing). Then rebuild:
+
+```bash
+cd app && xcodegen generate && xcodebuild -project Susurro.xcodeproj -scheme Susurro -configuration Debug -derivedDataPath build build
+```
+
+Re-grant Accessibility one final time after the first signed build. Subsequent rebuilds will keep the same TCC identity, so no re-grant needed.
+
 ## Build
 
 ```bash
@@ -65,11 +82,6 @@ Direct invocation of `Susurro.app/Contents/MacOS/Susurro` from a terminal can in
 
 - **Slack and other Electron apps**: `kAXSelectedTextChangedNotification` is unreliable; the panel's mouse-up fallback usually still works but bounds may be off → panel positions near the cursor.
 - **First-run voice download**: Piper downloads ~120 MB of voice models on first startup (Spanish + English). Subsequent launches are instant.
-- **TCC entry invalidates on rebuild**: ad-hoc-signed binaries identify by CDHash; every rebuild changes it. After rebuild you'll need to re-grant Accessibility:
-  ```
-  tccutil reset Accessibility com.benatespina.susurro
-  ```
-  Then relaunch and accept the prompt again. Future improvement: use a stable self-signed identity.
 - **Terminal**: requires `Terminal → "Secure Keyboard Entry"` off.
 
 ## Diagnostics
@@ -84,11 +96,13 @@ Backend writes a lockfile at `~/Library/Application Support/Susurro/backend.lock
 
 ## Resetting Accessibility for testing
 
+Only needed after the initial cert setup + first signed build, or when explicitly testing the AX prompt:
+
 ```
 tccutil reset Accessibility com.benatespina.susurro
 ```
 
-Then relaunch.
+Then relaunch. Subsequent rebuilds with the same "Susurro Dev" cert do not require re-granting.
 
 ## Architecture decisions
 
