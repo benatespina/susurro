@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuBarView: View {
     @Environment(AppState.self) private var appState
     let backend: BackendProcess
+    let settings: TTSSettings
     let onStop: () -> Void
     let onRestartBackend: () -> Void
 
@@ -12,6 +13,7 @@ struct MenuBarView: View {
             accessibilityStatusRow
             playbackRow
             Divider()
+            TTSMenu(settings: settings, onApply: onRestartBackend)
             DiagnosticsMenu(state: appState, onRestartBackend: onRestartBackend)
             Divider()
             Button("Quit Susurro") { NSApp.terminate(nil) }

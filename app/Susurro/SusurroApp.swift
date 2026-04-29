@@ -21,13 +21,16 @@ import SwiftUI
         MenuBarExtra("Susurro", systemImage: "speaker.wave.2") {
             MenuBarView(
                 backend: appDelegate.backend,
+                settings: appDelegate.ttsSettings,
                 onStop: { [weak appDelegate] in
                     Task { await appDelegate?.playbackCoordinator?.stop() }
                 },
                 onRestartBackend: { [weak appDelegate] in
-                    Task { [weak appDelegate] in
-                        await appDelegate?.backend.stop()
-                        try? await appDelegate?.backend.start()
+                    guard let appDelegate else { return }
+                    let env = appDelegate.ttsSettings.envVars()
+                    Task {
+                        await appDelegate.backend.stop()
+                        try? await appDelegate.backend.start(extraEnv: env)
                     }
                 }
             )
@@ -40,6 +43,7 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let backend = BackendProcess()
     let appState = AppState()
+    let ttsSettings = TTSSettings()
     var playbackCoordinator: PlaybackCoordinator?
     private var permissionCoordinator: PermissionCoordinator?
     private var selectionObserver: SelectionObserver?
@@ -50,10 +54,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installSigtermHandler()
         permissionCoordinator = PermissionCoordinator(appState: appState)
         playbackCoordinator = PlaybackCoordinator(backend: backend)
+        let env = ttsSettings.envVars()
         Task { [weak self] in
             guard let self else { return }
             do {
-                try await self.backend.start()
+                try await self.backend.start(extraEnv: env)
             } catch {
                 AppLogger.backend.error("backend start failed: \(error)")
             }

@@ -23,8 +23,9 @@ actor BackendProcess {
     private var stateContinuations: [AsyncStream<State>.Continuation] = []
     private var isStopping: Bool = false
     private var restartAttempts: Int = 0
+    private var lastExtraEnv: [String: String] = [:]
 
-    func start() async throws {
+    func start(extraEnv: [String: String] = [:]) async throws {
         switch state {
         case .starting, .ready:
             return
@@ -51,12 +52,15 @@ actor BackendProcess {
         proc.executableURL = URL(filePath: "/Users/benatespina/Developer/susurro/backend/.venv/bin/python")
         proc.arguments = ["-m", "susurro_backend"]
         proc.currentDirectoryURL = URL(filePath: "/Users/benatespina/Developer/susurro/backend")
-        proc.environment = [
+        var environment: [String: String] = [
             "HOME": ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory(),
             "PATH": "/opt/homebrew/bin:/usr/bin:/bin",
             "HF_HOME": hfHome,
             "SUSURRO_TTS_PROVIDER": "edge",
         ]
+        for (k, v) in extraEnv { environment[k] = v }
+        lastExtraEnv = extraEnv
+        proc.environment = environment
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
@@ -164,7 +168,7 @@ actor BackendProcess {
         try? await Task.sleep(nanoseconds: 2_000_000_000)
         guard case .restarting = state else { return }
         AppLogger.backend.info("auto-restart attempt \(attempt)/\(maxAttempts)")
-        try? await start()
+        try? await start(extraEnv: lastExtraEnv)
     }
 
     private func waitForLockfile() async throws -> Lockfile {
