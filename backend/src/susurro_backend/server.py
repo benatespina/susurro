@@ -10,16 +10,16 @@ from pydantic import BaseModel
 
 import susurro_backend.lang as lang
 
-_PROVIDER = os.environ.get("SUSURRO_TTS_PROVIDER", "piper").lower()
+_PROVIDER = os.environ.get("SUSURRO_TTS_PROVIDER", "edge").lower()
 
-if _PROVIDER == "edge":
+if _PROVIDER == "azure":
+    import susurro_backend.tts_azure as tts
+    from susurro_backend.tts_azure import GenerationCancelled
+else:
     import susurro_backend.tts_edge as tts
     from susurro_backend.tts_edge import GenerationCancelled
-    _MEDIA_TYPE = "audio/mpeg"
-else:
-    import susurro_backend.tts as tts
-    from susurro_backend.tts import GenerationCancelled
-    _MEDIA_TYPE = "audio/wav"
+
+_MEDIA_TYPE = "audio/mpeg"
 
 _PROFILE = os.environ.get("SUSURRO_PROFILE") == "1"
 
