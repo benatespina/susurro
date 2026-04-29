@@ -48,13 +48,24 @@ actor PlaybackCoordinator {
             return
         }
 
+        let url = client.streamingTTSURL(text: text, language: nil)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 30
+
         let data: Data
         do {
-            data = try await client.tts(text: text, language: nil)
+            let (d, response) = try await URLSession.shared.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard status == 200 else {
+                AppLogger.playback.error("tts stream http=\(status, privacy: .public)")
+                return
+            }
+            data = d
         } catch is CancellationError {
             return
         } catch {
-            AppLogger.playback.error("tts fetch failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.playback.error("tts stream fetch failed: \(error.localizedDescription, privacy: .public)")
             return
         }
 

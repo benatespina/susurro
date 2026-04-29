@@ -35,6 +35,17 @@ struct BackendClient: Sendable {
         }
     }
 
+    func streamingTTSURL(text: String, language: String?) -> URL {
+        var components = URLComponents(url: baseURL.appending(path: "tts/stream"), resolvingAgainstBaseURL: false)!
+        var items = [
+            URLQueryItem(name: "text", value: text),
+            URLQueryItem(name: "token", value: token),
+        ]
+        if let language { items.append(URLQueryItem(name: "language", value: language)) }
+        components.queryItems = items
+        return components.url!
+    }
+
     func tts(text: String, language: String?) async throws -> Data {
         var request = URLRequest(
             url: baseURL.appending(path: "tts"),

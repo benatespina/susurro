@@ -67,3 +67,10 @@ def synthesize(text: str, language: Literal["es", "en"]) -> bytes:
 
 def request_cancel() -> None:
     _cancel_flag.set()
+
+
+async def synthesize_stream(text: str, language):
+    import asyncio as _asyncio
+    loop = _asyncio.get_event_loop()
+    data = await loop.run_in_executor(None, synthesize, text, language)
+    yield data

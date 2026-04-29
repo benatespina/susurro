@@ -55,6 +55,7 @@ actor BackendProcess {
             "HOME": ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory(),
             "PATH": "/opt/homebrew/bin:/usr/bin:/bin",
             "HF_HOME": hfHome,
+            "SUSURRO_TTS_PROVIDER": "edge",
         ]
 
         let stdoutPipe = Pipe()

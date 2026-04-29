@@ -4,12 +4,22 @@ import time
 from contextlib import asynccontextmanager
 from typing import Optional, Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 import susurro_backend.lang as lang
-import susurro_backend.tts as tts
-from susurro_backend.tts import GenerationCancelled
+
+_PROVIDER = os.environ.get("SUSURRO_TTS_PROVIDER", "piper").lower()
+
+if _PROVIDER == "edge":
+    import susurro_backend.tts_edge as tts
+    from susurro_backend.tts_edge import GenerationCancelled
+    _MEDIA_TYPE = "audio/mpeg"
+else:
+    import susurro_backend.tts as tts
+    from susurro_backend.tts import GenerationCancelled
+    _MEDIA_TYPE = "audio/wav"
 
 _PROFILE = os.environ.get("SUSURRO_PROFILE") == "1"
 
@@ -26,6 +36,11 @@ class TTSRequest(BaseModel):
 def verify_token(authorization: Optional[str] = Header(None)) -> None:
     expected = f"Bearer {_expected_token}"
     if authorization != expected:
+        raise HTTPException(status_code=401)
+
+
+def verify_token_query(token: Optional[str] = Query(None)) -> None:
+    if token != _expected_token:
         raise HTTPException(status_code=401)
 
 
@@ -58,7 +73,7 @@ def create_app(token: str) -> FastAPI:
         resolved_language = request.language or lang.detect(request.text)
         logger.info("tts language=%s text=%.60s", resolved_language, request.text)
         try:
-            wav_bytes = tts.synthesize(request.text, resolved_language)
+            audio_bytes = tts.synthesize(request.text, resolved_language)
         except GenerationCancelled:
             return Response(
                 content='{"error": "cancelled"}',
@@ -68,7 +83,34 @@ def create_app(token: str) -> FastAPI:
         if _PROFILE:
             total_ms = (time.perf_counter() - t0) * 1000
             print(f"[PROFILE] /tts handler total={total_ms:.0f}ms", flush=True)
-        return Response(content=wav_bytes, media_type="audio/wav")
+        return Response(content=audio_bytes, media_type=_MEDIA_TYPE)
+
+    @app.get("/tts/stream")
+    async def synthesize_stream_endpoint(
+        text: str = Query(...),
+        language: Optional[Literal["es", "en"]] = Query(None),
+        _: None = Depends(verify_token_query),
+    ):
+        t0 = time.perf_counter()
+        resolved_language = language or lang.detect(text)
+        logger.info("tts/stream language=%s text=%.60s", resolved_language, text)
+
+        async def gen():
+            first_chunk_logged = False
+            try:
+                async for chunk in tts.synthesize_stream(text, resolved_language):
+                    if _PROFILE and not first_chunk_logged:
+                        ttfb_ms = (time.perf_counter() - t0) * 1000
+                        print(f"[PROFILE] /tts/stream ttfb={ttfb_ms:.0f}ms", flush=True)
+                        first_chunk_logged = True
+                    yield chunk
+            except GenerationCancelled:
+                return
+            if _PROFILE:
+                total_ms = (time.perf_counter() - t0) * 1000
+                print(f"[PROFILE] /tts/stream total={total_ms:.0f}ms", flush=True)
+
+        return StreamingResponse(gen(), media_type=_MEDIA_TYPE)
 
     @app.post("/stop", status_code=204)
     def stop(_: None = Depends(verify_token)):

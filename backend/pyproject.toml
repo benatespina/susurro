@@ -10,6 +10,7 @@ dependencies = [
     "fastapi",
     "uvicorn[standard]",
     "piper-tts",
+    "edge-tts",
     "lingua-language-detector",
     "numpy",
     "soundfile",
