@@ -14,7 +14,7 @@ final class FloatingPanel: NSPanel {
         hidesOnDeactivate = false
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = true
+        hasShadow = false
         contentView = content
     }
 
