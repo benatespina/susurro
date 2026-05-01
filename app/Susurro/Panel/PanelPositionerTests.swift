@@ -80,6 +80,82 @@ struct PanelPositionerTests {
         #expect(point.y >= screen.visibleFrame.minY)
     }
 
+    // MARK: - Pill size (92×36) tests
+
+    @Test("pill — horizontally centered on selection midX")
+    func pillHorizontallyCentered() {
+        guard let screen = NSScreen.main else { return }
+        let screenFrame = screen.frame
+        let pillSize = CGSize(width: 92, height: 36)
+        // Selection in the middle of the screen with known midX
+        let selectionRect = CGRect(
+            x: screenFrame.midX - 60,
+            y: screenFrame.height / 2 - 10,
+            width: 120,
+            height: 20
+        )
+        let point = PanelPositioner.position(for: selectionRect, panelSize: pillSize, on: screen)
+        let expectedX = selectionRect.midX - pillSize.width / 2
+        // X should be centered (not clamped, since the selection is in the middle)
+        #expect(abs(point.x - expectedX) < 1)
+        // Panel is within visible frame
+        #expect(point.x >= screen.visibleFrame.minX)
+        #expect(point.x + pillSize.width <= screen.visibleFrame.maxX)
+        #expect(point.y >= screen.visibleFrame.minY)
+        #expect(point.y + pillSize.height <= screen.visibleFrame.maxY)
+    }
+
+    @Test("pill — clamps to left edge when selection is near left")
+    func pillClampsAtLeftEdge() {
+        guard let screen = NSScreen.main else { return }
+        let screenFrame = screen.frame
+        let pillSize = CGSize(width: 92, height: 36)
+        // Selection at the far left — pill would go off-screen without clamping
+        let selectionRect = CGRect(
+            x: screenFrame.minX,
+            y: screenFrame.height / 2,
+            width: 10,
+            height: 20
+        )
+        let point = PanelPositioner.position(for: selectionRect, panelSize: pillSize, on: screen)
+        #expect(point.x >= screen.visibleFrame.minX)
+        #expect(point.x + pillSize.width <= screen.visibleFrame.maxX)
+    }
+
+    @Test("pill — clamps to right edge when selection is near right")
+    func pillClampsAtRightEdge() {
+        guard let screen = NSScreen.main else { return }
+        let screenFrame = screen.frame
+        let pillSize = CGSize(width: 92, height: 36)
+        // Selection at the far right — pill would go off-screen without clamping
+        let selectionRect = CGRect(
+            x: screenFrame.maxX - 10,
+            y: screenFrame.height / 2,
+            width: 100,
+            height: 20
+        )
+        let point = PanelPositioner.position(for: selectionRect, panelSize: pillSize, on: screen)
+        #expect(point.x + pillSize.width <= screen.visibleFrame.maxX)
+    }
+
+    @Test("pill — flips above selection when bottom-clipped")
+    func pillFlipsAboveWhenBottomClipped() {
+        guard let screen = NSScreen.main else { return }
+        let screenFrame = screen.frame
+        let pillSize = CGSize(width: 92, height: 36)
+        // AX top-left Y near bottom of screen so panel would be clipped below
+        let selectionRect = CGRect(
+            x: screenFrame.midX - 50,
+            y: screenFrame.height - 5,
+            width: 100,
+            height: 10
+        )
+        let point = PanelPositioner.position(for: selectionRect, panelSize: pillSize, on: screen)
+        // Regardless of flip direction, must stay within visible frame
+        #expect(point.y >= screen.visibleFrame.minY)
+        #expect(point.y + pillSize.height <= screen.visibleFrame.maxY)
+    }
+
     @Test("multi-display: coordinates relative to the given non-main screen")
     func multiDisplayNonMainScreen() {
         let screens = NSScreen.screens

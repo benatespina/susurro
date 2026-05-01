@@ -8,13 +8,14 @@ final class FloatingPanel: NSPanel {
             backing: .buffered,
             defer: false
         )
-        level = .floating
+        level = .statusBar
         isFloatingPanel = true
         becomesKeyOnlyIfNeeded = true
         hidesOnDeactivate = false
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         contentView = content
     }
 

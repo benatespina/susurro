@@ -60,7 +60,10 @@ final class PanelController {
         }
         lastSelectionText = selection.text
 
-        let panelSize = CGSize(width: 80, height: 60)
+        // Fixed pill size: 92×36. Width shift between "Read"/"Stop" states is small (~4pt)
+        // and appState isn't observed here reactively, so a single fixed size is used.
+        // TODO: make dynamic (92 idle / 88 playing) once PanelController reacts to appState changes.
+        let panelSize = CGSize(width: 92, height: 36)
         let screen = screenForSelection(bounds: selection.bounds)
         let position: CGPoint
         if let bounds = selection.bounds {
