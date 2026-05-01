@@ -197,13 +197,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AppLogger.selection.info("read requested for: \(text.prefix(60), privacy: .public)")
             Task { @MainActor in
                 guard let self, let coordinator = self.playbackCoordinator else { return }
-                if text.count >= 600 {
-                    TranscriptWindowController.show(
-                        coordinator: coordinator,
-                        backend: self.backend,
-                        settings: self.ttsSettings
-                    )
-                }
                 await coordinator.read(text: text)
             }
         }
@@ -228,13 +221,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     resolved: resolved, clipboardURL: fallback
                 )
                 AppLogger.app.info("read source title=\(content.title ?? "-", privacy: .public) chars=\(content.text.count, privacy: .public)")
-                await MainActor.run {
-                    TranscriptWindowController.show(
-                        coordinator: coordinator,
-                        backend: self.backend,
-                        settings: self.ttsSettings
-                    )
-                }
                 await coordinator.read(text: content.text)
             } catch {
                 AppLogger.app.error("read source failed: \(error.localizedDescription, privacy: .public)")
