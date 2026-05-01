@@ -6,6 +6,7 @@ from typing import AsyncIterator, Literal
 import httpx
 
 import susurro_backend.pronunciations as pronunciations
+from susurro_backend.chunking import chunk_text as _chunk_text
 
 VOICE_BY_LANG: dict[str, str] = {
     "es": "es-ES-AlvaroNeural",
@@ -69,6 +70,31 @@ def _lang_code(language: str) -> str:
     return {"es": "es-ES", "en": "en-US"}[language]
 
 
+def _azure_url() -> str:
+    return f"https://{_region}.tts.speech.microsoft.com/cognitiveservices/v1"
+
+
+def _azure_headers() -> dict[str, str]:
+    assert _key
+    return {
+        "Ocp-Apim-Subscription-Key": _key,
+        "Content-Type": "application/ssml+xml",
+        "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
+        "User-Agent": "susurro",
+    }
+
+
+async def _stream_one(client: httpx.AsyncClient, ssml: str) -> AsyncIterator[bytes]:
+    async with client.stream("POST", _azure_url(), headers=_azure_headers(), content=ssml.encode("utf-8")) as response:
+        response.raise_for_status()
+        async for chunk in response.aiter_bytes():
+            if _cancel_flag.is_set():
+                _cancel_flag.clear()
+                raise GenerationCancelled()
+            if chunk:
+                yield chunk
+
+
 async def synthesize_stream(text: str, language: Literal["es", "en"]) -> AsyncIterator[bytes]:
     if not _loaded:
         raise RuntimeError("Provider not initialized — call load_model() first")
@@ -76,25 +102,41 @@ async def synthesize_stream(text: str, language: Literal["es", "en"]) -> AsyncIt
 
     _cancel_flag.clear()
     voice = VOICE_BY_LANG[language]
-    ssml = _build_ssml(text, voice, _lang_code(language), language)
+    lang_code = _lang_code(language)
 
-    url = f"https://{_region}.tts.speech.microsoft.com/cognitiveservices/v1"
-    headers = {
-        "Ocp-Apim-Subscription-Key": _key,
-        "Content-Type": "application/ssml+xml",
-        "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
-        "User-Agent": "susurro",
-    }
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
+        for piece in _chunk_text(text):
+            if _cancel_flag.is_set():
+                _cancel_flag.clear()
+                raise GenerationCancelled()
+            ssml = _build_ssml(piece, voice, lang_code, language)
+            async for chunk in _stream_one(client, ssml):
+                yield chunk
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
-        async with client.stream("POST", url, headers=headers, content=ssml.encode("utf-8")) as response:
-            response.raise_for_status()
-            async for chunk in response.aiter_bytes():
-                if _cancel_flag.is_set():
-                    _cancel_flag.clear()
-                    raise GenerationCancelled()
-                if chunk:
-                    yield chunk
+
+async def synthesize_chunked(text: str, language: Literal["es", "en"]) -> AsyncIterator[bytes]:
+    """
+    Yields one self-contained MP3 per text chunk for incremental playback.
+    """
+    if not _loaded:
+        raise RuntimeError("Provider not initialized — call load_model() first")
+    assert _key and _region
+
+    _cancel_flag.clear()
+    voice = VOICE_BY_LANG[language]
+    lang_code = _lang_code(language)
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
+        for piece in _chunk_text(text):
+            if _cancel_flag.is_set():
+                _cancel_flag.clear()
+                raise GenerationCancelled()
+            ssml = _build_ssml(piece, voice, lang_code, language)
+            buf = bytearray()
+            async for chunk in _stream_one(client, ssml):
+                buf.extend(chunk)
+            if buf:
+                yield bytes(buf)
 
 
 def synthesize(text: str, language: Literal["es", "en"]) -> bytes:

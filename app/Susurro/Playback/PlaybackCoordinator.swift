@@ -1,11 +1,12 @@
-import AVFAudio
+import AVFoundation
 import Foundation
 import os
 
 actor PlaybackCoordinator {
     private let backend: BackendProcess
     private var currentTask: Task<Void, Never>?
-    private var currentPlayer: AVAudioPlayer?
+    private var currentPlayer: AVQueuePlayer?
+    private var currentTempDir: URL?
     private var stateContinuations: [AsyncStream<Bool>.Continuation] = []
 
     init(backend: BackendProcess) {
@@ -25,8 +26,18 @@ actor PlaybackCoordinator {
         currentTask?.cancel()
         currentTask = nil
 
-        currentPlayer?.stop()
+        if let player = currentPlayer {
+            await MainActor.run {
+                player.pause()
+                player.removeAllItems()
+            }
+        }
         currentPlayer = nil
+
+        if let dir = currentTempDir {
+            try? FileManager.default.removeItem(at: dir)
+        }
+        currentTempDir = nil
 
         if case .ready(let client) = await backend.state {
             try? await client.stop()
@@ -48,75 +59,108 @@ actor PlaybackCoordinator {
             return
         }
 
-        let url = client.streamingTTSURL(text: text, language: nil)
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 30
-
-        let data: Data
+        let request: URLRequest
         do {
-            let (d, response) = try await URLSession.shared.data(for: request)
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            guard status == 200 else {
-                AppLogger.playback.error("tts stream http=\(status, privacy: .public)")
-                return
-            }
-            data = d
+            request = try client.streamingTTSRequest(text: text, language: nil)
+        } catch {
+            AppLogger.playback.error("tts stream request build failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+
+        let asyncBytes: URLSession.AsyncBytes
+        let response: URLResponse
+        do {
+            (asyncBytes, response) = try await URLSession.shared.bytes(for: request)
         } catch is CancellationError {
             return
         } catch {
-            AppLogger.playback.error("tts stream fetch failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.playback.error("tts stream open failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            AppLogger.playback.error("tts stream http=\(status, privacy: .public)")
             return
         }
 
-        if Task.isCancelled { return }
-
-        let player: AVAudioPlayer
-        do {
-            player = try AVAudioPlayer(data: data)
-        } catch {
-            AppLogger.playback.error("audio player init failed: \(error.localizedDescription, privacy: .public)")
-            return
-        }
-
+        let player = await MainActor.run { AVQueuePlayer() }
         currentPlayer = player
-        emitPlaying(true)
 
-        let didFinish = await playUntilFinished(player: player)
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("susurro-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        currentTempDir = tempDir
+
+        var iter = asyncBytes.makeAsyncIterator()
+        var fileIndex = 0
+        var startedPlaying = false
+
+        readLoop: while !Task.isCancelled {
+            guard let lenBytes = await readExact(4, from: &iter) else { break }
+            let length = (UInt32(lenBytes[0]) << 24)
+                | (UInt32(lenBytes[1]) << 16)
+                | (UInt32(lenBytes[2]) << 8)
+                | UInt32(lenBytes[3])
+            if length == 0 { break }
+            guard let chunk = await readExact(Int(length), from: &iter) else { break }
+
+            let url = tempDir.appendingPathComponent("\(fileIndex).mp3")
+            fileIndex += 1
+            do {
+                try chunk.write(to: url)
+            } catch {
+                AppLogger.playback.error("tts chunk write failed: \(error.localizedDescription, privacy: .public)")
+                continue readLoop
+            }
+
+            let item = AVPlayerItem(url: url)
+            await MainActor.run {
+                player.insert(item, after: nil)
+                if !startedPlaying {
+                    player.play()
+                }
+            }
+            if !startedPlaying {
+                startedPlaying = true
+                emitPlaying(true)
+            }
+        }
+
+        if Task.isCancelled {
+            return
+        }
+
+        while !Task.isCancelled {
+            let remaining = await MainActor.run { player.items().count }
+            if remaining == 0 { break }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+
         currentPlayer = nil
+        try? FileManager.default.removeItem(at: tempDir)
+        currentTempDir = nil
         emitPlaying(false)
-        AppLogger.playback.info("playback finished cleanly: \(didFinish, privacy: .public)")
+        AppLogger.playback.info("playback finished, chunks=\(fileIndex, privacy: .public)")
     }
 
-    private func playUntilFinished(player: AVAudioPlayer) async -> Bool {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
-            let delegate = PlaybackFinishedDelegate { didFinish in
-                continuation.resume(returning: didFinish)
+    private func readExact(
+        _ count: Int,
+        from iterator: inout URLSession.AsyncBytes.AsyncIterator
+    ) async -> Data? {
+        var data = Data()
+        data.reserveCapacity(count)
+        while data.count < count {
+            do {
+                guard let byte = try await iterator.next() else { return nil }
+                data.append(byte)
+            } catch {
+                return nil
             }
-            player.delegate = delegate
-            objc_setAssociatedObject(player, "PlaybackFinishedDelegate", delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-            player.prepareToPlay()
-            player.play()
         }
+        return data
     }
 
     private func emitPlaying(_ playing: Bool) {
         for continuation in stateContinuations { continuation.yield(playing) }
-    }
-}
-
-private final class PlaybackFinishedDelegate: NSObject, AVAudioPlayerDelegate, @unchecked Sendable {
-    let onFinish: (Bool) -> Void
-
-    init(onFinish: @escaping (Bool) -> Void) {
-        self.onFinish = onFinish
-    }
-
-    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        onFinish(flag)
-    }
-
-    func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
-        onFinish(false)
     }
 }
