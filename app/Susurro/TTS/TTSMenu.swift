@@ -3,6 +3,7 @@ import SwiftUI
 
 struct TTSMenu: View {
     @Bindable var settings: TTSSettings
+    let backend: BackendProcess
     let onApply: () -> Void
 
     var body: some View {
@@ -31,7 +32,9 @@ struct TTSMenu: View {
                     if settings.provider == .azure { onApply() }
                 }
             }
-            Button("Edit Pronunciations…") { Pronunciations.openInEditor() }
+            Button("Pronunciations…") {
+                PronunciationsWindowController.show(backend: backend, settings: settings)
+            }
         }
     }
 }

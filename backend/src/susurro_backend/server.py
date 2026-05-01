@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 import susurro_backend.lang as lang
+import susurro_backend.pronunciations as pronunciations
 
 _PROVIDER = os.environ.get("SUSURRO_TTS_PROVIDER", "edge").lower()
 
@@ -32,6 +33,22 @@ _expected_token: Optional[str] = None
 class TTSRequest(BaseModel):
     text: str
     language: Optional[Literal["es", "en"]] = None
+
+
+class PronunciationUpsert(BaseModel):
+    language: Literal["es", "en"]
+    word: str
+    replacement: str
+
+
+class CandidatesRequest(BaseModel):
+    word: str
+    language: Literal["es", "en"]
+
+
+class PreviewSSMLRequest(BaseModel):
+    ssml: str
+    language: Literal["es", "en"]
 
 
 def verify_token(authorization: Optional[str] = Header(None)) -> None:
@@ -115,5 +132,52 @@ def create_app(token: str) -> FastAPI:
     @app.post("/stop", status_code=204)
     def stop(_: None = Depends(verify_token)):
         tts.request_cancel()
+
+    @app.get("/pronunciations")
+    def get_pronunciations(_: None = Depends(verify_token)):
+        return pronunciations.list_all()
+
+    @app.post("/pronunciations", status_code=204)
+    def upsert_pronunciation(
+        request: PronunciationUpsert, _: None = Depends(verify_token)
+    ):
+        try:
+            pronunciations.upsert(
+                request.language, request.word, request.replacement
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.delete("/pronunciations/{language}/{word}", status_code=204)
+    def delete_pronunciation(
+        language: str, word: str, _: None = Depends(verify_token)
+    ):
+        if language not in pronunciations.SUPPORTED_LANGUAGES:
+            raise HTTPException(status_code=400, detail="invalid language")
+        pronunciations.remove(language, word)
+
+    @app.post("/pronunciations/candidates")
+    def pronunciation_candidates(
+        request: CandidatesRequest, _: None = Depends(verify_token)
+    ):
+        return {"candidates": pronunciations.candidates(request.word, request.language)}
+
+    @app.post("/tts/preview-ssml")
+    async def preview_ssml(
+        request: PreviewSSMLRequest, _: None = Depends(verify_token)
+    ):
+        if _PROVIDER != "azure":
+            raise HTTPException(
+                status_code=409,
+                detail="preview requires the Azure TTS provider",
+            )
+        try:
+            audio_bytes = await tts.synthesize_preview(
+                request.ssml, request.language
+            )
+        except Exception as exc:
+            logger.error("preview-ssml failed: %s", exc)
+            raise HTTPException(status_code=502, detail=str(exc))
+        return Response(content=audio_bytes, media_type=_MEDIA_TYPE)
 
     return app

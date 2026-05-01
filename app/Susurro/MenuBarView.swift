@@ -13,7 +13,7 @@ struct MenuBarView: View {
             accessibilityStatusRow
             playbackRow
             Divider()
-            TTSMenu(settings: settings, onApply: onRestartBackend)
+            TTSMenu(settings: settings, backend: backend, onApply: onRestartBackend)
             DiagnosticsMenu(state: appState, onRestartBackend: onRestartBackend)
             Divider()
             Button("Quit Susurro") { NSApp.terminate(nil) }

@@ -85,6 +85,99 @@ struct BackendClient: Sendable {
         }
     }
 
+    func listPronunciations() async throws -> [String: [String: String]] {
+        var request = URLRequest(
+            url: baseURL.appending(path: "pronunciations"),
+            timeoutInterval: 10
+        )
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            throw BackendClientError.http(status: status, body: String(data: data, encoding: .utf8))
+        }
+        return try JSONDecoder().decode([String: [String: String]].self, from: data)
+    }
+
+    func upsertPronunciation(language: String, word: String, replacement: String) async throws {
+        var request = URLRequest(
+            url: baseURL.appending(path: "pronunciations"),
+            timeoutInterval: 10
+        )
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode([
+            "language": language,
+            "word": word,
+            "replacement": replacement,
+        ])
+        let (data, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 204 else {
+            throw BackendClientError.http(status: status, body: String(data: data, encoding: .utf8))
+        }
+    }
+
+    func deletePronunciation(language: String, word: String) async throws {
+        guard let encoded = word.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+            throw BackendClientError.http(status: 400, body: "could not encode word")
+        }
+        var request = URLRequest(
+            url: baseURL.appending(path: "pronunciations/\(language)/\(encoded)"),
+            timeoutInterval: 10
+        )
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 204 else {
+            throw BackendClientError.http(status: status, body: String(data: data, encoding: .utf8))
+        }
+    }
+
+    func pronunciationCandidates(word: String, language: String) async throws -> [PronunciationCandidate] {
+        var request = URLRequest(
+            url: baseURL.appending(path: "pronunciations/candidates"),
+            timeoutInterval: 10
+        )
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode([
+            "word": word,
+            "language": language,
+        ])
+        let (data, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            throw BackendClientError.http(status: status, body: String(data: data, encoding: .utf8))
+        }
+        let decoded = try JSONDecoder().decode(CandidatesResponse.self, from: data)
+        return decoded.candidates
+    }
+
+    func previewSSML(ssml: String, language: String) async throws -> Data {
+        var request = URLRequest(
+            url: baseURL.appending(path: "tts/preview-ssml"),
+            timeoutInterval: 30
+        )
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode([
+            "ssml": ssml,
+            "language": language,
+        ])
+        let (data, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            throw BackendClientError.http(status: status, body: String(data: data, encoding: .utf8))
+        }
+        return data
+    }
+
     func stop() async throws {
         var request = URLRequest(
             url: baseURL.appending(path: "stop"),
@@ -109,6 +202,18 @@ struct BackendClient: Sendable {
 }
 
 enum HealthStatus: Sendable, Equatable { case ready, loading }
+
+struct PronunciationCandidate: Codable, Sendable, Identifiable, Hashable {
+    let kind: String
+    let label: String
+    let ssml: String
+
+    var id: String { ssml }
+}
+
+private struct CandidatesResponse: Decodable {
+    let candidates: [PronunciationCandidate]
+}
 
 enum BackendClientError: Error {
     case http(status: Int, body: String?)

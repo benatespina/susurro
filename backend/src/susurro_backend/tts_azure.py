@@ -114,6 +114,37 @@ async def synthesize_stream(text: str, language: Literal["es", "en"]) -> AsyncIt
                 yield chunk
 
 
+async def synthesize_preview(ssml_fragment: str, language: Literal["es", "en"]) -> bytes:
+    """
+    Render a single SSML inner-fragment with the active voice for preview.
+    The fragment is wrapped in <speak><voice>…</voice></speak> as-is — it must
+    already be valid SSML (e.g. `<phoneme>…</phoneme>` or `<sub>…</sub>`).
+    """
+    if not _loaded:
+        raise RuntimeError("Provider not initialized — call load_model() first")
+    assert _key and _region
+
+    voice = VOICE_BY_LANG[language]
+    lang_code = _lang_code(language)
+    ssml = (
+        f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='{lang_code}'>"
+        f"<voice xml:lang='{lang_code}' name='{voice}'>"
+        f"{ssml_fragment}"
+        "</voice>"
+        "</speak>"
+    )
+    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+        async with client.stream(
+            "POST", _azure_url(), headers=_azure_headers(), content=ssml.encode("utf-8")
+        ) as response:
+            response.raise_for_status()
+            buf = bytearray()
+            async for chunk in response.aiter_bytes():
+                if chunk:
+                    buf.extend(chunk)
+            return bytes(buf)
+
+
 async def synthesize_chunked(text: str, language: Literal["es", "en"]) -> AsyncIterator[bytes]:
     """
     Yields one self-contained MP3 per text chunk for incremental playback.
