@@ -202,6 +202,23 @@ struct BackendClient: Sendable {
         return data
     }
 
+    func extract(url: String) async throws -> ExtractedArticle {
+        var request = URLRequest(
+            url: baseURL.appending(path: "extract"),
+            timeoutInterval: 30
+        )
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["url": url])
+        let (data, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            throw BackendClientError.http(status: status, body: String(data: data, encoding: .utf8))
+        }
+        return try JSONDecoder().decode(ExtractedArticle.self, from: data)
+    }
+
     func stop() async throws {
         var request = URLRequest(
             url: baseURL.appending(path: "stop"),
@@ -226,6 +243,13 @@ struct BackendClient: Sendable {
 }
 
 enum HealthStatus: Sendable, Equatable { case ready, loading }
+
+struct ExtractedArticle: Decodable, Sendable {
+    let text: String
+    let title: String?
+    let url: String
+    let language: String?
+}
 
 private struct ChunksResponse: Decodable {
     let chunks: [String]

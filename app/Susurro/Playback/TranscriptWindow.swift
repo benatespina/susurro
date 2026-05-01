@@ -1,4 +1,5 @@
 import AppKit
+import NaturalLanguage
 import SwiftUI
 
 @MainActor
@@ -6,7 +7,7 @@ enum TranscriptWindowController {
     private static var windowController: NSWindowController?
     private static var bridge: TranscriptStateBridge?
 
-    static func show(coordinator: PlaybackCoordinator) {
+    static func show(coordinator: PlaybackCoordinator, backend: BackendProcess, settings: TTSSettings) {
         if let existing = windowController {
             existing.window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -14,7 +15,12 @@ enum TranscriptWindowController {
         }
         let bridge = TranscriptStateBridge(coordinator: coordinator)
         self.bridge = bridge
-        let view = TranscriptView(bridge: bridge, coordinator: coordinator)
+        let view = TranscriptView(
+            bridge: bridge,
+            coordinator: coordinator,
+            backend: backend,
+            settings: settings
+        )
         let hosting = NSHostingController(rootView: view)
         hosting.preferredContentSize = NSSize(width: 520, height: 600)
         let window = NSWindow(contentViewController: hosting)
@@ -65,6 +71,10 @@ final class TranscriptStateBridge: ObservableObject {
 private struct TranscriptView: View {
     @ObservedObject var bridge: TranscriptStateBridge
     let coordinator: PlaybackCoordinator
+    let backend: BackendProcess
+    let settings: TTSSettings
+
+    @State private var pronunciationDraft: PronunciationDraft?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -76,6 +86,19 @@ private struct TranscriptView: View {
                 .padding(.vertical, 10)
         }
         .frame(minWidth: 460, minHeight: 360)
+        .sheet(item: $pronunciationDraft) { draft in
+            AddPronunciationSheet(
+                backend: backend,
+                settings: settings,
+                initial: AddPronunciationSheet.Initial(
+                    word: draft.word,
+                    language: draft.language,
+                    currentReplacement: ""
+                ),
+                onSaved: { pronunciationDraft = nil },
+                onCancel: { pronunciationDraft = nil }
+            )
+        }
     }
 
     @ViewBuilder
@@ -100,7 +123,13 @@ private struct TranscriptView: View {
                                 index: index,
                                 text: chunk,
                                 isCurrent: index == bridge.snapshot.currentChunkIndex,
-                                onTap: { Task { await coordinator.seek(toChunk: index) } }
+                                onTap: { Task { await coordinator.seek(toChunk: index) } },
+                                onFixPronunciation: { word in
+                                    pronunciationDraft = PronunciationDraft(
+                                        word: word,
+                                        language: LanguageDetector.detect(in: chunk)
+                                    )
+                                }
                             )
                             .id(index)
                         }
@@ -178,6 +207,7 @@ private struct ChunkRow: View {
     let text: String
     let isCurrent: Bool
     let onTap: () -> Void
+    let onFixPronunciation: (String) -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -186,12 +216,15 @@ private struct ChunkRow: View {
                 .frame(width: 3)
                 .cornerRadius(1.5)
 
-            Text(text)
-                .font(.system(size: 15))
-                .foregroundStyle(isCurrent ? Color.primary : Color.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .multilineTextAlignment(.leading)
-                .lineSpacing(4)
+            SelectableTextView(
+                text: text,
+                font: NSFont.systemFont(ofSize: 15),
+                textColor: isCurrent ? NSColor.labelColor : NSColor.secondaryLabelColor,
+                lineSpacing: 4,
+                onTapEmpty: onTap,
+                onFixPronunciation: onFixPronunciation
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
@@ -199,7 +232,21 @@ private struct ChunkRow: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(isCurrent ? Color.accentColor.opacity(0.08) : Color.clear)
         )
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
+    }
+}
+
+private struct PronunciationDraft: Identifiable {
+    let word: String
+    let language: String
+    var id: String { "\(language)/\(word)" }
+}
+
+enum LanguageDetector {
+    static func detect(in text: String) -> String {
+        guard text.count >= 10 else { return "es" }
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        guard let lang = recognizer.dominantLanguage else { return "es" }
+        return lang == .english ? "en" : "es"
     }
 }

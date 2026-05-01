@@ -13,6 +13,7 @@ dependencies = [
     "httpx",
     "lingua-language-detector",
     "pydantic>=2",
+    "trafilatura",
 ]
 
 [project.optional-dependencies]

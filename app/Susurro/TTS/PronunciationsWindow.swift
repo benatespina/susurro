@@ -266,10 +266,11 @@ private struct PronunciationsView: View {
     }
 }
 
-private struct AddPronunciationSheet: View {
+struct AddPronunciationSheet: View {
     struct Initial {
         let word: String
         let language: String
+        /// Empty string ⇒ pre-filled add (not editing); non-empty ⇒ editing existing entry.
         let currentReplacement: String
     }
 
@@ -290,7 +291,10 @@ private struct AddPronunciationSheet: View {
     @State private var didInitialize: Bool = false
     @StateObject private var audio = PreviewAudio()
 
-    private var isEditing: Bool { initial != nil }
+    private var isEditing: Bool {
+        guard let initial else { return false }
+        return !initial.currentReplacement.isEmpty
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -362,14 +366,18 @@ private struct AddPronunciationSheet: View {
             if let initial {
                 word = initial.word
                 language = initial.language
-                let current = PronunciationCandidate(
-                    kind: "current",
-                    label: "Current saved replacement",
-                    ssml: initial.currentReplacement
-                )
-                candidates = [current]
-                selected = current
-                Task { await loadCandidates(preserveCurrent: current) }
+                if initial.currentReplacement.isEmpty {
+                    Task { await loadCandidates() }
+                } else {
+                    let current = PronunciationCandidate(
+                        kind: "current",
+                        label: "Current saved replacement",
+                        ssml: initial.currentReplacement
+                    )
+                    candidates = [current]
+                    selected = current
+                    Task { await loadCandidates(preserveCurrent: current) }
+                }
             }
         }
         .onDisappear { audio.stop() }

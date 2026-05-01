@@ -11,6 +11,7 @@ from pydantic import BaseModel
 import susurro_backend.lang as lang
 import susurro_backend.pronunciations as pronunciations
 from susurro_backend.chunking import chunk_text
+from susurro_backend.extract import ExtractError, extract_article
 
 _PROVIDER = os.environ.get("SUSURRO_TTS_PROVIDER", "edge").lower()
 
@@ -51,6 +52,10 @@ class CandidatesRequest(BaseModel):
 class PreviewSSMLRequest(BaseModel):
     ssml: str
     language: Literal["es", "en"]
+
+
+class ExtractRequest(BaseModel):
+    url: str
 
 
 def verify_token(authorization: Optional[str] = Header(None)) -> None:
@@ -192,5 +197,32 @@ def create_app(token: str) -> FastAPI:
             logger.error("preview-ssml failed: %s", exc)
             raise HTTPException(status_code=502, detail=str(exc))
         return Response(content=audio_bytes, media_type=_MEDIA_TYPE)
+
+    @app.post("/extract")
+    async def extract_endpoint(
+        request: ExtractRequest, _: None = Depends(verify_token)
+    ):
+        import asyncio
+        url = request.url.strip()
+        if not (url.startswith("http://") or url.startswith("https://")):
+            raise HTTPException(status_code=400, detail="invalid url")
+        try:
+            article = await asyncio.get_event_loop().run_in_executor(
+                None, extract_article, url
+            )
+        except ExtractError as exc:
+            logger.warning("extract failed url=%s: %s", url, exc)
+            raise HTTPException(status_code=422, detail=str(exc))
+        resolved_language = lang.detect(article.text)
+        logger.info(
+            "extract url=%s len=%d language=%s",
+            url, len(article.text), resolved_language,
+        )
+        return {
+            "text": article.text,
+            "title": article.title,
+            "url": article.url,
+            "language": resolved_language,
+        }
 
     return app

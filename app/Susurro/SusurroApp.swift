@@ -34,17 +34,28 @@ import SwiftUI
                     }
                 },
                 onShowTranscript: { [weak appDelegate] in
-                    guard let coordinator = appDelegate?.playbackCoordinator else { return }
-                    TranscriptWindowController.show(coordinator: coordinator)
+                    guard let appDelegate, let coordinator = appDelegate.playbackCoordinator else { return }
+                    TranscriptWindowController.show(
+                        coordinator: coordinator,
+                        backend: appDelegate.backend,
+                        settings: appDelegate.ttsSettings
+                    )
                 },
                 onResumeReading: { [weak appDelegate] in
-                    guard let coordinator = appDelegate?.playbackCoordinator else { return }
-                    TranscriptWindowController.show(coordinator: coordinator)
+                    guard let appDelegate, let coordinator = appDelegate.playbackCoordinator else { return }
+                    TranscriptWindowController.show(
+                        coordinator: coordinator,
+                        backend: appDelegate.backend,
+                        settings: appDelegate.ttsSettings
+                    )
                     Task {
                         let snap = await coordinator.currentSnapshot()
                         guard !snap.chunks.isEmpty else { return }
                         await coordinator.seek(toChunk: snap.currentChunkIndex)
                     }
+                },
+                onReadThis: { [weak appDelegate] in
+                    appDelegate?.readFromCurrentApp()
                 }
             )
             .environment(appDelegate.appState)
@@ -105,6 +116,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         startSelectionSystemWhenPermitted()
+        registerReadThisHotkey()
+    }
+
+    private func registerReadThisHotkey() {
+        GlobalHotkeyManager.shared.register(
+            keyCode: HotkeyDefaults.readThisKeyCode,
+            modifiers: HotkeyDefaults.readThisModifiers
+        ) { [weak self] in
+            self?.readFromCurrentApp()
+        }
+        AppLogger.app.info("global hotkey Cmd+Option+R registered for Read this")
     }
 
     private func startSelectionSystemWhenPermitted() {
@@ -135,7 +157,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { @MainActor in
                 guard let self, let coordinator = self.playbackCoordinator else { return }
                 if text.count >= 600 {
-                    TranscriptWindowController.show(coordinator: coordinator)
+                    TranscriptWindowController.show(
+                        coordinator: coordinator,
+                        backend: self.backend,
+                        settings: self.ttsSettings
+                    )
                 }
                 await coordinator.read(text: text)
             }
@@ -144,6 +170,87 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { await self?.playbackCoordinator?.stop() }
         }
         AppLogger.selection.info("selection system activated")
+    }
+
+    func readFromCurrentApp() {
+        let resolved = SourceResolver.resolve()
+        let fallback: String? = resolved == nil ? Self.urlFromClipboard() : nil
+        if resolved == nil && fallback == nil {
+            AppLogger.app.info("no readable source in frontmost app or clipboard")
+            NSSound.beep()
+            return
+        }
+        Task { [weak self] in
+            guard let self, let coordinator = self.playbackCoordinator else { return }
+            do {
+                let content = try await self.extractContent(
+                    resolved: resolved, clipboardURL: fallback
+                )
+                AppLogger.app.info("read source title=\(content.title ?? "-", privacy: .public) chars=\(content.text.count, privacy: .public)")
+                await MainActor.run {
+                    TranscriptWindowController.show(
+                        coordinator: coordinator,
+                        backend: self.backend,
+                        settings: self.ttsSettings
+                    )
+                }
+                await coordinator.read(text: content.text)
+            } catch {
+                AppLogger.app.error("read source failed: \(error.localizedDescription, privacy: .public)")
+                await MainActor.run { NSSound.beep() }
+            }
+        }
+    }
+
+    private func extractContent(
+        resolved: ResolvedSource?, clipboardURL: String?
+    ) async throws -> ResolvedContent {
+        if let resolved {
+            switch resolved {
+            case .browserURL(let url):
+                return try await fetchArticle(url: url)
+            case .pdfFile(let url):
+                return try PDFKitSource.extractText(from: url)
+            case .fullText(let text, let title):
+                return ResolvedContent(text: text, title: title, language: nil)
+            }
+        }
+        if let url = clipboardURL {
+            return try await fetchArticle(url: url)
+        }
+        throw ContentExtractionError.noSource
+    }
+
+    private func fetchArticle(url: String) async throws -> ResolvedContent {
+        if Self.urlLooksLikePDF(url), let parsed = URL(string: url) {
+            AppLogger.app.info("source: browser URL is PDF, downloading via PDFKit")
+            return try await PDFKitSource.extractText(fromRemote: parsed)
+        }
+        guard case .ready(let client) = await backend.state else {
+            throw ContentExtractionError.backendNotReady
+        }
+        let article = try await client.extract(url: url)
+        return ResolvedContent(
+            text: article.text, title: article.title, language: article.language
+        )
+    }
+
+    private static func urlLooksLikePDF(_ raw: String) -> Bool {
+        guard let parsed = URL(string: raw) else { return false }
+        return parsed.path.lowercased().hasSuffix(".pdf")
+    }
+
+    private static func urlFromClipboard() -> String? {
+        let pb = NSPasteboard.general
+        let raw = pb.string(forType: .string)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !raw.isEmpty,
+              let parsed = URL(string: raw),
+              let scheme = parsed.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              parsed.host?.isEmpty == false
+        else { return nil }
+        return parsed.absoluteString
     }
 
     private func installSigtermHandler() {

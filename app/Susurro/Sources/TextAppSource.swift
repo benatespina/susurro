@@ -1,0 +1,106 @@
+import AppKit
+import ApplicationServices
+
+enum TextAppSource {
+    private static let maxSearchDepth = 22
+    private static let maxSearchNodes = 12000
+    private static let minTextLength = 40
+    private static let minStaticTextChunkLength = 2
+
+    static func extractText(pid: pid_t) -> (text: String, title: String?)? {
+        let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        AXUIElementSetAttributeValue(appElement, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
+
+        var winRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            appElement, kAXFocusedWindowAttribute as CFString, &winRef
+        ) == .success, let winRef else { return nil }
+        let window = winRef as! AXUIElement // swiftlint:disable:this force_cast
+
+        let title = readWindowTitle(window)
+        let collected = walkAndCollect(root: window)
+
+        if let large = collected.bigTextValue {
+            return (large.trimmingCharacters(in: .whitespacesAndNewlines), title)
+        }
+        let joined = collected.staticTextChunks
+            .joined(separator: "\n\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if joined.count >= minTextLength {
+            return (joined, title)
+        }
+        return nil
+    }
+
+    private struct Collected {
+        var bigTextValue: String?
+        var staticTextChunks: [String]
+    }
+
+    private static func walkAndCollect(root: AXUIElement) -> Collected {
+        var queue: [(AXUIElement, Int)] = [(root, 0)]
+        var visited = 0
+        var bigTextValue: String?
+        var staticChunks: [String] = []
+
+        while !queue.isEmpty, visited < maxSearchNodes {
+            let (element, depth) = queue.removeFirst()
+            visited += 1
+
+            let role = readRole(element)
+            if role == "AXTextArea" || role == "AXTextField" {
+                if let text = readValue(element), text.count >= minTextLength {
+                    if bigTextValue == nil || text.count > (bigTextValue?.count ?? 0) {
+                        bigTextValue = text
+                    }
+                }
+            } else if role == "AXStaticText" {
+                if let text = readValue(element), text.count >= minStaticTextChunkLength {
+                    staticChunks.append(text)
+                }
+            }
+
+            guard depth < maxSearchDepth else { continue }
+            for child in children(of: element) {
+                queue.append((child, depth + 1))
+            }
+        }
+        return Collected(bigTextValue: bigTextValue, staticTextChunks: staticChunks)
+    }
+
+    private static func readRole(_ element: AXUIElement) -> String? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element, kAXRoleAttribute as CFString, &ref
+        ) == .success else { return nil }
+        return ref as? String
+    }
+
+    private static func readValue(_ element: AXUIElement) -> String? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element, kAXValueAttribute as CFString, &ref
+        ) == .success else { return nil }
+        if let str = ref as? String { return str }
+        if let attr = ref as? NSAttributedString { return attr.string }
+        return nil
+    }
+
+    private static func children(of element: AXUIElement) -> [AXUIElement] {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element, kAXChildrenAttribute as CFString, &ref
+        ) == .success, let array = ref as? [AXUIElement]
+        else { return [] }
+        return array
+    }
+
+    private static func readWindowTitle(_ window: AXUIElement) -> String? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            window, kAXTitleAttribute as CFString, &ref
+        ) == .success else { return nil }
+        return ref as? String
+    }
+}

@@ -8,6 +8,7 @@ struct MenuBarView: View {
     let onRestartBackend: () -> Void
     let onShowTranscript: () -> Void
     let onResumeReading: () -> Void
+    let onReadThis: () -> Void
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -18,6 +19,8 @@ struct MenuBarView: View {
             if appState.hasResumableSession && !appState.isPlaying {
                 Button("Resume reading…", action: onResumeReading)
             }
+            Button("Read this (⌥⌘R)", action: onReadThis)
+                .disabled(appState.backendStatus != .ready)
             Button("Show transcript…", action: onShowTranscript)
             TTSMenu(settings: settings, backend: backend, onApply: onRestartBackend)
             DiagnosticsMenu(state: appState, onRestartBackend: onRestartBackend)
