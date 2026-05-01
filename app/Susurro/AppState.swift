@@ -13,7 +13,6 @@ final class AppState {
     var isPlaying: Bool = false
     var hasResumableSession: Bool = false
     var iconState: IconState = .idle
-    var currentTitle: String?
     var extractionStartedAt: Date?
     var isPaused: Bool = false
 

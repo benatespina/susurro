@@ -29,7 +29,7 @@ struct MenuBarView: View {
             }
             Button("Read this (⌥⌘R)", action: onReadThis)
                 .disabled(appState.backendStatus != .ready)
-            if appState.iconState != .playing && appState.iconState != .paused {
+            if !appState.iconState.isActivePlayback {
                 Button("Show transcript…", action: onShowTranscript)
             }
             TTSMenu(settings: settings, backend: backend, onApply: onRestartBackend)
@@ -44,7 +44,7 @@ struct MenuBarView: View {
 
     @ViewBuilder
     private var playbackRow: some View {
-        if appState.iconState == .playing || appState.iconState == .paused,
+        if appState.iconState.isActivePlayback,
            let bridge = playbackBridge {
             PlaybackHubView(
                 bridge: bridge,

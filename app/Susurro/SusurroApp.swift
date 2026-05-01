@@ -241,15 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             appState.extractionStartedAt = nowStart
             appState.iconState = .error
             SusurroNotifier.notifyError(reason: "No readable source")
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: 4_000_000_000)
-                guard let self else { return }
-                guard self.appState.extractionStartedAt == nowStart else { return }
-                if !self.appState.isPlaying {
-                    self.appState.iconState = .idle
-                    self.appState.recomputeIcon()
-                }
-            }
+            scheduleIconReset(startedAt: nowStart)
             return
         }
         let startedAt = Date()
@@ -287,21 +279,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             } catch {
                 AppLogger.app.error("read source failed: \(error.localizedDescription, privacy: .public)")
-                let capturedStart = startedAt
                 await MainActor.run {
                     self.appState.iconState = .error
                     SusurroNotifier.notifyError(reason: self.classify(error))
-                    Task { @MainActor [weak self] in
-                        try? await Task.sleep(nanoseconds: 4_000_000_000)
-                        guard let self else { return }
-                        // Only reset if no new read has started since this error
-                        guard self.appState.extractionStartedAt == capturedStart else { return }
-                        if !self.appState.isPlaying {
-                            self.appState.iconState = .idle
-                            self.appState.recomputeIcon()
-                        }
-                    }
+                    self.scheduleIconReset(startedAt: startedAt)
                 }
+            }
+        }
+    }
+
+    /// Resets the icon to idle after 4 seconds, unless a newer read has started or playback is active.
+    private func scheduleIconReset(startedAt: Date) {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            guard let self else { return }
+            guard self.appState.extractionStartedAt == startedAt else { return }
+            if !self.appState.isPlaying {
+                self.appState.iconState = .idle
+                self.appState.recomputeIcon()
             }
         }
     }

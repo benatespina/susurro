@@ -5,7 +5,6 @@ import Observation
 
 @MainActor @Observable
 final class MenuBarPlaybackBridge {
-    // Populated by Phase E once content extraction threads title into PlaybackSnapshot.
     var title: String?
     var chunkCount: Int = 0
     var currentChunk: Int = 0
@@ -20,6 +19,7 @@ final class MenuBarPlaybackBridge {
             let stream = await coordinator.snapshots()
             for await snap in stream {
                 guard let self else { return }
+                self.title = snap.title
                 self.chunkCount = snap.chunks.count
                 self.currentChunk = snap.currentChunkIndex
                 self.isPaused = snap.isPaused

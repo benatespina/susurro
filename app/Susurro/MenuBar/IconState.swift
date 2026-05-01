@@ -29,4 +29,9 @@ enum IconState: Equatable {
     var animatesPulse: Bool {
         self == .playing
     }
+
+    /// True while audio is actively playing or paused (i.e. a session is in progress).
+    var isActivePlayback: Bool {
+        self == .playing || self == .paused
+    }
 }
