@@ -145,9 +145,9 @@ async def synthesize_preview(ssml_fragment: str, language: Literal["es", "en"]) 
             return bytes(buf)
 
 
-async def synthesize_chunked(text: str, language: Literal["es", "en"]) -> AsyncIterator[bytes]:
+async def synthesize_chunks(chunks: list[str], language: Literal["es", "en"]) -> AsyncIterator[bytes]:
     """
-    Yields one self-contained MP3 per text chunk for incremental playback.
+    Yields one self-contained MP3 per pre-chunked text item.
     """
     if not _loaded:
         raise RuntimeError("Provider not initialized — call load_model() first")
@@ -158,7 +158,7 @@ async def synthesize_chunked(text: str, language: Literal["es", "en"]) -> AsyncI
     lang_code = _lang_code(language)
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
-        for piece in _chunk_text(text):
+        for piece in chunks:
             if _cancel_flag.is_set():
                 _cancel_flag.clear()
                 raise GenerationCancelled()
@@ -168,6 +168,15 @@ async def synthesize_chunked(text: str, language: Literal["es", "en"]) -> AsyncI
                 buf.extend(chunk)
             if buf:
                 yield bytes(buf)
+
+
+async def synthesize_chunked(text: str, language: Literal["es", "en"]) -> AsyncIterator[bytes]:
+    """
+    Convenience wrapper: chunk and synthesize from the start.
+    """
+    chunks = list(_chunk_text(text))
+    async for piece in synthesize_chunks(chunks, language):
+        yield piece
 
 
 def synthesize(text: str, language: Literal["es", "en"]) -> bytes:

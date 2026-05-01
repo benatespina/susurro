@@ -32,6 +32,19 @@ import SwiftUI
                         await appDelegate.backend.stop()
                         try? await appDelegate.backend.start(extraEnv: env)
                     }
+                },
+                onShowTranscript: { [weak appDelegate] in
+                    guard let coordinator = appDelegate?.playbackCoordinator else { return }
+                    TranscriptWindowController.show(coordinator: coordinator)
+                },
+                onResumeReading: { [weak appDelegate] in
+                    guard let coordinator = appDelegate?.playbackCoordinator else { return }
+                    TranscriptWindowController.show(coordinator: coordinator)
+                    Task {
+                        let snap = await coordinator.currentSnapshot()
+                        guard !snap.chunks.isEmpty else { return }
+                        await coordinator.seek(toChunk: snap.currentChunkIndex)
+                    }
                 }
             )
             .environment(appDelegate.appState)
@@ -61,6 +74,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 try await self.backend.start(extraEnv: env)
             } catch {
                 AppLogger.backend.error("backend start failed: \(error)")
+            }
+        }
+        Task { [weak self] in
+            guard let self, let coordinator = self.playbackCoordinator else { return }
+            await coordinator.restorePersistedSession()
+            let restored = await coordinator.hasRestorableSession()
+            await MainActor.run { self.appState.hasResumableSession = restored }
+        }
+        Task { [weak self] in
+            guard let self, let coordinator = self.playbackCoordinator else { return }
+            for await snap in await coordinator.snapshots() {
+                await MainActor.run {
+                    self.appState.hasResumableSession = !snap.chunks.isEmpty
+                }
             }
         }
         Task { [weak self] in
@@ -105,7 +132,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panelController = PanelController(observer: selectionObserver!, appState: appState)
         panelController?.onRead = { [weak self] text in
             AppLogger.selection.info("read requested for: \(text.prefix(60), privacy: .public)")
-            Task { await self?.playbackCoordinator?.read(text: text) }
+            Task { @MainActor in
+                guard let self, let coordinator = self.playbackCoordinator else { return }
+                if text.count >= 600 {
+                    TranscriptWindowController.show(coordinator: coordinator)
+                }
+                await coordinator.read(text: text)
+            }
         }
         panelController?.onStop = { [weak self] in
             Task { await self?.playbackCoordinator?.stop() }

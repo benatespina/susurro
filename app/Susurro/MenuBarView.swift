@@ -6,6 +6,8 @@ struct MenuBarView: View {
     let settings: TTSSettings
     let onStop: () -> Void
     let onRestartBackend: () -> Void
+    let onShowTranscript: () -> Void
+    let onResumeReading: () -> Void
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -13,6 +15,10 @@ struct MenuBarView: View {
             accessibilityStatusRow
             playbackRow
             Divider()
+            if appState.hasResumableSession && !appState.isPlaying {
+                Button("Resume reading…", action: onResumeReading)
+            }
+            Button("Show transcript…", action: onShowTranscript)
             TTSMenu(settings: settings, backend: backend, onApply: onRestartBackend)
             DiagnosticsMenu(state: appState, onRestartBackend: onRestartBackend)
             Divider()

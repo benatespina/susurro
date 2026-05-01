@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 import susurro_backend.lang as lang
 import susurro_backend.pronunciations as pronunciations
+from susurro_backend.chunking import chunk_text
 
 _PROVIDER = os.environ.get("SUSURRO_TTS_PROVIDER", "edge").lower()
 
@@ -33,6 +34,7 @@ _expected_token: Optional[str] = None
 class TTSRequest(BaseModel):
     text: str
     language: Optional[Literal["es", "en"]] = None
+    start_chunk: Optional[int] = None
 
 
 class PronunciationUpsert(BaseModel):
@@ -104,17 +106,22 @@ def create_app(token: str) -> FastAPI:
     ):
         t0 = time.perf_counter()
         resolved_language = request.language or lang.detect(request.text)
+        all_chunks = list(chunk_text(request.text))
+        start = max(0, request.start_chunk or 0)
+        chunks_to_synthesize = all_chunks[start:]
         logger.info(
-            "tts/stream language=%s len=%d text=%.60s",
+            "tts/stream language=%s len=%d total_chunks=%d start=%d text=%.60s",
             resolved_language,
             len(request.text),
+            len(all_chunks),
+            start,
             request.text,
         )
 
         async def gen():
             first_chunk_logged = False
             try:
-                async for piece in tts.synthesize_chunked(request.text, resolved_language):
+                async for piece in tts.synthesize_chunks(chunks_to_synthesize, resolved_language):
                     if _PROFILE and not first_chunk_logged:
                         ttfb_ms = (time.perf_counter() - t0) * 1000
                         print(f"[PROFILE] /tts/stream ttfb={ttfb_ms:.0f}ms", flush=True)
@@ -128,6 +135,12 @@ def create_app(token: str) -> FastAPI:
                 print(f"[PROFILE] /tts/stream total={total_ms:.0f}ms", flush=True)
 
         return StreamingResponse(gen(), media_type=_STREAM_MEDIA_TYPE)
+
+    @app.post("/tts/chunks")
+    def get_chunks(request: TTSRequest, _: None = Depends(verify_token)):
+        resolved_language = request.language or lang.detect(request.text)
+        chunks = list(chunk_text(request.text))
+        return {"chunks": chunks, "language": resolved_language}
 
     @app.post("/stop", status_code=204)
     def stop(_: None = Depends(verify_token)):

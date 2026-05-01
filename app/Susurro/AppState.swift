@@ -10,6 +10,7 @@ final class AppState {
     var backendStatus: BackendStatus = .unknown
     var accessibilityStatus: AccessibilityStatus = .unknown
     var isPlaying: Bool = false
+    var hasResumableSession: Bool = false
 
     func update(from backendState: BackendProcess.State) {
         switch backendState {

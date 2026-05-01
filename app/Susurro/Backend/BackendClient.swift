@@ -35,7 +35,7 @@ struct BackendClient: Sendable {
         }
     }
 
-    func streamingTTSRequest(text: String, language: String?) throws -> URLRequest {
+    func streamingTTSRequest(text: String, language: String?, startChunk: Int = 0) throws -> URLRequest {
         var request = URLRequest(
             url: baseURL.appending(path: "tts/stream"),
             timeoutInterval: 120
@@ -44,12 +44,36 @@ struct BackendClient: Sendable {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        var payload: [String: String] = ["text": text]
+        var payload: [String: AnyEncodable] = ["text": AnyEncodable(text)]
         if let language {
-            payload["language"] = language
+            payload["language"] = AnyEncodable(language)
+        }
+        if startChunk > 0 {
+            payload["start_chunk"] = AnyEncodable(startChunk)
         }
         request.httpBody = try JSONEncoder().encode(payload)
         return request
+    }
+
+    func fetchChunks(text: String, language: String?) async throws -> [String] {
+        var request = URLRequest(
+            url: baseURL.appending(path: "tts/chunks"),
+            timeoutInterval: 30
+        )
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var payload: [String: String] = ["text": text]
+        if let language { payload["language"] = language }
+        request.httpBody = try JSONEncoder().encode(payload)
+
+        let (data, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            throw BackendClientError.http(status: status, body: String(data: data, encoding: .utf8))
+        }
+        let decoded = try JSONDecoder().decode(ChunksResponse.self, from: data)
+        return decoded.chunks
     }
 
     func tts(text: String, language: String?) async throws -> Data {
@@ -202,6 +226,21 @@ struct BackendClient: Sendable {
 }
 
 enum HealthStatus: Sendable, Equatable { case ready, loading }
+
+private struct ChunksResponse: Decodable {
+    let chunks: [String]
+    let language: String?
+}
+
+struct AnyEncodable: Encodable {
+    private let _encode: (Encoder) throws -> Void
+    init<T: Encodable>(_ value: T) {
+        self._encode = value.encode
+    }
+    func encode(to encoder: Encoder) throws {
+        try _encode(encoder)
+    }
+}
 
 struct PronunciationCandidate: Codable, Sendable, Identifiable, Hashable {
     let kind: String

@@ -17,8 +17,10 @@
 		2E73C1D4F0C93CC14D7AEBB2 /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA712281E01296EF1762A72 /* Diagnostics.swift */; };
 		343293A77E4F7B54B12E44EB /* VisualEffectBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7CA9DFC30C00FE7661E8EC9 /* VisualEffectBackground.swift */; };
 		35723048FD8093B09ECE82F7 /* PermissionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23560E679E1BCEE96C6197B3 /* PermissionCoordinator.swift */; };
+		3739A8010A4DC7914D2696B8 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B1ED06DFAC1CD8DE1254488 /* SessionStore.swift */; };
 		449C34B48F54E84EAD7C0984 /* BackendProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECC3E034930CEA0A13CD4CB9 /* BackendProcess.swift */; };
 		48AA20544D243E488F919FE9 /* DiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB3F472AF5824D76DFF56D33 /* DiagnosticsTests.swift */; };
+		4C9993A1A34B2100BBA9BD2A /* TranscriptWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F21DD89CB1DB55DA5B340A2 /* TranscriptWindow.swift */; };
 		5307A5F0CE739BED8FF4E000 /* PanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873D1F69608895E123A8D6FC /* PanelController.swift */; };
 		5D31E40F58E85208F80C00B0 /* BackendClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6798A4F7ED2CB2C41A01D0DF /* BackendClient.swift */; };
 		5F4400975BADEF3AF7A3EBAF /* DiagnosticsMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371231B81F56872907D87A7E /* DiagnosticsMenu.swift */; };
@@ -70,12 +72,14 @@
 		65D6BFDB9B024D161D14B853 /* TTSSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSSettings.swift; sourceTree = "<group>"; };
 		6798A4F7ED2CB2C41A01D0DF /* BackendClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendClient.swift; sourceTree = "<group>"; };
 		6D71EA7FAD737A685ABC513E /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		7B1ED06DFAC1CD8DE1254488 /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		84A0E093A4F12DCF05C29F9B /* FloatingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanel.swift; sourceTree = "<group>"; };
 		86BD95B16D32D67F13EA24E0 /* TTSMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSMenu.swift; sourceTree = "<group>"; };
 		873D1F69608895E123A8D6FC /* PanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelController.swift; sourceTree = "<group>"; };
 		8848B6BC1FF58D5E23C18FE2 /* TTSConfigWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSConfigWindow.swift; sourceTree = "<group>"; };
 		914A132B59FC2B0FD7A9A2E3 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		9D275F65A78100F5AEC139ED /* PlaybackCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinatorTests.swift; sourceTree = "<group>"; };
+		9F21DD89CB1DB55DA5B340A2 /* TranscriptWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptWindow.swift; sourceTree = "<group>"; };
 		A36E4C7E534D1021B0B99611 /* BackendProcessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendProcessTests.swift; sourceTree = "<group>"; };
 		A6A7B83C6B89CC2599DDE044 /* PermissionWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionWindow.swift; sourceTree = "<group>"; };
 		B14D602A59AFD8E07526996B /* Susurro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Susurro.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -109,6 +113,8 @@
 			children = (
 				C8F458D52C278864FCEBC915 /* PlaybackCoordinator.swift */,
 				9D275F65A78100F5AEC139ED /* PlaybackCoordinatorTests.swift */,
+				7B1ED06DFAC1CD8DE1254488 /* SessionStore.swift */,
+				9F21DD89CB1DB55DA5B340A2 /* TranscriptWindow.swift */,
 			);
 			path = Playback;
 			sourceTree = "<group>";
@@ -305,10 +311,12 @@
 				FC28C6ABEB557CAA4EDD2BCA /* PronunciationsWindow.swift in Sources */,
 				F6DBA5F2F7B810874B8B4CBC /* SelectionObserver.swift in Sources */,
 				CE506843F7D8A6E856FD459F /* SelectionReader.swift in Sources */,
+				3739A8010A4DC7914D2696B8 /* SessionStore.swift in Sources */,
 				68B16A789DE1E93D0CFBB9F1 /* SusurroApp.swift in Sources */,
 				D22923CAA562AB0BFFF83587 /* TTSConfigWindow.swift in Sources */,
 				EEB63BFFEB23A5034F17412C /* TTSMenu.swift in Sources */,
 				E380060A2A297F597BE4ABB3 /* TTSSettings.swift in Sources */,
+				4C9993A1A34B2100BBA9BD2A /* TranscriptWindow.swift in Sources */,
 				343293A77E4F7B54B12E44EB /* VisualEffectBackground.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

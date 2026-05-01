@@ -1,7 +1,7 @@
 import re
 from typing import Iterable
 
-MAX_CHUNK_CHARS = 1500
+MAX_CHUNK_CHARS = 350
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?…])\s+")
 _COMMA_SPLIT = re.compile(r"(?<=[,;:])\s+")
