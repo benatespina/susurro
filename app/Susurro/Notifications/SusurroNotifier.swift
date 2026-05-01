@@ -34,16 +34,16 @@ enum SusurroNotifier {
         deliver(content, identifier: "susurro.error.\(UUID().uuidString)")
     }
 
-    /// Declared for Phase E — wired then.
     static func notifyReplace(previousTitle: String?, newTitle: String) {
         let content = UNMutableNotificationContent()
-        content.title = "Switched article"
-        if let previous = previousTitle {
-            content.body = "Stopped \u{201C}\(previous)\u{201D} \u{00B7} Now reading \u{201C}\(newTitle)\u{201D}"
+        content.title = "Susurro"
+        let prev: String
+        if let t = previousTitle, !t.isEmpty {
+            prev = "'\(t)'"
         } else {
-            content.body = "Now reading \u{201C}\(newTitle)\u{201D}"
+            prev = "previous"
         }
-        content.sound = .default
+        content.body = "Stopped \(prev) \u{00B7} Now reading: '\(newTitle)'"
         content.userInfo = ["susurro_action": "showTranscript"]
         deliver(content, identifier: "susurro.replace.\(UUID().uuidString)")
     }

@@ -7,8 +7,9 @@ struct PlaybackSnapshot: Sendable, Equatable {
     var currentChunkIndex: Int
     var isPlaying: Bool
     var isPaused: Bool
+    var title: String?
 
-    static let empty = PlaybackSnapshot(chunks: [], currentChunkIndex: 0, isPlaying: false, isPaused: false)
+    static let empty = PlaybackSnapshot(chunks: [], currentChunkIndex: 0, isPlaying: false, isPaused: false, title: nil)
 }
 
 actor PlaybackCoordinator {
@@ -22,6 +23,7 @@ actor PlaybackCoordinator {
     private var sourceText: String = ""
     private var chunks: [String] = []
     private var snapshot: PlaybackSnapshot = .empty
+    private var currentTitle: String?
 
     private var streamStartChunk: Int = 0
     private var itemsPlayedInStream: Int = 0
@@ -33,7 +35,12 @@ actor PlaybackCoordinator {
     }
 
     func read(text: String) async {
+        await read(text: text, title: nil)
+    }
+
+    func read(text: String, title: String?) async {
         await stop(preserveTranscript: false)
+        currentTitle = title
         sourceText = text
 
         guard case .ready(let client) = await backend.state else {
@@ -48,7 +55,7 @@ actor PlaybackCoordinator {
             chunks = []
         }
         snapshot = PlaybackSnapshot(
-            chunks: chunks, currentChunkIndex: 0, isPlaying: false, isPaused: false
+            chunks: chunks, currentChunkIndex: 0, isPlaying: false, isPaused: false, title: currentTitle
         )
         emitSnapshot()
         persistSnapshot()
@@ -68,7 +75,8 @@ actor PlaybackCoordinator {
             chunks: session.chunks,
             currentChunkIndex: min(session.currentChunkIndex, max(0, session.chunks.count - 1)),
             isPlaying: false,
-            isPaused: false
+            isPaused: false,
+            title: nil
         )
         emitSnapshot()
     }
@@ -138,6 +146,7 @@ actor PlaybackCoordinator {
         if !preserveTranscript {
             sourceText = ""
             chunks = []
+            currentTitle = nil
             snapshot = .empty
             emitSnapshot()
             SessionStore.clear()

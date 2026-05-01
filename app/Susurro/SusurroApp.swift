@@ -258,15 +258,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Task { [weak self] in
             guard let self, let coordinator = self.playbackCoordinator else { return }
+            // Capture previous session state before we replace it.
+            let previousSnapshot = await coordinator.currentSnapshot()
+            let wasActive = previousSnapshot.isPlaying || previousSnapshot.isPaused
+            let previousTitle = previousSnapshot.title
             do {
                 let content = try await self.extractContent(
                     resolved: resolved, clipboardURL: fallback
                 )
                 AppLogger.app.info("read source title=\(content.title ?? "-", privacy: .public) chars=\(content.text.count, privacy: .public)")
                 await MainActor.run { self.appState.iconState = .loading }
-                await coordinator.read(text: content.text)
+                await coordinator.read(text: content.text, title: content.title)
                 let elapsedMs = Int(Date().timeIntervalSince(startedAt) * 1000)
-                if elapsedMs > 2000 {
+                if wasActive {
+                    await MainActor.run {
+                        SusurroNotifier.notifyReplace(
+                            previousTitle: previousTitle,
+                            newTitle: content.title ?? "Untitled"
+                        )
+                    }
+                } else if elapsedMs > 2000 {
                     await MainActor.run {
                         SusurroNotifier.notifySuccess(
                             title: content.title ?? "Untitled",
