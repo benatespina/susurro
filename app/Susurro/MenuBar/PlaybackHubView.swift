@@ -17,7 +17,7 @@ struct PlaybackHubView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
 
-            ProgressView(value: Double(bridge.currentChunk + 1) / Double(max(bridge.chunkCount, 1)))
+            ProgressView(value: Double(bridge.currentChunk) / Double(max(bridge.chunkCount, 1)))
                 .progressViewStyle(.linear)
 
             HStack(spacing: 12) {
