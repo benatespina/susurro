@@ -1,0 +1,55 @@
+name: Susurro
+options:
+  bundleIdPrefix: com.benatespina
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "Susurro Dev"
+    ENABLE_HARDENED_RUNTIME: NO
+    SWIFT_STRICT_CONCURRENCY: complete
+    ARCHS: arm64
+    ONLY_ACTIVE_ARCH: YES
+targets:
+  Susurro:
+    type: application
+    platform: macOS
+    sources:
+      - path: Susurro
+        excludes:
+          - "**/*Tests.swift"
+    info:
+      path: Susurro/Info.plist
+      properties:
+        LSUIElement: true
+        LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
+        NSAccessibilityUsageDescription: "Susurro needs Accessibility access to detect text selection in other apps so it can read the selected text aloud."
+        NSHumanReadableCopyright: "© 2026 Beñat Espiña"
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+    entitlements:
+      path: Susurro/Susurro.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.benatespina.susurro
+        GENERATE_INFOPLIST_FILE: NO
+  SusurroTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Susurro
+        includes:
+          - "**/*Tests.swift"
+    dependencies:
+      - target: Susurro
+    settings:
+      base:
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Susurro.app/Contents/MacOS/Susurro"
+        PRODUCT_BUNDLE_IDENTIFIER: com.benatespina.susurrotests
