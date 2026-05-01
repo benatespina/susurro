@@ -33,6 +33,15 @@ final class AppState {
     }
 
     func recomputeIcon() {
+        // Transient states set explicitly by readFromCurrentApp — leave them
+        // in place until the caller clears them (or the 4-second reset fires).
+        switch iconState {
+        case .extracting, .loading, .error:
+            return
+        default:
+            break
+        }
+
         let newState: IconState
         if isPlaying {
             newState = .playing

@@ -11,6 +11,8 @@
 		AA01BB0100000002AAAAAAAA /* MenuBarIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB0200000002AAAAAAAA /* MenuBarIcon.swift */; };
 		AA01BB0100000003AAAAAAAA /* PlaybackHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB0200000003AAAAAAAA /* PlaybackHubView.swift */; };
 		AA01BB0100000004AAAAAAAA /* MenuBarPlaybackBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB0200000004AAAAAAAA /* MenuBarPlaybackBridge.swift */; };
+		DD00BB0100000001AAAAAAAA /* SusurroNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD00BB0200000001AAAAAAAA /* SusurroNotifier.swift */; };
+		DD00BB0100000002AAAAAAAA /* NotificationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD00BB0200000002AAAAAAAA /* NotificationDelegate.swift */; };
 		07D47CA272A50AEA9C996256 /* PanelPositionerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4322ABB9A3F040AFB47572B2 /* PanelPositionerTests.swift */; };
 		082C4F277CA44BFE20D0FF8C /* PanelContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 650355487092FBF1CD90489F /* PanelContent.swift */; };
 		09E8CB980C3F94FB8CAED707 /* FloatingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84A0E093A4F12DCF05C29F9B /* FloatingPanel.swift */; };
@@ -69,6 +71,8 @@
 		AA01BB0200000002AAAAAAAA /* MenuBarIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarIcon.swift; sourceTree = "<group>"; };
 		AA01BB0200000003AAAAAAAA /* PlaybackHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackHubView.swift; sourceTree = "<group>"; };
 		AA01BB0200000004AAAAAAAA /* MenuBarPlaybackBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPlaybackBridge.swift; sourceTree = "<group>"; };
+		DD00BB0200000001AAAAAAAA /* SusurroNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SusurroNotifier.swift; sourceTree = "<group>"; };
+		DD00BB0200000002AAAAAAAA /* NotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationDelegate.swift; sourceTree = "<group>"; };
 		10220536275C03C0BF2020D6 /* ContentSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentSource.swift; sourceTree = "<group>"; };
 		16C6622D79F394C34231FB27 /* Logging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logging.swift; sourceTree = "<group>"; };
 		19180225883D9D48C4DB3822 /* Susurro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Susurro.entitlements; sourceTree = "<group>"; };
@@ -223,6 +227,15 @@
 			path = Accessibility;
 			sourceTree = "<group>";
 		};
+		DD00BB0300000001AAAAAAAA /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				DD00BB0200000001AAAAAAAA /* SusurroNotifier.swift */,
+				DD00BB0200000002AAAAAAAA /* NotificationDelegate.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
 		D9C3A2009D2A1F6716EA1EE2 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
@@ -259,6 +272,7 @@
 				A180AF8DA38D35DAD4FA074A /* Diagnostics */,
 				9056F391BA56546795521D37 /* Hotkey */,
 				AA01BB0300000001AAAAAAAA /* MenuBar */,
+				DD00BB0300000001AAAAAAAA /* Notifications */,
 				08F41DA4B5E88FBA80EAF3CE /* Panel */,
 				210262572B5A722B59F7E900 /* Playback */,
 				435C31EE73E4CA7F1ED9ED7A /* Selection */,
@@ -350,6 +364,8 @@
 			files = (
 				1CB5E01E1DBCF5F653916558 /* AccessibilityPermission.swift in Sources */,
 				FE9337EA1BFEC2405E813D6F /* AppState.swift in Sources */,
+				DD00BB0100000001AAAAAAAA /* SusurroNotifier.swift in Sources */,
+				DD00BB0100000002AAAAAAAA /* NotificationDelegate.swift in Sources */,
 				AA01BB0100000001AAAAAAAA /* IconState.swift in Sources */,
 				AA01BB0100000002AAAAAAAA /* MenuBarIcon.swift in Sources */,
 				AA01BB0100000003AAAAAAAA /* PlaybackHubView.swift in Sources */,

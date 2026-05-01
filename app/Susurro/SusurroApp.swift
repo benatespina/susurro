@@ -1,5 +1,6 @@
 import Darwin
 import SwiftUI
+import UserNotifications
 
 @main struct SusurroApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -102,10 +103,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let ttsSettings = TTSSettings()
     var playbackCoordinator: PlaybackCoordinator?
     var menuBarPlaybackBridge: MenuBarPlaybackBridge?
+    var notificationDelegate: NotificationDelegate?
     private var permissionCoordinator: PermissionCoordinator?
     private var selectionObserver: SelectionObserver?
     private var panelController: PanelController?
     private var accessibilityPollTask: Task<Void, Never>?
+    private var showTranscriptObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSigtermHandler()
@@ -156,6 +159,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+        // Notification delegate — must be set before any notification fires.
+        let delegate = NotificationDelegate()
+        notificationDelegate = delegate
+        UNUserNotificationCenter.current().delegate = delegate
+
+        // Request permission after launch completes (non-blocking).
+        Task { await SusurroNotifier.requestAuthorizationIfNeeded() }
+
+        // Show transcript when user taps a success notification.
+        showTranscriptObserver = NotificationCenter.default.addObserver(
+            forName: .susurroShowTranscriptRequested,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self,
+                  let coordinator = self.playbackCoordinator else { return }
+            TranscriptWindowController.show(
+                coordinator: coordinator,
+                backend: self.backend,
+                settings: self.ttsSettings
+            )
+        }
+
         startSelectionSystemWhenPermitted()
         registerReadThisHotkey()
     }
@@ -211,9 +237,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let fallback: String? = resolved == nil ? Self.urlFromClipboard() : nil
         if resolved == nil && fallback == nil {
             AppLogger.app.info("no readable source in frontmost app or clipboard")
-            NSSound.beep()
+            let nowStart = Date()
+            appState.extractionStartedAt = nowStart
+            appState.iconState = .error
+            SusurroNotifier.notifyError(reason: "No readable source")
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                guard let self else { return }
+                guard self.appState.extractionStartedAt == nowStart else { return }
+                if !self.appState.isPlaying {
+                    self.appState.iconState = .idle
+                    self.appState.recomputeIcon()
+                }
+            }
             return
         }
+        let startedAt = Date()
+        appState.extractionStartedAt = startedAt
+        appState.iconState = .extracting
+
         Task { [weak self] in
             guard let self, let coordinator = self.playbackCoordinator else { return }
             do {
@@ -221,12 +263,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     resolved: resolved, clipboardURL: fallback
                 )
                 AppLogger.app.info("read source title=\(content.title ?? "-", privacy: .public) chars=\(content.text.count, privacy: .public)")
+                await MainActor.run { self.appState.iconState = .loading }
                 await coordinator.read(text: content.text)
+                let elapsedMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+                if elapsedMs > 2000 {
+                    await MainActor.run {
+                        SusurroNotifier.notifySuccess(
+                            title: content.title ?? "Untitled",
+                            durationMs: elapsedMs
+                        )
+                    }
+                }
             } catch {
                 AppLogger.app.error("read source failed: \(error.localizedDescription, privacy: .public)")
-                await MainActor.run { NSSound.beep() }
+                let capturedStart = startedAt
+                await MainActor.run {
+                    self.appState.iconState = .error
+                    SusurroNotifier.notifyError(reason: self.classify(error))
+                    Task { @MainActor [weak self] in
+                        try? await Task.sleep(nanoseconds: 4_000_000_000)
+                        guard let self else { return }
+                        // Only reset if no new read has started since this error
+                        guard self.appState.extractionStartedAt == capturedStart else { return }
+                        if !self.appState.isPlaying {
+                            self.appState.iconState = .idle
+                            self.appState.recomputeIcon()
+                        }
+                    }
+                }
             }
         }
+    }
+
+    private func classify(_ error: Error) -> String {
+        if let contentError = error as? ContentExtractionError {
+            switch contentError {
+            case .backendNotReady:
+                return "TTS engine still starting"
+            case .noSource, .emptyText:
+                return "No readable text in this app"
+            case .fetchFailed(let msg):
+                return msg.isEmpty ? "Could not load page" : "Could not load page (\(msg))"
+            }
+        }
+        if let urlError = error as? URLError {
+            return "Could not load page (\(urlError.localizedDescription))"
+        }
+        let nsError = error as NSError
+        let msg = nsError.localizedDescription
+        if msg.contains("backend") || msg.contains("not ready") { return "TTS engine still starting" }
+        if msg.contains("source") || msg.contains("readable") { return "No readable text in this app" }
+        return msg.isEmpty ? "Read failed" : msg
     }
 
     private func extractContent(
@@ -289,6 +376,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             sigwait(&sigset, &sig)
             AppLogger.app.info("SIGTERM received — initiating graceful shutdown")
             DispatchQueue.main.async { NSApplication.shared.terminate(nil) }
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        if let token = showTranscriptObserver {
+            NotificationCenter.default.removeObserver(token)
+            showTranscriptObserver = nil
         }
     }
 

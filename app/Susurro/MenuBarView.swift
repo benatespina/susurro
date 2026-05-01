@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 struct MenuBarView: View {
     @Environment(AppState.self) private var appState
@@ -14,10 +15,13 @@ struct MenuBarView: View {
     let onNext: () -> Void
     let onPlayPause: () -> Void
 
+    @State private var notificationAuthStatus: UNAuthorizationStatus = .notDetermined
+
     var body: some View {
         VStack(alignment: .leading) {
             backendStatusRow
             accessibilityStatusRow
+            notificationsStatusRow
             playbackRow
             Divider()
             if appState.hasResumableSession && !appState.isPlaying {
@@ -32,6 +36,9 @@ struct MenuBarView: View {
             DiagnosticsMenu(state: appState, onRestartBackend: onRestartBackend)
             Divider()
             Button("Quit Susurro") { NSApp.terminate(nil) }
+        }
+        .task {
+            notificationAuthStatus = await SusurroNotifier.authorizationStatus()
         }
     }
 
@@ -96,6 +103,21 @@ struct MenuBarView: View {
             }
         case .granted:
             Text("Accessibility: ✓ granted")
+        }
+    }
+
+    @ViewBuilder
+    private var notificationsStatusRow: some View {
+        if notificationAuthStatus == .denied {
+            HStack(spacing: 4) {
+                Text("Notifications: denied")
+                Button("Open Settings…") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .buttonStyle(.borderless)
+            }
         }
     }
 }
