@@ -18,10 +18,11 @@ import SwiftUI
     }
 
     var body: some Scene {
-        MenuBarExtra("Susurro", systemImage: "speaker.wave.2") {
+        MenuBarExtra {
             MenuBarView(
                 backend: appDelegate.backend,
                 settings: appDelegate.ttsSettings,
+                playbackBridge: appDelegate.menuBarPlaybackBridge,
                 onStop: { [weak appDelegate] in
                     Task { await appDelegate?.playbackCoordinator?.stop() }
                 },
@@ -56,9 +57,40 @@ import SwiftUI
                 },
                 onReadThis: { [weak appDelegate] in
                     appDelegate?.readFromCurrentApp()
+                },
+                onPrev: { [weak appDelegate] in
+                    Task {
+                        guard let coordinator = appDelegate?.playbackCoordinator else { return }
+                        let snap = await coordinator.currentSnapshot()
+                        let target = max(0, snap.currentChunkIndex - 1)
+                        await coordinator.seek(toChunk: target)
+                    }
+                },
+                onNext: { [weak appDelegate] in
+                    Task {
+                        guard let coordinator = appDelegate?.playbackCoordinator else { return }
+                        let snap = await coordinator.currentSnapshot()
+                        let target = min(snap.chunks.count - 1, snap.currentChunkIndex + 1)
+                        await coordinator.seek(toChunk: target)
+                    }
+                },
+                onPlayPause: { [weak appDelegate] in
+                    Task {
+                        guard let coordinator = appDelegate?.playbackCoordinator else { return }
+                        let appState = appDelegate?.appState
+                        let isPaused = await MainActor.run { appState?.isPaused ?? false }
+                        if isPaused {
+                            await coordinator.resume()
+                        } else {
+                            await coordinator.pause()
+                        }
+                    }
                 }
             )
             .environment(appDelegate.appState)
+        } label: {
+            MenuBarIcon()
+                .environment(appDelegate.appState)
         }
     }
 }
@@ -69,6 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState()
     let ttsSettings = TTSSettings()
     var playbackCoordinator: PlaybackCoordinator?
+    var menuBarPlaybackBridge: MenuBarPlaybackBridge?
     private var permissionCoordinator: PermissionCoordinator?
     private var selectionObserver: SelectionObserver?
     private var panelController: PanelController?
@@ -78,6 +111,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installSigtermHandler()
         permissionCoordinator = PermissionCoordinator(appState: appState)
         playbackCoordinator = PlaybackCoordinator(backend: backend)
+        if let coordinator = playbackCoordinator {
+            menuBarPlaybackBridge = MenuBarPlaybackBridge(coordinator: coordinator)
+        }
         let env = ttsSettings.envVars()
         Task { [weak self] in
             guard let self else { return }
@@ -98,6 +134,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             for await snap in await coordinator.snapshots() {
                 await MainActor.run {
                     self.appState.hasResumableSession = !snap.chunks.isEmpty
+                    self.appState.isPaused = snap.isPaused
+                    self.appState.recomputeIcon()
                 }
             }
         }
@@ -112,7 +150,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { [weak self] in
             guard let self, let pc = self.playbackCoordinator else { return }
             for await playing in await pc.playingStates() {
-                await MainActor.run { self.appState.isPlaying = playing }
+                await MainActor.run {
+                    self.appState.isPlaying = playing
+                    self.appState.recomputeIcon()
+                }
             }
         }
         startSelectionSystemWhenPermitted()

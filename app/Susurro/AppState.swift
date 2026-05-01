@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 
 @MainActor @Observable
@@ -11,6 +12,10 @@ final class AppState {
     var accessibilityStatus: AccessibilityStatus = .unknown
     var isPlaying: Bool = false
     var hasResumableSession: Bool = false
+    var iconState: IconState = .idle
+    var currentTitle: String?
+    var extractionStartedAt: Date?
+    var isPaused: Bool = false
 
     func update(from backendState: BackendProcess.State) {
         switch backendState {
@@ -25,5 +30,18 @@ final class AppState {
         case .crashed:
             backendStatus = .crashed
         }
+    }
+
+    func recomputeIcon() {
+        let newState: IconState
+        if isPlaying {
+            newState = .playing
+        } else if isPaused || hasResumableSession {
+            newState = .paused
+        } else {
+            newState = .idle
+        }
+        guard newState != iconState else { return }
+        iconState = newState
     }
 }

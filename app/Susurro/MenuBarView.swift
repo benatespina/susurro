@@ -4,11 +4,15 @@ struct MenuBarView: View {
     @Environment(AppState.self) private var appState
     let backend: BackendProcess
     let settings: TTSSettings
+    let playbackBridge: MenuBarPlaybackBridge?
     let onStop: () -> Void
     let onRestartBackend: () -> Void
     let onShowTranscript: () -> Void
     let onResumeReading: () -> Void
     let onReadThis: () -> Void
+    let onPrev: () -> Void
+    let onNext: () -> Void
+    let onPlayPause: () -> Void
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -21,7 +25,9 @@ struct MenuBarView: View {
             }
             Button("Read this (⌥⌘R)", action: onReadThis)
                 .disabled(appState.backendStatus != .ready)
-            Button("Show transcript…", action: onShowTranscript)
+            if appState.iconState != .playing && appState.iconState != .paused {
+                Button("Show transcript…", action: onShowTranscript)
+            }
             TTSMenu(settings: settings, backend: backend, onApply: onRestartBackend)
             DiagnosticsMenu(state: appState, onRestartBackend: onRestartBackend)
             Divider()
@@ -31,12 +37,16 @@ struct MenuBarView: View {
 
     @ViewBuilder
     private var playbackRow: some View {
-        if appState.isPlaying {
-            HStack(spacing: 4) {
-                Text("Playing…")
-                Button("Stop", action: onStop)
-                    .buttonStyle(.borderless)
-            }
+        if appState.iconState == .playing || appState.iconState == .paused,
+           let bridge = playbackBridge {
+            PlaybackHubView(
+                bridge: bridge,
+                onPrev: onPrev,
+                onNext: onNext,
+                onPlayPause: onPlayPause,
+                onStop: onStop,
+                onShowTranscript: onShowTranscript
+            )
         }
     }
 
