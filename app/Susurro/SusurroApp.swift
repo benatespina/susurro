@@ -33,11 +33,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panelController: PanelController?
     private var accessibilityPollTask: Task<Void, Never>?
     private var menuBarController: MenuBarController?
+    private var ipcServer: IPCServer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSigtermHandler()
         permissionCoordinator = PermissionCoordinator(appState: appState)
-        playbackCoordinator = PlaybackCoordinator(backend: backend)
+        let coordinator = PlaybackCoordinator(backend: backend)
+        playbackCoordinator = coordinator
         installMenuBarController()
         let env = ttsSettings.envVars()
         Task { [weak self] in
@@ -46,6 +48,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 try await self.backend.start(extraEnv: env)
             } catch {
                 AppLogger.backend.error("backend start failed: \(error)")
+            }
+        }
+        let socketPath = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appending(path: "Susurro/ipc.sock")
+            .path
+        let server = IPCServer(socketPath: socketPath, speaker: coordinator, settings: ttsSettings)
+        ipcServer = server
+        Task {
+            do {
+                try await server.start()
+            } catch {
+                AppLogger.app.error("IPCServer start failed: \(error, privacy: .public)")
             }
         }
         Task { [weak self] in
@@ -278,7 +293,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         AppLogger.app.info("applicationShouldTerminate — stopping backend")
         let backend = self.backend
+        let ipcServer = self.ipcServer
         Task.detached {
+            await ipcServer?.stop()
             await backend.stop()
             // NSApp.terminate's modal loop runs in NSModalRunLoopMode, which is
             // excluded from NSRunLoopCommonModes. DispatchQueue.main and
