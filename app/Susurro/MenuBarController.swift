@@ -240,7 +240,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func handleQuit() { NSApp.terminate(nil) }
     @objc private func handleOpenAccessibility() { AccessibilityPermission.openSystemSettings() }
     @objc private func handleRestartCrashedBackend() {
-        Task { try? await backend.start() }
+        let env = settings.envVars()
+        Task { try? await backend.start(extraEnv: env) }
     }
     @objc private func handleRestartBackendFromDiagnostics() { onRestartBackend() }
 

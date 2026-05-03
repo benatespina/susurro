@@ -77,7 +77,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { [weak self] in
             guard let self, let pc = self.playbackCoordinator else { return }
             for await playing in await pc.playingStates() {
-                await MainActor.run { self.appState.isPlaying = playing }
+                await MainActor.run {
+                    self.appState.isPlaying = playing
+                    self.menuBarController?.updatePlayback(
+                        isPlaying: playing, isPaused: self.appState.isPaused
+                    )
+                }
             }
         }
         startSelectionSystemWhenPermitted()
