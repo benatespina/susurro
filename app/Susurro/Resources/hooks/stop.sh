@@ -42,29 +42,40 @@ if [ -n "$cwd" ]; then
 	done
 fi
 
-# --- Extract last assistant message text from JSONL transcript ---
-if [ -z "$transcript_path" ] || [ ! -f "$transcript_path" ]; then
-	_log "No transcript_path or file missing, exiting silently"
-	exit 0
-fi
-
-if command -v jq >/dev/null 2>&1; then
-	# Stream JSONL lines through jq: collect all assistant messages, take last, extract text blocks
-	message_text="$(jq -rn \
-		'[inputs | select(.type == "message" and .message.role == "assistant")] | last | .message.content[] | select(.type == "text") | .text' \
-		"$transcript_path" 2>/dev/null | paste -sd' ' -)"
+# --- Extract last assistant message text from JSONL transcript (layer 1) ---
+message_text=""
+if [ -n "$transcript_path" ] && [ -f "$transcript_path" ]; then
+	if command -v jq >/dev/null 2>&1; then
+		# Stream JSONL lines through jq: collect all assistant messages, take last, extract text blocks
+		message_text="$(jq -rn \
+			'[inputs | select(.type == "message" and .message.role == "assistant")] | last | .message.content[] | select(.type == "text") | .text' \
+			"$transcript_path" 2>/dev/null | paste -sd' ' -)"
+	else
+		# awk fallback: grab last line containing assistant role, then extract "text" values
+		last_assistant="$(awk '/"role"[[:space:]]*:[[:space:]]*"assistant"/{last=$0} END{print last}' "$transcript_path")"
+		message_text="$(printf '%s' "$last_assistant" | grep -o '"text"[[:space:]]*:[[:space:]]*"[^"]*"' | \
+			awk -F'"' 'BEGIN{t=""} {if(t!="")t=t" "; t=t$4} END{print t}')"
+	fi
+	_log "Layer 1 (transcript) extracted text length=${#message_text}"
 else
-	# awk fallback: grab last line containing assistant role, then extract "text" values
-	last_assistant="$(awk '/"role"[[:space:]]*:[[:space:]]*"assistant"/{last=$0} END{print last}' "$transcript_path")"
-	message_text="$(printf '%s' "$last_assistant" | grep -o '"text"[[:space:]]*:[[:space:]]*"[^"]*"' | \
-		awk -F'"' 'BEGIN{t=""} {if(t!="")t=t" "; t=t$4} END{print t}')"
+	_log "No transcript_path or file missing; skipping layer 1"
 fi
 
-_log "Extracted text length=${#message_text}"
-
-# --- Skip tool-call-only turns ---
+# --- Layer 2: top-level last_assistant_message field from stdin JSON ---
 if [ -z "$message_text" ]; then
-	_log "Empty message text (tool-call-only turn), exiting silently"
+	if command -v jq >/dev/null 2>&1; then
+		message_text="$(printf '%s' "$input" | jq -r '.last_assistant_message // empty' 2>/dev/null)"
+	else
+		message_text="$(printf '%s' "$input" | grep -o '"last_assistant_message"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | awk -F'"' '{print $4}')"
+	fi
+	_log "Layer 2 (last_assistant_message) extracted text length=${#message_text}"
+fi
+
+_log "Final extracted text length=${#message_text}"
+
+# --- Skip tool-call-only turns or no extractable text ---
+if [ -z "$message_text" ]; then
+	_log "no assistant text found in any layer; skipping"
 	exit 0
 fi
 

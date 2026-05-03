@@ -329,6 +329,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         Task.detached {
             do {
                 try ClaudeHookInstaller.install()
+                await MainActor.run { ClaudeOnboarding.showIfFirstInstall() }
             } catch {
                 await self.showError(error)
             }

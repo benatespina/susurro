@@ -104,6 +104,51 @@ tccutil reset Accessibility com.benatespina.susurro
 
 Then relaunch. Subsequent rebuilds with the same "Susurro Dev" cert do not require re-granting.
 
+## Claude Code integration
+
+Susurro can automatically read Claude's responses aloud as they finish. It hooks into Claude Code's `stop` event, extracts the last assistant message, filters out code blocks, and speaks the prose.
+
+### Install
+
+1. Open Susurro → click the menu bar icon.
+2. **Claude Code Integration → Install command-line tool** — installs the `susurro` CLI to `/usr/local/bin`.
+3. **Claude Code Integration → Install Claude Code integration** — writes the stop hook into `~/.claude/settings.json`.
+4. **Claude Code Integration → Auto-read responses** — toggle on.
+
+Send any message in a Claude Code session; Susurro will speak the response.
+
+### Disable per-project
+
+Place a `.susurro-disable` marker in any project directory:
+
+```bash
+touch .susurro-disable
+```
+
+The hook walks up from the current working directory to `$HOME` and skips silently if it finds the marker. Remove the file to re-enable. You can also toggle it from the menu while in a Claude session for that project (**Claude Code Integration → Disable in "project-name"**).
+
+### Troubleshooting
+
+Verify the CLI is on `$PATH`:
+
+```bash
+which susurro
+```
+
+Check hook logs (last hour):
+
+```bash
+log show --predicate 'subsystem CONTAINS "Susurro"' --last 1h
+```
+
+Enable verbose hook logging — writes to `~/Library/Logs/Susurro/hook.log`:
+
+```bash
+export SUSURRO_DEBUG=1
+```
+
+Set this in your shell profile so it persists across Claude Code sessions.
+
 ## Architecture decisions
 
 - **Local-only TTS**: Python FastAPI + Piper (ONNX VITS) runs entirely on device; no cloud calls, no subscription. Non-autoregressive synthesis delivers <100ms for short utterances on Apple Silicon.

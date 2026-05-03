@@ -183,6 +183,83 @@ struct StopScriptTests {
 		#expect(!FileManager.default.fileExists(atPath: captureFile))
 	}
 
+	// --- Test: future/unknown transcript schema yields exit 0 without crashing ---
+	@Test func futureSchemaTranscriptHandledGracefully() throws {
+		let scriptPath = try stopScriptPath()
+		let bundle = Bundle(for: StopScriptTestsHelper.self)
+		guard let fixtureURL = bundle.url(forResource: "future-schema-transcript", withExtension: "jsonl") else {
+			return
+		}
+
+		let captureFile = FileManager.default.temporaryDirectory
+			.appending(path: "susurro-capture-\(UUID().uuidString).txt").path
+		defer { try? FileManager.default.removeItem(atPath: captureFile) }
+
+		let shimDir = try makeFakeSusurroDir(capturing: captureFile)
+		defer { try? FileManager.default.removeItem(atPath: shimDir) }
+
+		let stdinJSON = "{\"cwd\":\"/tmp\",\"transcript_path\":\"\(fixtureURL.path)\"}"
+
+		var env = ProcessInfo.processInfo.environment
+		env["PATH"] = shimDir + ":" + (env["PATH"] ?? "/usr/bin:/bin")
+
+		let (exitCode, _, _) = try runScript(scriptPath: scriptPath, stdinJSON: stdinJSON, extraEnv: env)
+		#expect(exitCode == 0)
+	}
+
+	// --- Test: malformed JSONL transcript yields silent exit 0 ---
+	@Test func malformedTranscriptHandledGracefully() throws {
+		let scriptPath = try stopScriptPath()
+		let bundle = Bundle(for: StopScriptTestsHelper.self)
+		guard let fixtureURL = bundle.url(forResource: "malformed-transcript", withExtension: "jsonl") else {
+			return
+		}
+
+		let captureFile = FileManager.default.temporaryDirectory
+			.appending(path: "susurro-capture-\(UUID().uuidString).txt").path
+		defer { try? FileManager.default.removeItem(atPath: captureFile) }
+
+		let shimDir = try makeFakeSusurroDir(capturing: captureFile)
+		defer { try? FileManager.default.removeItem(atPath: shimDir) }
+
+		let stdinJSON = "{\"cwd\":\"/tmp\",\"transcript_path\":\"\(fixtureURL.path)\"}"
+
+		var env = ProcessInfo.processInfo.environment
+		env["PATH"] = shimDir + ":" + (env["PATH"] ?? "/usr/bin:/bin")
+
+		let (exitCode, _, _) = try runScript(scriptPath: scriptPath, stdinJSON: stdinJSON, extraEnv: env)
+		#expect(exitCode == 0)
+		#expect(!FileManager.default.fileExists(atPath: captureFile),
+				"susurro shim must not be invoked when transcript is malformed with no extractable text")
+	}
+
+	// --- Test: last_assistant_message field in stdin JSON used as layer-2 fallback ---
+	@Test func lastAssistantMessageFieldFallback() throws {
+		let scriptPath = try stopScriptPath()
+
+		let captureFile = FileManager.default.temporaryDirectory
+			.appending(path: "susurro-capture-\(UUID().uuidString).txt").path
+		defer { try? FileManager.default.removeItem(atPath: captureFile) }
+
+		let shimDir = try makeFakeSusurroDir(capturing: captureFile)
+		defer { try? FileManager.default.removeItem(atPath: shimDir) }
+
+		// transcript_path points at a nonexistent file to force layer-1 to fail
+		let stdinJSON = """
+		{"cwd":"/tmp","transcript_path":"/nonexistent/path/transcript.jsonl","last_assistant_message":"Fallback layer two text"}
+		"""
+
+		var env = ProcessInfo.processInfo.environment
+		env["PATH"] = shimDir + ":" + (env["PATH"] ?? "/usr/bin:/bin")
+
+		let (exitCode, _, _) = try runScript(scriptPath: scriptPath, stdinJSON: stdinJSON, extraEnv: env)
+		#expect(exitCode == 0)
+		#expect(FileManager.default.fileExists(atPath: captureFile),
+				"susurro shim must be invoked when last_assistant_message is present")
+		let captured = (try? String(contentsOfFile: captureFile, encoding: .utf8)) ?? ""
+		#expect(captured.contains("Fallback layer two text"))
+	}
+
 	// --- Test: valid transcript causes susurro invocation with correct text ---
 	@Test func validTranscriptCallsSusurro() throws {
 		let scriptPath = try stopScriptPath()
