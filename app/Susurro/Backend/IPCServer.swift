@@ -13,6 +13,9 @@ actor IPCServer {
 	private let speaker: any Speakable
 	private let settings: TTSSettings
 	private var listener: NWListener?
+	private(set) var lastSeenCwd: String?
+
+	func getLastSeenCwd() async -> String? { lastSeenCwd }
 
 	private static let maxPayload = 1_048_576
 
@@ -132,17 +135,24 @@ actor IPCServer {
 			return errorResponse("invalid json")
 		}
 
+		if let cwd = body["cwd"] as? String, !cwd.isEmpty {
+			lastSeenCwd = cwd
+		}
+
 		let autoReadEnabled = await MainActor.run { settings.autoReadEnabled }
 		guard autoReadEnabled else {
+			AppLogger.claudeSkipped(reason: "global toggle off")
 			return spokeResponse(false)
 		}
 
 		let filtered = ClaudeTextFilter.filter(text)
 		guard !filtered.isEmpty else {
+			AppLogger.claudeSkipped(reason: "filter empty")
 			return spokeResponse(false)
 		}
 
 		await speaker.read(text: filtered)
+		AppLogger.claudeSpoke(charCount: filtered.count)
 		return spokeResponse(true)
 	}
 

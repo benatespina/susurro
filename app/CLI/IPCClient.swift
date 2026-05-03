@@ -13,8 +13,10 @@ private let socketPath: String = {
 	return appSupport.appendingPathComponent("Susurro/ipc.sock").path
 }()
 
-func sendRead(text: String) throws -> [String: Any] {
-	let payload = try JSONSerialization.data(withJSONObject: ["cmd": "read", "text": text])
+func sendRead(text: String, cwd: String? = nil) throws -> [String: Any] {
+	var body: [String: Any] = ["cmd": "read", "text": text]
+	if let cwd, !cwd.isEmpty { body["cwd"] = cwd }
+	let payload = try JSONSerialization.data(withJSONObject: body)
 
 	if !FileManager.default.fileExists(atPath: socketPath) {
 		wakeApp()

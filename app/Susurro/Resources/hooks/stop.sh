@@ -81,10 +81,13 @@ my $msg_file = $ARGV[0];
 open(my $fh, "<", $msg_file) or exit 0;
 my $text = do { local $/; <$fh> };
 close $fh;
-open(my $pipe, "|-", "susurro", "read", "--stdin") or exit 0;
+my $cwd_arg = $ARGV[1];
+my @cmd = ("susurro", "read", "--stdin");
+if (defined $cwd_arg && $cwd_arg ne "") { push @cmd, "--cwd", $cwd_arg; }
+open(my $pipe, "|-", @cmd) or exit 0;
 print $pipe $text;
 close $pipe;
-' "$_tmp" 2>/dev/null || true
+' "$_tmp" "$cwd" 2>/dev/null || true
 rm -f "$_tmp"
 
 exit 0

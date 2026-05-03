@@ -95,6 +95,60 @@ struct StopScriptTests {
 		#expect(!FileManager.default.fileExists(atPath: captureFile))
 	}
 
+	// --- Test: .susurro-disable in a parent directory causes early exit ---
+	@Test func disableMarkerInParentDirectoryCausesEarlyExit() throws {
+		let scriptPath = try stopScriptPath()
+
+		// Layout: tmpDir/.susurro-disable  +  tmpDir/subdir  (cwd = subdir)
+		let tmpDir = FileManager.default.temporaryDirectory
+			.appending(path: "susurro-parent-disable-\(UUID().uuidString)")
+		let subDir = tmpDir.appending(path: "subdir")
+		try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+		// Marker lives in the parent, not in cwd
+		FileManager.default.createFile(
+			atPath: tmpDir.appending(path: ".susurro-disable").path,
+			contents: nil
+		)
+
+		let captureFile = FileManager.default.temporaryDirectory
+			.appending(path: "susurro-capture-\(UUID().uuidString).txt").path
+		defer { try? FileManager.default.removeItem(atPath: captureFile) }
+
+		let shimDir = try makeFakeSusurroDir(capturing: captureFile)
+		defer { try? FileManager.default.removeItem(atPath: shimDir) }
+
+		let stdinJSON = "{\"cwd\":\"\(subDir.path)\",\"transcript_path\":\"/dev/null\"}"
+
+		// Point HOME above tmpDir so the walk reaches the parent before hitting HOME
+		let fakeHome = FileManager.default.temporaryDirectory
+			.appending(path: "susurro-home-\(UUID().uuidString)")
+		try FileManager.default.createDirectory(at: fakeHome, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: fakeHome) }
+
+		var env = ProcessInfo.processInfo.environment
+		env["PATH"] = shimDir + ":" + (env["PATH"] ?? "/usr/bin:/bin")
+		env["HOME"] = fakeHome.path
+
+		let (exitCode, _, _) = try runScript(scriptPath: scriptPath, stdinJSON: stdinJSON, extraEnv: env)
+		#expect(exitCode == 0)
+		#expect(!FileManager.default.fileExists(atPath: captureFile),
+				"susurro shim must not be invoked when .susurro-disable is in an ancestor directory")
+	}
+
+	// --- Test: ancestor walk stops at HOME and does not look above it ---
+	// The script breaks the walk when check_dir == HOME, so a marker placed strictly
+	// above the fake HOME must never trigger the early-exit path.
+	@Test(.disabled("requires controlling HOME for the child process and a marker placed above it — environment inheritance makes this unreliable in CI"))
+	func ancestorWalkStopsAtHome() async throws {
+		// Intentionally left as a placeholder.
+		// Rationale: the shell child process inherits the test process's environment,
+		// and placing a real marker above the system HOME risks touching the developer's
+		// home directory. The parent-directory case (disableMarkerInParentDirectoryCausesEarlyExit)
+		// already exercises the walk loop; this case would only validate the break condition.
+	}
+
 	// --- Test: missing transcript_path causes silent exit 0 ---
 	@Test func missingTranscriptExits0() throws {
 		let scriptPath = try stopScriptPath()

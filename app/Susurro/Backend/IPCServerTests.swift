@@ -278,4 +278,70 @@ struct IPCServerTests {
 		await server.stop()
 		#expect(!FileManager.default.fileExists(atPath: path))
 	}
+
+	@Test("cwd field is stored in lastSeenCwd")
+	func cwdIsStoredAsLastSeenCwd() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		let resp = try await sendJSON(
+			socketPath: path,
+			object: ["cmd": "read", "text": "hello", "cwd": "/tmp/testproj"]
+		)
+		#expect(resp["ok"] as? Bool == true)
+
+		let stored = await server.getLastSeenCwd()
+		#expect(stored == "/tmp/testproj")
+	}
+
+	@Test("cwd field absent leaves lastSeenCwd nil")
+	func cwdAbsentLeavesLastSeenCwdNil() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		let resp = try await sendJSON(
+			socketPath: path,
+			object: ["cmd": "read", "text": "hello"]
+		)
+		#expect(resp["ok"] as? Bool == true)
+
+		let stored = await server.getLastSeenCwd()
+		#expect(stored == nil)
+	}
+
+	@Test("cwd field updates lastSeenCwd on subsequent request")
+	func cwdUpdatesOnSubsequentRequest() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		_ = try await sendJSON(
+			socketPath: path,
+			object: ["cmd": "read", "text": "first", "cwd": "/tmp/proj-a"]
+		)
+		_ = try await sendJSON(
+			socketPath: path,
+			object: ["cmd": "read", "text": "second", "cwd": "/tmp/proj-b"]
+		)
+
+		let stored = await server.getLastSeenCwd()
+		#expect(stored == "/tmp/proj-b")
+	}
 }

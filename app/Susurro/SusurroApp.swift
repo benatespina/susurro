@@ -40,16 +40,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permissionCoordinator = PermissionCoordinator(appState: appState)
         let coordinator = PlaybackCoordinator(backend: backend)
         playbackCoordinator = coordinator
-        installMenuBarController()
-        let env = ttsSettings.envVars()
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                try await self.backend.start(extraEnv: env)
-            } catch {
-                AppLogger.backend.error("backend start failed: \(error)")
-            }
-        }
         let socketPath = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appending(path: "Susurro/ipc.sock")
@@ -61,6 +51,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 try await server.start()
             } catch {
                 AppLogger.app.error("IPCServer start failed: \(error, privacy: .public)")
+            }
+        }
+        installMenuBarController()
+        let env = ttsSettings.envVars()
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.backend.start(extraEnv: env)
+            } catch {
+                AppLogger.backend.error("backend start failed: \(error)")
             }
         }
         Task { [weak self] in
@@ -105,7 +105,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func installMenuBarController() {
-        let controller = MenuBarController(appState: appState, settings: ttsSettings, backend: backend)
+        guard let server = ipcServer else { return }
+        let controller = MenuBarController(appState: appState, settings: ttsSettings, backend: backend, ipcServer: server)
         controller.onShowTranscript = { [weak self] in
             guard let self, let coordinator = self.playbackCoordinator else { return }
             TranscriptWindowController.show(

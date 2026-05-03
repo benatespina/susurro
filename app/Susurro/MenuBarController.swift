@@ -12,6 +12,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let appState: AppState
     private let settings: TTSSettings
     private let backend: BackendProcess
+    private let ipcServer: IPCServer
+
+    private var cachedLastSeenCwd: String?
 
     private let statusItem: NSStatusItem
     private let speakerImageView: NSImageView
@@ -21,10 +24,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private static let slotSize: CGFloat = 22
 
-    init(appState: AppState, settings: TTSSettings, backend: BackendProcess) {
+    init(appState: AppState, settings: TTSSettings, backend: BackendProcess, ipcServer: IPCServer) {
         self.appState = appState
         self.settings = settings
         self.backend = backend
+        self.ipcServer = ipcServer
         statusItem = NSStatusBar.system.statusItem(withLength: Self.slotSize)
         speakerImageView = NSImageView()
         pauseButton = NSButton()
@@ -124,10 +128,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func speakerClicked(_ sender: Any?) {
-        rebuildMenu()
-        guard let host = statusItem.button else { return }
-        let origin = NSPoint(x: 0, y: host.bounds.height + 4)
-        menu.popUp(positioning: nil, at: origin, in: host)
+        let server = ipcServer
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.cachedLastSeenCwd = await server.getLastSeenCwd()
+            self.rebuildMenu()
+            guard let host = self.statusItem.button else { return }
+            let origin = NSPoint(x: 0, y: host.bounds.height + 4)
+            self.menu.popUp(positioning: nil, at: origin, in: host)
+        }
     }
 
     @objc private func togglePauseClicked(_ sender: Any?) {
@@ -244,8 +253,54 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         autoReadItem.state = settings.autoReadEnabled ? .on : .off
         sub.addItem(autoReadItem)
 
+        sub.addItem(.separator())
+        sub.addItem(buildProjectDisableItem())
+
         parent.submenu = sub
         return parent
+    }
+
+    private func buildProjectDisableItem() -> NSMenuItem {
+        guard let cwd = cachedLastSeenCwd else {
+            let item = NSMenuItem(
+                title: "Disable in current project",
+                action: nil,
+                keyEquivalent: ""
+            )
+            item.isEnabled = false
+            item.toolTip = "Send a Claude turn first to identify the project"
+            return item
+        }
+
+        let basename = URL(fileURLWithPath: cwd).lastPathComponent
+        let markerPath = (cwd as NSString).appendingPathComponent(".susurro-disable")
+        let hasMarker = FileManager.default.fileExists(atPath: markerPath)
+
+        let title = hasMarker ? "Re-enable in \"\(basename)\"" : "Disable in \"\(basename)\""
+        let action: Selector = hasMarker ? #selector(handleReenableProject) : #selector(handleDisableProject)
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        return item
+    }
+
+    @objc private func handleDisableProject() {
+        guard let cwd = cachedLastSeenCwd else { return }
+        let markerPath = (cwd as NSString).appendingPathComponent(".susurro-disable")
+        do {
+            try Data().write(to: URL(fileURLWithPath: markerPath))
+        } catch {
+            showError(error)
+        }
+    }
+
+    @objc private func handleReenableProject() {
+        guard let cwd = cachedLastSeenCwd else { return }
+        let markerPath = (cwd as NSString).appendingPathComponent(".susurro-disable")
+        do {
+            try FileManager.default.removeItem(atPath: markerPath)
+        } catch {
+            showError(error)
+        }
     }
 
     @objc private func handleInstallCLI() {

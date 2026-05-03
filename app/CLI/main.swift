@@ -5,9 +5,9 @@ let args = CommandLine.arguments.dropFirst()
 func printUsage() {
 	print("""
 	Usage:
-	  susurro read --stdin    Read text from stdin and send to Susurro
-	  susurro --version       Print version and exit
-	  susurro --help          Print this help and exit
+	  susurro read --stdin [--cwd <path>]   Read text from stdin and send to Susurro
+	  susurro --version                     Print version and exit
+	  susurro --help                        Print this help and exit
 	""")
 }
 
@@ -21,12 +21,27 @@ case "--help":
 	exit(0)
 
 case "read":
-	let remaining = args.dropFirst()
+	let remaining = Array(args.dropFirst())
 	guard remaining.contains("--stdin") else {
 		fputs("error: 'read' requires --stdin\n", stderr)
 		printUsage()
 		exit(2)
 	}
+
+	// Parse optional --cwd <path>
+	var cwd: String? = nil
+	if let cwdIndex = remaining.firstIndex(of: "--cwd") {
+		let valueIndex = remaining.index(after: cwdIndex)
+		if valueIndex < remaining.endIndex {
+			let candidate = remaining[valueIndex]
+			if candidate.hasPrefix("--") {
+				fputs("error: --cwd requires a path argument\n", stderr)
+				exit(2)
+			}
+			cwd = candidate
+		}
+	}
+
 	let text = readLine(strippingNewline: false) ?? ""
 	var lines = [text]
 	while let line = readLine(strippingNewline: false) {
@@ -39,7 +54,7 @@ case "read":
 	}
 
 	do {
-		let response = try sendRead(text: input)
+		let response = try sendRead(text: input, cwd: cwd)
 		let data = try JSONSerialization.data(withJSONObject: response)
 		print(String(data: data, encoding: .utf8) ?? "{}")
 		let ok = response["ok"] as? Bool ?? false
