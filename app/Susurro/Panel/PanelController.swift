@@ -8,8 +8,14 @@ final class PanelController {
     private var panel: FloatingPanel?
     private var observationTask: Task<Void, Never>?
     private var lastSelectionText: String?
+    private var lastSelectionRect: CGRect?
     var onRead: ((String) -> Void)?
     var onStop: (() -> Void)?
+    var onHide: (() -> Void)?
+    var onTeachPronunciation: ((String) -> Void)?
+    var onDismiss: (() -> Void)?
+
+    private static let estimatedToolbarSize = CGSize(width: 60, height: 56)
 
     init(observer: SelectionObserver, appState: AppState) {
         self.observer = observer
@@ -28,7 +34,7 @@ final class PanelController {
             for await event in self.observer.events() {
                 switch event {
                 case .changed: self.handleSelectionChanged()
-                case .cleared: self.hide()
+                case .cleared, .rebuilding: self.hide()
                 }
             }
         }
@@ -59,16 +65,17 @@ final class PanelController {
             return
         }
         lastSelectionText = selection.text
+        lastSelectionRect = selection.bounds
 
-        let panelSize = CGSize(width: 80, height: 60)
+        let initialSize = Self.estimatedToolbarSize
         let screen = screenForSelection(bounds: selection.bounds)
         let position: CGPoint
         if let bounds = selection.bounds {
-            position = PanelPositioner.position(for: bounds, panelSize: panelSize, on: screen)
+            position = PanelPositioner.position(for: bounds, panelSize: initialSize, on: screen)
         } else {
-            position = PanelPositioner.positionNearMouse(panelSize: panelSize, on: screen)
+            position = PanelPositioner.positionNearMouse(panelSize: initialSize, on: screen)
         }
-        showPanel(at: position, size: panelSize)
+        showPanel(at: position, size: initialSize)
     }
 
     private func screenForSelection(bounds: CGRect?) -> NSScreen {
@@ -81,27 +88,49 @@ final class PanelController {
     private func showPanel(at point: CGPoint, size: CGSize) {
         let content = PanelContent(
             appState: appState,
+            selectedText: lastSelectionText ?? "",
             onRead: { [weak self] in
                 guard let text = self?.lastSelectionText ?? SelectionReader.current()?.text else { return }
                 self?.onRead?(text)
             },
-            onStop: { [weak self] in self?.onStop?() }
+            onStop: { [weak self] in self?.onStop?() },
+            onTeachPronunciation: { [weak self] word in self?.onTeachPronunciation?(word) },
+            onDismiss: { [weak self] in
+                self?.hide()
+                self?.onDismiss?()
+            },
+            onSizeChange: { [weak self] newSize in
+                self?.handleContentSizeChange(newSize)
+            }
         )
-        let host = NSHostingView(rootView: content)
-        host.frame = NSRect(origin: .zero, size: size)
-
-        if let panel {
-            panel.contentView = host
+        if let panel, let host = panel.contentView as? NSHostingView<PanelContent> {
+            host.rootView = content
         } else {
+            let host = NSHostingView(rootView: content)
+            host.frame = NSRect(origin: .zero, size: size)
             panel = FloatingPanel(content: host)
         }
 
-        panel?.setFrameOrigin(point)
         panel?.setContentSize(size)
+        panel?.setFrameOrigin(point)
         panel?.orderFrontRegardless()
+    }
+
+    private func handleContentSizeChange(_ newSize: CGSize) {
+        guard let panel else { return }
+        let screen = screenForSelection(bounds: lastSelectionRect)
+        let position: CGPoint
+        if let rect = lastSelectionRect {
+            position = PanelPositioner.position(for: rect, panelSize: newSize, on: screen)
+        } else {
+            position = PanelPositioner.positionNearMouse(panelSize: newSize, on: screen)
+        }
+        panel.setContentSize(newSize)
+        panel.setFrameOrigin(position)
     }
 
     private func hide() {
         panel?.orderOut(nil)
+        onHide?()
     }
 }

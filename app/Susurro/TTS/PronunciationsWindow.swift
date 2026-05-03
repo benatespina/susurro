@@ -6,14 +6,18 @@ import SwiftUI
 enum PronunciationsWindowController {
     private static var windowController: NSWindowController?
 
-    static func show(backend: BackendProcess, settings: TTSSettings) {
+    static func show(backend: BackendProcess, settings: TTSSettings, initialWord: String? = nil) {
         if let existing = windowController {
             existing.window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
 
-        let view = PronunciationsView(backend: backend, settings: settings)
+        let view = PronunciationsView(
+            backend: backend,
+            settings: settings,
+            initialWord: normalizeInitialWord(initialWord)
+        )
         let hosting = NSHostingController(rootView: view)
         hosting.preferredContentSize = NSSize(width: 560, height: 420)
         let window = NSWindow(contentViewController: hosting)
@@ -33,6 +37,11 @@ enum PronunciationsWindowController {
         windowController?.close()
         windowController = nil
     }
+
+    static func normalizeInitialWord(_ raw: String?) -> String? {
+        guard let raw, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return raw
+    }
 }
 
 private struct PronunciationsEntry: Identifiable, Hashable {
@@ -45,6 +54,7 @@ private struct PronunciationsEntry: Identifiable, Hashable {
 private struct PronunciationsView: View {
     let backend: BackendProcess
     let settings: TTSSettings
+    let initialWord: String?
 
     @State private var entries: [PronunciationsEntry] = []
     @State private var loading: Bool = false
@@ -122,13 +132,18 @@ private struct PronunciationsView: View {
         }
         .padding(16)
         .frame(minWidth: 560, minHeight: 420)
-        .task { await reload() }
+        .task {
+            await reload()
+            if initialWord != nil {
+                showingAdd = true
+            }
+        }
         .onDisappear { rowAudio.stop() }
         .sheet(isPresented: $showingAdd) {
             AddPronunciationSheet(
                 backend: backend,
                 settings: settings,
-                initial: nil,
+                initial: initialWord.map { AddPronunciationSheet.Initial(word: $0, language: "es", currentReplacement: "") },
                 onSaved: {
                     showingAdd = false
                     Task { await reload() }
