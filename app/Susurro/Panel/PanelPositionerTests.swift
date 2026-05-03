@@ -98,4 +98,42 @@ struct PanelPositionerTests {
         #expect(point.y >= nonMain.visibleFrame.minY)
         #expect(point.y + panelSize.height <= nonMain.visibleFrame.maxY)
     }
+
+    @Test("wide pill panel (220pt) at right edge clamps to right screen edge")
+    func widePillRightEdgeClamp() {
+        guard let screen = NSScreen.main else { return }
+        let widePanelSize = CGSize(width: 220, height: 36)
+        let screenFrame = screen.frame
+        // Selection near right edge
+        let selectionRect = CGRect(
+            x: screenFrame.maxX - 30,
+            y: screenFrame.height / 2,
+            width: 60,
+            height: 20
+        )
+        let point = PanelPositioner.position(for: selectionRect, panelSize: widePanelSize, on: screen)
+        #expect(point.x + widePanelSize.width <= screen.visibleFrame.maxX)
+        #expect(point.x >= screen.visibleFrame.minX)
+    }
+
+    @Test("wide pill panel (280pt) at bottom edge falls back above selection")
+    func widePillBottomEdgeFallbackAbove() {
+        guard let screen = NSScreen.main else { return }
+        let widePanelSize = CGSize(width: 280, height: 40)
+        let screenFrame = screen.frame
+        // AX top-left Y near the very bottom of the screen (i.e., low cocoaSelectionBottom)
+        let selectionRect = CGRect(
+            x: screenFrame.midX - 50,
+            y: screenFrame.height - 20,
+            width: 100,
+            height: 18
+        )
+        let point = PanelPositioner.position(for: selectionRect, panelSize: widePanelSize, on: screen)
+        #expect(point.y >= screen.visibleFrame.minY)
+        #expect(point.y + widePanelSize.height <= screen.visibleFrame.maxY)
+        #expect(point.x + widePanelSize.width <= screen.visibleFrame.maxX)
+        // Verify the panel is placed ABOVE the selection (fallback path), not below it.
+        let cocoaSelectionTop = screen.frame.maxY - selectionRect.minY
+        #expect(point.y >= cocoaSelectionTop + PanelPositioner.panelOffset - 1)
+    }
 }
