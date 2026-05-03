@@ -214,6 +214,27 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func buildClaudeIntegrationMenu() -> NSMenuItem {
         let parent = NSMenuItem(title: "Claude Code Integration", action: nil, keyEquivalent: "")
         let sub = NSMenu()
+
+        let cliInstalled = CLIInstaller.isInstalled()
+        let cliItem = NSMenuItem(
+            title: cliInstalled ? "Uninstall command-line tool" : "Install command-line tool",
+            action: cliInstalled ? #selector(handleUninstallCLI) : #selector(handleInstallCLI),
+            keyEquivalent: ""
+        )
+        cliItem.target = self
+        sub.addItem(cliItem)
+
+        let hookInstalled = ClaudeHookInstaller.isInstalled()
+        let hookItem = NSMenuItem(
+            title: hookInstalled ? "Uninstall Claude Code integration" : "Install Claude Code integration",
+            action: hookInstalled ? #selector(handleUninstallHook) : #selector(handleInstallHook),
+            keyEquivalent: ""
+        )
+        hookItem.target = self
+        sub.addItem(hookItem)
+
+        sub.addItem(.separator())
+
         let autoReadItem = NSMenuItem(
             title: "Auto-read responses",
             action: #selector(handleToggleAutoRead),
@@ -222,8 +243,62 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         autoReadItem.target = self
         autoReadItem.state = settings.autoReadEnabled ? .on : .off
         sub.addItem(autoReadItem)
+
         parent.submenu = sub
         return parent
+    }
+
+    @objc private func handleInstallCLI() {
+        Task.detached {
+            do {
+                try CLIInstaller.install()
+            } catch {
+                await self.showError(error)
+            }
+            await MainActor.run { self.rebuildMenu() }
+        }
+    }
+
+    @objc private func handleUninstallCLI() {
+        Task.detached {
+            do {
+                try CLIInstaller.uninstall()
+            } catch {
+                await self.showError(error)
+            }
+            await MainActor.run { self.rebuildMenu() }
+        }
+    }
+
+    @objc private func handleInstallHook() {
+        Task.detached {
+            do {
+                try ClaudeHookInstaller.install()
+            } catch {
+                await self.showError(error)
+            }
+            await MainActor.run { self.rebuildMenu() }
+        }
+    }
+
+    @objc private func handleUninstallHook() {
+        Task.detached {
+            do {
+                try ClaudeHookInstaller.uninstall()
+            } catch {
+                await self.showError(error)
+            }
+            await MainActor.run { self.rebuildMenu() }
+        }
+    }
+
+    @MainActor
+    private func showError(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "Susurro"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.runModal()
     }
 
     private func buildDiagnosticsMenu() -> NSMenuItem {

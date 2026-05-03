@@ -1,0 +1,2 @@
+{"type":"message","message":{"role":"user","content":[{"type":"text","text":"Run ls"}]}}
+{"type":"message","message":{"role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"bash","input":{"command":"ls"}}]}}

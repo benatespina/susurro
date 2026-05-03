@@ -1,0 +1,3 @@
+{"type":"message","message":{"role":"user","content":[{"type":"text","text":"Hello"}]}}
+{"type":"message","message":{"role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"bash","input":{"command":"ls"}}]}}
+{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"Here is the answer you asked for."},{"type":"text","text":" It has two parts."}]}}

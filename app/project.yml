@@ -22,6 +22,8 @@ targets:
       - path: Susurro
         excludes:
           - "**/*Tests.swift"
+      - path: Susurro/Resources/hooks/stop.sh
+        buildPhase: resources
     info:
       path: Susurro/Info.plist
       properties:
@@ -78,6 +80,10 @@ targets:
           - "Version.swift"
           - "IPCClient.swift"
           - "CLITests.swift"
+      - path: Susurro/Resources/hooks/stop.sh
+        buildPhase: resources
+      - path: Susurro/Resources/test-fixtures
+        buildPhase: resources
     dependencies:
       - target: Susurro
     settings:
