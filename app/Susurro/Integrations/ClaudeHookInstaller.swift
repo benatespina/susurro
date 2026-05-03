@@ -157,8 +157,10 @@ enum ClaudeHookInstaller {
 
 		let data = try JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted, .sortedKeys])
 
-		// Atomic write: write to temp file in same directory, then rename
-		let tmpURL = url.deletingLastPathComponent().appending(path: "settings.json.susurro-tmp")
+		// Atomic write: write to a per-call temp file (UUID avoids races between
+		// concurrent install/uninstall calls sharing the same directory), then rename.
+		let tmpURL = url.deletingLastPathComponent()
+			.appending(path: "settings.json.susurro-tmp-\(UUID().uuidString)")
 		do {
 			try data.write(to: tmpURL, options: .atomic)
 			_ = try FileManager.default.replaceItemAt(url, withItemAt: tmpURL)
