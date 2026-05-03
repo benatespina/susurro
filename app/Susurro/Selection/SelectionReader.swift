@@ -26,19 +26,21 @@ enum SelectionReader {
             ? (focusedRef! as! AXUIElement)
             : nil
 
-        if let focused, let selection = readSelection(from: focused) {
+        guard let focused else { return nil }
+
+        // Try the focused element directly first; if it doesn't carry the selection
+        // itself, walk its subtree. Walking only under the focused element avoids
+        // returning stale selections from unrelated parts of the same window (e.g.
+        // another browser tab, another text field). Trade-off: Electron apps where
+        // the focused element is a generic container rather than a text element will
+        // not detect selection — acceptable given the stale-selection bugs that arise
+        // from wider walks.
+        if let selection = readSelection(from: focused) {
             return selection
         }
-
-        // Electron / Chromium apps (Claude, VS Code, Slack…) often expose selected text
-        // on a descendant of the focused element (or under the focused window) rather than
-        // on the focused element itself. Walk the subtree to find it.
-        let roots: [AXUIElement] = [focused, focusedWindow(in: appElement), appElement].compactMap { $0 }
-        for root in roots {
-            if let element = findSelectionBearer(under: root),
-               let selection = readSelection(from: element) {
-                return selection
-            }
+        if let element = findSelectionBearer(under: focused),
+           let selection = readSelection(from: element) {
+            return selection
         }
 
         return nil
@@ -52,14 +54,6 @@ enum SelectionReader {
     private static func activateAccessibility(appElement: AXUIElement) {
         AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, kCFBooleanTrue)
         AXUIElementSetAttributeValue(appElement, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
-    }
-
-    private static func focusedWindow(in appElement: AXUIElement) -> AXUIElement? {
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &ref) == .success,
-              let ref
-        else { return nil }
-        return (ref as! AXUIElement) // swiftlint:disable:this force_cast
     }
 
     static func cgRect(from value: AXValue) -> CGRect? {
