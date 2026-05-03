@@ -53,3 +53,13 @@ targets:
         BUNDLE_LOADER: "$(TEST_HOST)"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Susurro.app/Contents/MacOS/Susurro"
         PRODUCT_BUNDLE_IDENTIFIER: com.benatespina.susurrotests
+
+schemes:
+  Susurro:
+    build:
+      targets:
+        Susurro: all
+        SusurroTests: [test]
+    test:
+      targets:
+        - SusurroTests
