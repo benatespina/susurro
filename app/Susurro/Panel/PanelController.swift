@@ -125,10 +125,8 @@ final class PanelController {
         } else {
             position = PanelPositioner.positionNearMouse(panelSize: newSize, on: screen)
         }
-        Task { @MainActor in
-            panel.setContentSize(newSize)
-            panel.setFrameOrigin(position)
-        }
+        panel.setContentSize(newSize)
+        panel.setFrameOrigin(position)
     }
 
     private func hide() {

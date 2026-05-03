@@ -50,12 +50,8 @@ struct SelectionToolbar: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
         .background(
-            Capsule()
-                .fill(Color.clear)
-                .background(
-                    VisualEffectBackground(material: .hudWindow, blendingMode: .behindWindow)
-                        .clipShape(Capsule())
-                )
+            VisualEffectBackground(material: .hudWindow, blendingMode: .behindWindow)
+                .clipShape(Capsule())
         )
         .clipShape(Capsule())
         .shadow(color: .black.opacity(0.22), radius: 8, x: 0, y: 4)
