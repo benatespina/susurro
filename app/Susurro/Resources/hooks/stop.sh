@@ -46,15 +46,24 @@ fi
 message_text=""
 if [ -n "$transcript_path" ] && [ -f "$transcript_path" ]; then
 	if command -v jq >/dev/null 2>&1; then
-		# Stream JSONL lines through jq: collect all assistant messages, take last, extract text blocks
+		# Stream JSONL lines through jq:
+		# 1. Collect all assistant events (top-level "type":"assistant")
+		# 2. Filter to those containing at least one text block (skip tool-use-only turns)
+		# 3. Take the last such event
+		# 4. Concatenate all its text blocks
 		message_text="$(jq -rn \
-			'[inputs | select(.type == "message" and .message.role == "assistant")] | last | .message.content[] | select(.type == "text") | .text' \
+			'[inputs | select(.type == "assistant" and .message.role == "assistant" and (any(.message.content[]?; .type == "text")))] | last | .message.content[]? | select(.type == "text") | .text' \
 			"$transcript_path" 2>/dev/null | paste -sd' ' -)"
 	else
-		# awk fallback: grab last line containing assistant role, then extract "text" values
-		last_assistant="$(awk '/"role"[[:space:]]*:[[:space:]]*"assistant"/{last=$0} END{print last}' "$transcript_path")"
-		message_text="$(printf '%s' "$last_assistant" | grep -o '"text"[[:space:]]*:[[:space:]]*"[^"]*"' | \
-			awk -F'"' 'BEGIN{t=""} {if(t!="")t=t" "; t=t$4} END{print t}')"
+		# awk/grep fallback (no jq): approximate extraction — known limitation.
+		# Real schema: each line is {"type":"assistant","message":{"role":"assistant","content":[...]}}
+		# Strategy: take the last line that has both "type":"assistant" and "type":"text" in content,
+		# then extract "text":"<value>" substrings, unescaping basic JSON escapes.
+		last_assistant="$(grep '"type"[[:space:]]*:[[:space:]]*"assistant"' "$transcript_path" | \
+			grep '"type"[[:space:]]*:[[:space:]]*"text"' | tail -1)"
+		message_text="$(printf '%s' "$last_assistant" | \
+			grep -o '"text"[[:space:]]*:[[:space:]]*"[^"]*"' | \
+			awk -F'"' 'BEGIN{t=""} {v=$4; gsub(/\\n/,"\n",v); gsub(/\\"/,"\"",v); if(t!="")t=t" "; t=t v} END{print t}')"
 	fi
 	_log "Layer 1 (transcript) extracted text length=${#message_text}"
 else
