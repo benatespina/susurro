@@ -5,8 +5,9 @@ import Foundation
 @Suite("ClaudeHookInstaller patch/unpatch")
 struct ClaudeHookInstallerTests {
 	let wrapperPath = "/Library/Application Support/Susurro/hooks/stop.sh"
+	var quotedPath: String { "'\(wrapperPath)'" }
 
-	// 1. Patch empty settings -> valid hook structure
+	// 1. Patch empty settings -> valid hook structure with QUOTED command
 	@Test func patchEmptySettings() {
 		let result = ClaudeHookInstaller.patch([:], wrapperPath: wrapperPath)
 
@@ -22,10 +23,11 @@ struct ClaudeHookInstallerTests {
 		let innerHooks = entry?["hooks"] as? [[String: Any]]
 		#expect(innerHooks?.count == 1)
 		#expect(innerHooks?.first?["type"] as? String == "command")
-		#expect(innerHooks?.first?["command"] as? String == wrapperPath)
+		// Command must be single-quoted so paths with spaces survive shell splitting
+		#expect(innerHooks?.first?["command"] as? String == quotedPath)
 	}
 
-	// 2. Patch settings already containing our hook -> unchanged (idempotent)
+	// 2a. Patch settings already containing our hook (quoted) -> unchanged (idempotent)
 	@Test func patchIdempotent() {
 		let first = ClaudeHookInstaller.patch([:], wrapperPath: wrapperPath)
 		let second = ClaudeHookInstaller.patch(first, wrapperPath: wrapperPath)
@@ -34,6 +36,20 @@ struct ClaudeHookInstallerTests {
 		let stopAfterSecond = (second["hooks"] as? [String: Any])?["Stop"] as? [[String: Any]]
 		#expect(stopAfterFirst?.count == 1)
 		#expect(stopAfterSecond?.count == 1)
+	}
+
+	// 2b. Patch settings already containing our hook in LEGACY unquoted form -> no duplicate added
+	@Test func patchIdempotentLegacyUnquoted() {
+		let legacyEntry: [String: Any] = [
+			"matcher": "*",
+			"hooks": [["type": "command", "command": wrapperPath] as [String: Any]]
+		]
+		let base: [String: Any] = ["hooks": ["Stop": [legacyEntry]]]
+
+		let result = ClaudeHookInstaller.patch(base, wrapperPath: wrapperPath)
+		let stopArray = (result["hooks"] as? [String: Any])?["Stop"] as? [[String: Any]]
+		// Must not add a second entry; the existing (legacy) entry is treated as already-installed
+		#expect(stopArray?.count == 1)
 	}
 
 	// 3. Patch settings with unrelated hooks.Stop entries -> ours appended, theirs preserved
@@ -53,7 +69,7 @@ struct ClaudeHookInstallerTests {
 			(entry["hooks"] as? [[String: Any]])?.first?["command"] as? String
 		}
 		#expect(commands?.contains("/usr/local/bin/other-hook") == true)
-		#expect(commands?.contains(wrapperPath) == true)
+		#expect(commands?.contains(quotedPath) == true)
 	}
 
 	// 4. Patch settings with unrelated top-level keys -> top-level keys preserved
@@ -65,7 +81,7 @@ struct ClaudeHookInstallerTests {
 		#expect(result["numericKey"] as? Int == 42)
 	}
 
-	// 5. Unpatch settings with only our hook -> no hooks key remains
+	// 5a. Unpatch settings with only our hook (quoted form) -> no hooks key remains
 	@Test func unpatchRemovesHooksKey() {
 		let patched = ClaudeHookInstaller.patch([:], wrapperPath: wrapperPath)
 		let result = ClaudeHookInstaller.unpatch(patched, wrapperPath: wrapperPath)
@@ -73,7 +89,19 @@ struct ClaudeHookInstallerTests {
 		#expect(result["hooks"] == nil)
 	}
 
-	// 6. Unpatch with our hook + 2 unrelated hooks -> our hook removed, both unrelated preserved
+	// 5b. Unpatch settings with LEGACY unquoted hook -> no hooks key remains (backwards compat)
+	@Test func unpatchRemovesLegacyUnquotedHook() {
+		let legacyEntry: [String: Any] = [
+			"matcher": "*",
+			"hooks": [["type": "command", "command": wrapperPath] as [String: Any]]
+		]
+		let base: [String: Any] = ["hooks": ["Stop": [legacyEntry]]]
+
+		let result = ClaudeHookInstaller.unpatch(base, wrapperPath: wrapperPath)
+		#expect(result["hooks"] == nil)
+	}
+
+	// 6a. Unpatch with our hook (legacy unquoted) + 2 unrelated hooks -> ours removed, unrelated preserved
 	@Test func unpatchSurgical() {
 		let unrelated1: [String: Any] = [
 			"matcher": "*.py",
@@ -100,10 +128,41 @@ struct ClaudeHookInstallerTests {
 		#expect(commands?.contains("/usr/local/bin/hook-a") == true)
 		#expect(commands?.contains("/usr/local/bin/hook-b") == true)
 		#expect(commands?.contains(wrapperPath) == false)
+		#expect(commands?.contains(quotedPath) == false)
 
 		let matchers = stopArray?.compactMap { $0["matcher"] as? String }
 		#expect(matchers?.contains("*.py") == true)
 		#expect(matchers?.contains("*.ts") == true)
+	}
+
+	// 6b. Unpatch with our hook (quoted form) + 2 unrelated hooks -> ours removed, unrelated preserved
+	@Test func unpatchSurgicalQuoted() {
+		let unrelated1: [String: Any] = [
+			"matcher": "*.py",
+			"hooks": [["type": "command", "command": "/usr/local/bin/hook-a"] as [String: Any]]
+		]
+		let unrelated2: [String: Any] = [
+			"matcher": "*.ts",
+			"hooks": [["type": "command", "command": "/usr/local/bin/hook-b"] as [String: Any]]
+		]
+		let oursQuoted: [String: Any] = [
+			"matcher": "*",
+			"hooks": [["type": "command", "command": quotedPath] as [String: Any]]
+		]
+		let base: [String: Any] = ["hooks": ["Stop": [unrelated1, oursQuoted, unrelated2]]]
+
+		let result = ClaudeHookInstaller.unpatch(base, wrapperPath: wrapperPath)
+		let stopArray = (result["hooks"] as? [String: Any])?["Stop"] as? [[String: Any]]
+
+		#expect(stopArray?.count == 2)
+
+		let commands = stopArray?.compactMap { entry -> String? in
+			(entry["hooks"] as? [[String: Any]])?.first?["command"] as? String
+		}
+		#expect(commands?.contains("/usr/local/bin/hook-a") == true)
+		#expect(commands?.contains("/usr/local/bin/hook-b") == true)
+		#expect(commands?.contains(wrapperPath) == false)
+		#expect(commands?.contains(quotedPath) == false)
 	}
 
 	// 7. Unpatch: single outer Stop entry sharing multiple inner commands -> only ours removed

@@ -64,9 +64,10 @@ enum ClaudeHookInstaller {
 		}
 		var stopArray = hooks["Stop"] as? [[String: Any]] ?? []
 
+		let quotedPath = "'\(wrapperPath)'"
 		let ourEntry: [String: Any] = [
 			"matcher": "*",
-			"hooks": [["type": "command", "command": wrapperPath] as [String: Any]]
+			"hooks": [["type": "command", "command": quotedPath] as [String: Any]]
 		]
 		stopArray.append(ourEntry)
 		hooks["Stop"] = stopArray
@@ -79,10 +80,12 @@ enum ClaudeHookInstaller {
 		guard var hooks = result["hooks"] as? [String: Any] else { return result }
 		guard var stopArray = hooks["Stop"] as? [[String: Any]] else { return result }
 
+		let quotedPath = "'\(wrapperPath)'"
 		stopArray = stopArray.compactMap { entry -> [String: Any]? in
 			guard var innerHooks = entry["hooks"] as? [[String: Any]] else { return entry }
 			innerHooks = innerHooks.filter { hook in
-				(hook["command"] as? String) != wrapperPath
+				let cmd = hook["command"] as? String
+				return cmd != wrapperPath && cmd != quotedPath
 			}
 			if innerHooks.isEmpty { return nil }
 			var updated = entry
@@ -109,9 +112,13 @@ enum ClaudeHookInstaller {
 	private static func containsOurHook(_ settings: [String: Any], wrapperPath: String) -> Bool {
 		guard let hooks = settings["hooks"] as? [String: Any],
 			  let stopArray = hooks["Stop"] as? [[String: Any]] else { return false }
+		let quotedPath = "'\(wrapperPath)'"
 		for entry in stopArray {
 			if let innerHooks = entry["hooks"] as? [[String: Any]] {
-				if innerHooks.contains(where: { ($0["command"] as? String) == wrapperPath }) {
+				if innerHooks.contains(where: {
+					let cmd = $0["command"] as? String
+					return cmd == wrapperPath || cmd == quotedPath
+				}) {
 					return true
 				}
 			}
