@@ -154,6 +154,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(menuItem(title: "Show transcript…", action: #selector(handleShowTranscript)))
 
         menu.addItem(buildTTSMenu())
+        menu.addItem(buildClaudeIntegrationMenu())
         menu.addItem(buildDiagnosticsMenu())
         menu.addItem(.separator())
         menu.addItem(menuItem(title: "Quit Susurro", action: #selector(handleQuit)))
@@ -210,6 +211,21 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return parent
     }
 
+    private func buildClaudeIntegrationMenu() -> NSMenuItem {
+        let parent = NSMenuItem(title: "Claude Code Integration", action: nil, keyEquivalent: "")
+        let sub = NSMenu()
+        let autoReadItem = NSMenuItem(
+            title: "Auto-read responses",
+            action: #selector(handleToggleAutoRead),
+            keyEquivalent: ""
+        )
+        autoReadItem.target = self
+        autoReadItem.state = settings.autoReadEnabled ? .on : .off
+        sub.addItem(autoReadItem)
+        parent.submenu = sub
+        return parent
+    }
+
     private func buildDiagnosticsMenu() -> NSMenuItem {
         let parent = NSMenuItem(title: "Diagnostics", action: nil, keyEquivalent: "")
         let sub = NSMenu()
@@ -238,6 +254,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func handleReadThis() { onReadThis() }
     @objc private func handleShowTranscript() { onShowTranscript() }
     @objc private func handleQuit() { NSApp.terminate(nil) }
+    @objc private func handleToggleAutoRead() { settings.autoReadEnabled.toggle() }
     @objc private func handleOpenAccessibility() { AccessibilityPermission.openSystemSettings() }
     @objc private func handleRestartCrashedBackend() {
         let env = settings.envVars()

@@ -18,9 +18,14 @@ final class TTSSettings {
     private static let providerKey = "tts.provider"
     private static let azureRegionKey = "tts.azure.region"
     private static let azureKeyAccount = "tts.azure.key"
+    private static let autoReadEnabledKey = "claude.autoRead.enabled"
 
     var provider: TTSProvider {
         didSet { UserDefaults.standard.set(provider.rawValue, forKey: Self.providerKey) }
+    }
+
+    var autoReadEnabled: Bool {
+        didSet { UserDefaults.standard.set(autoReadEnabled, forKey: Self.autoReadEnabledKey) }
     }
 
     var azureRegion: String {
@@ -43,6 +48,7 @@ final class TTSSettings {
         if sanitized != storedRegion {
             UserDefaults.standard.set(sanitized, forKey: Self.azureRegionKey)
         }
+        self.autoReadEnabled = UserDefaults.standard.bool(forKey: Self.autoReadEnabledKey)
     }
 
     private static func sanitizeRegion(_ raw: String) -> String {
