@@ -18,37 +18,6 @@ final class SelectionObserver {
     private var isMouseDown: Bool = false
     private var lastSeenSelection: String?
 
-    // MARK: - Pure transition helper (testable without live AX)
-
-    enum SelectionTransition: Equatable {
-        case none
-        case changed(String)
-        case cleared
-    }
-
-    static func transition(currentSelectionText: String?, lastSeen: String?) -> SelectionTransition {
-        guard let text = currentSelectionText, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return lastSeen != nil ? .cleared : .none
-        }
-        return text != lastSeen ? .changed(text) : .none
-    }
-
-    // MARK: - Shared AX + mouse-up evaluation
-
-    fileprivate func evaluateSelection() {
-        let text = SelectionReader.current()?.text
-        switch Self.transition(currentSelectionText: text, lastSeen: lastSeenSelection) {
-        case .none:
-            break
-        case .changed(let newText):
-            lastSeenSelection = newText
-            emit(.changed)
-        case .cleared:
-            lastSeenSelection = nil
-            emit(.cleared)
-        }
-    }
-
     init() {
         let token = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
@@ -79,7 +48,14 @@ final class SelectionObserver {
                 guard let self else { return }
                 self.isMouseDown = false
                 try? await Task.sleep(for: .milliseconds(80))
-                self.evaluateSelection()
+                guard let selection = SelectionReader.current(), !selection.text.isEmpty else {
+                    self.lastSeenSelection = nil
+                    return
+                }
+                if selection.text != self.lastSeenSelection {
+                    self.lastSeenSelection = selection.text
+                    self.emit(.changed)
+                }
             }
         }
     }
@@ -179,5 +155,5 @@ private func axCallback(
 ) {
     guard let refcon else { return }
     let observerSelf = Unmanaged<SelectionObserver>.fromOpaque(refcon).takeUnretainedValue()
-    Task { @MainActor in observerSelf.evaluateSelection() }
+    Task { @MainActor in observerSelf.emit(.changed) }
 }
