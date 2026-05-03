@@ -18,48 +18,7 @@ import SwiftUI
     }
 
     var body: some Scene {
-        MenuBarExtra("Susurro", systemImage: "speaker.wave.2") {
-            MenuBarView(
-                backend: appDelegate.backend,
-                settings: appDelegate.ttsSettings,
-                onStop: { [weak appDelegate] in
-                    Task { await appDelegate?.playbackCoordinator?.stop() }
-                },
-                onRestartBackend: { [weak appDelegate] in
-                    guard let appDelegate else { return }
-                    let env = appDelegate.ttsSettings.envVars()
-                    Task {
-                        await appDelegate.backend.stop()
-                        try? await appDelegate.backend.start(extraEnv: env)
-                    }
-                },
-                onShowTranscript: { [weak appDelegate] in
-                    guard let appDelegate, let coordinator = appDelegate.playbackCoordinator else { return }
-                    TranscriptWindowController.show(
-                        coordinator: coordinator,
-                        backend: appDelegate.backend,
-                        settings: appDelegate.ttsSettings
-                    )
-                },
-                onResumeReading: { [weak appDelegate] in
-                    guard let appDelegate, let coordinator = appDelegate.playbackCoordinator else { return }
-                    TranscriptWindowController.show(
-                        coordinator: coordinator,
-                        backend: appDelegate.backend,
-                        settings: appDelegate.ttsSettings
-                    )
-                    Task {
-                        let snap = await coordinator.currentSnapshot()
-                        guard !snap.chunks.isEmpty else { return }
-                        await coordinator.seek(toChunk: snap.currentChunkIndex)
-                    }
-                },
-                onReadThis: { [weak appDelegate] in
-                    appDelegate?.readFromCurrentApp()
-                }
-            )
-            .environment(appDelegate.appState)
-        }
+        Settings { EmptyView() }
     }
 }
 
@@ -73,11 +32,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var selectionObserver: SelectionObserver?
     private var panelController: PanelController?
     private var accessibilityPollTask: Task<Void, Never>?
+    private var menuBarController: MenuBarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSigtermHandler()
         permissionCoordinator = PermissionCoordinator(appState: appState)
         playbackCoordinator = PlaybackCoordinator(backend: backend)
+        installMenuBarController()
         let env = ttsSettings.envVars()
         Task { [weak self] in
             guard let self else { return }
@@ -98,6 +59,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             for await snap in await coordinator.snapshots() {
                 await MainActor.run {
                     self.appState.hasResumableSession = !snap.chunks.isEmpty
+                    self.appState.isPaused = snap.isPaused
+                    self.menuBarController?.updatePlayback(
+                        isPlaying: snap.isPlaying, isPaused: snap.isPaused
+                    )
                 }
             }
         }
@@ -117,6 +82,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         startSelectionSystemWhenPermitted()
         registerReadThisHotkey()
+    }
+
+    private func installMenuBarController() {
+        let controller = MenuBarController(appState: appState, settings: ttsSettings, backend: backend)
+        controller.onShowTranscript = { [weak self] in
+            guard let self, let coordinator = self.playbackCoordinator else { return }
+            TranscriptWindowController.show(
+                coordinator: coordinator,
+                backend: self.backend,
+                settings: self.ttsSettings
+            )
+        }
+        controller.onResumeReading = { [weak self] in
+            guard let coordinator = self?.playbackCoordinator else { return }
+            Task {
+                let snap = await coordinator.currentSnapshot()
+                guard !snap.chunks.isEmpty else { return }
+                await coordinator.seek(toChunk: snap.currentChunkIndex)
+            }
+        }
+        controller.onReadThis = { [weak self] in
+            self?.readFromCurrentApp()
+        }
+        controller.onRestartBackend = { [weak self] in
+            guard let self else { return }
+            let env = self.ttsSettings.envVars()
+            Task {
+                await self.backend.stop()
+                try? await self.backend.start(extraEnv: env)
+            }
+        }
+        controller.onTogglePause = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let coordinator = self?.playbackCoordinator else { return }
+                let snap = await coordinator.currentSnapshot()
+                if snap.isPaused {
+                    await coordinator.resume()
+                } else {
+                    await coordinator.pause()
+                }
+            }
+        }
+        controller.onStop = { [weak self] in
+            Task { await self?.playbackCoordinator?.stop() }
+        }
+        menuBarController = controller
     }
 
     private func registerReadThisHotkey() {
@@ -156,13 +167,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AppLogger.selection.info("read requested for: \(text.prefix(60), privacy: .public)")
             Task { @MainActor in
                 guard let self, let coordinator = self.playbackCoordinator else { return }
-                if text.count >= 600 {
-                    TranscriptWindowController.show(
-                        coordinator: coordinator,
-                        backend: self.backend,
-                        settings: self.ttsSettings
-                    )
-                }
                 await coordinator.read(text: text)
             }
         }
@@ -187,13 +191,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     resolved: resolved, clipboardURL: fallback
                 )
                 AppLogger.app.info("read source title=\(content.title ?? "-", privacy: .public) chars=\(content.text.count, privacy: .public)")
-                await MainActor.run {
-                    TranscriptWindowController.show(
-                        coordinator: coordinator,
-                        backend: self.backend,
-                        settings: self.ttsSettings
-                    )
-                }
                 await coordinator.read(text: content.text)
             } catch {
                 AppLogger.app.error("read source failed: \(error.localizedDescription, privacy: .public)")

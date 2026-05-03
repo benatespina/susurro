@@ -12,3 +12,4 @@ DerivedData/
 app/Susurro.xcodeproj/xcuserdata/
 app/Susurro.xcodeproj/project.xcworkspace/
 *.profraw
+.claude/
