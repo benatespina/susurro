@@ -296,7 +296,7 @@ struct IPCServerTests {
 		)
 		#expect(resp["ok"] as? Bool == true)
 
-		let stored = await server.getLastSeenCwd()
+		let stored = await server.lastSeenCwd
 		#expect(stored == "/tmp/testproj")
 	}
 
@@ -317,7 +317,7 @@ struct IPCServerTests {
 		)
 		#expect(resp["ok"] as? Bool == true)
 
-		let stored = await server.getLastSeenCwd()
+		let stored = await server.lastSeenCwd
 		#expect(stored == nil)
 	}
 
@@ -341,7 +341,7 @@ struct IPCServerTests {
 			object: ["cmd": "read", "text": "second", "cwd": "/tmp/proj-b"]
 		)
 
-		let stored = await server.getLastSeenCwd()
+		let stored = await server.lastSeenCwd
 		#expect(stored == "/tmp/proj-b")
 	}
 }

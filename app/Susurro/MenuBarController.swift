@@ -131,7 +131,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let server = ipcServer
         Task { @MainActor [weak self] in
             guard let self else { return }
-            self.cachedLastSeenCwd = await server.getLastSeenCwd()
+            self.cachedLastSeenCwd = await server.lastSeenCwd
             self.rebuildMenu()
             guard let host = self.statusItem.button else { return }
             let origin = NSPoint(x: 0, y: host.bounds.height + 4)

@@ -15,8 +15,6 @@ actor IPCServer {
 	private var listener: NWListener?
 	private(set) var lastSeenCwd: String?
 
-	func getLastSeenCwd() async -> String? { lastSeenCwd }
-
 	private static let maxPayload = 1_048_576
 
 	init(socketPath: String, speaker: any Speakable, settings: TTSSettings) {
@@ -94,7 +92,6 @@ actor IPCServer {
 		final class Box: @unchecked Sendable {
 			var data = Data()
 			var done = false
-			var tooLarge = false
 		}
 		let box = Box()
 		return await withCheckedContinuation { continuation in
@@ -104,7 +101,6 @@ actor IPCServer {
 					if let content { box.data.append(content) }
 					if box.data.count > Self.maxPayload {
 						box.done = true
-						box.tooLarge = true
 						continuation.resume(returning: .tooLarge)
 						return
 					}

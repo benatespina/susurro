@@ -81,8 +81,6 @@ enum CLIInstaller {
 		try fm.removeItem(atPath: linkPath)
 	}
 
-	// MARK: - Private
-
 	private static func homebrewBinPath() -> String {
 		let applesilicon = "/opt/homebrew/bin"
 		let intel = "/usr/local/bin"

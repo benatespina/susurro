@@ -28,8 +28,7 @@ case "read":
 		exit(2)
 	}
 
-	// Parse optional --cwd <path>
-	var cwd: String? = nil
+	var cwd: String?
 	if let cwdIndex = remaining.firstIndex(of: "--cwd") {
 		let valueIndex = remaining.index(after: cwdIndex)
 		if valueIndex < remaining.endIndex {
