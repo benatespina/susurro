@@ -10,6 +10,7 @@ final class PanelController {
     private var lastSelectionText: String?
     var onRead: ((String) -> Void)?
     var onStop: (() -> Void)?
+    var onHide: (() -> Void)?
 
     init(observer: SelectionObserver, appState: AppState) {
         self.observer = observer
@@ -28,7 +29,7 @@ final class PanelController {
             for await event in self.observer.events() {
                 switch event {
                 case .changed: self.handleSelectionChanged()
-                case .cleared: self.hide()
+                case .cleared, .rebuilding: self.hide()
                 }
             }
         }
@@ -103,5 +104,6 @@ final class PanelController {
 
     private func hide() {
         panel?.orderOut(nil)
+        onHide?()
     }
 }

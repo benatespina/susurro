@@ -3,7 +3,7 @@ import AppKit
 
 @MainActor
 final class SelectionObserver {
-    enum Event: Sendable { case changed, cleared }
+    enum Event: Sendable { case changed, cleared, rebuilding }
 
     private var currentObserver: AXObserver?
     private var currentPid: pid_t?
@@ -102,7 +102,8 @@ final class SelectionObserver {
         }
     }
 
-    private func rebuild(forPid pid: pid_t) {
+    func rebuild(forPid pid: pid_t) {
+        emit(.rebuilding)
         teardownCurrent()
         currentPid = pid
         guard pid != ProcessInfo.processInfo.processIdentifier else { return }
