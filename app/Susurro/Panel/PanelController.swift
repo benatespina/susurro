@@ -111,8 +111,8 @@ final class PanelController {
             panel = FloatingPanel(content: host)
         }
 
-        panel?.setFrameOrigin(point)
         panel?.setContentSize(size)
+        panel?.setFrameOrigin(point)
         panel?.orderFrontRegardless()
     }
 

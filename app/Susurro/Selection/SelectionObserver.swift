@@ -92,11 +92,15 @@ final class SelectionObserver {
 
     fileprivate func emit(_ event: Event) {
         if event == .changed, isMouseDown { return }
-        let now = ContinuousClock.now
-        if let last = lastEmit, now - last < Self.minimumEmitInterval {
-            return
+        // Only throttle noisy AX .changed events; .cleared and .rebuilding are
+        // control signals that must always be delivered.
+        if event == .changed {
+            let now = ContinuousClock.now
+            if let last = lastEmit, now - last < Self.minimumEmitInterval {
+                return
+            }
+            lastEmit = now
         }
-        lastEmit = now
         for continuation in continuations.values {
             continuation.yield(event)
         }
