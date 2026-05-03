@@ -9,8 +9,11 @@ private struct ToolbarSizeKey: PreferenceKey {
 
 struct SelectionToolbar: View {
     @Bindable var appState: AppState
+    let selectedText: String
     let onRead: () -> Void
     let onStop: () -> Void
+    let onTeachPronunciation: (String) -> Void
+    let onDismiss: () -> Void
     var onSizeChange: (CGSize) -> Void = { _ in }
 
     var body: some View {
@@ -34,6 +37,14 @@ struct SelectionToolbar: View {
                 systemImage: appState.isPlaying ? "pause.fill" : "play.fill",
                 isPrimary: true,
                 action: { if appState.isPlaying { onStop() } else { onRead() } }
+            )
+            ToolbarButton(
+                systemImage: "character.book.closed",
+                action: { onTeachPronunciation(selectedText) }
+            )
+            ToolbarButton(
+                systemImage: "xmark",
+                action: onDismiss
             )
         }
         .padding(.horizontal, 6)

@@ -12,6 +12,8 @@ final class PanelController {
     var onRead: ((String) -> Void)?
     var onStop: (() -> Void)?
     var onHide: (() -> Void)?
+    var onTeachPronunciation: ((String) -> Void)?
+    var onDismiss: (() -> Void)?
 
     private static let estimatedToolbarSize = CGSize(width: 60, height: 56)
 
@@ -86,11 +88,17 @@ final class PanelController {
     private func showPanel(at point: CGPoint, size: CGSize) {
         let content = PanelContent(
             appState: appState,
+            selectedText: lastSelectionText ?? "",
             onRead: { [weak self] in
                 guard let text = self?.lastSelectionText ?? SelectionReader.current()?.text else { return }
                 self?.onRead?(text)
             },
             onStop: { [weak self] in self?.onStop?() },
+            onTeachPronunciation: { [weak self] word in self?.onTeachPronunciation?(word) },
+            onDismiss: { [weak self] in
+                self?.hide()
+                self?.onDismiss?()
+            },
             onSizeChange: { [weak self] newSize in
                 self?.handleContentSizeChange(newSize)
             }
