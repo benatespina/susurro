@@ -2,11 +2,11 @@ import AppKit
 
 enum SusurroIcon {
     private static let canvas = NSSize(width: 22, height: 22)
-    private static let scale = 3
+    private static let scale: CGFloat = 3
 
     static func template() -> NSImage {
-        let pxW = Int(canvas.width) * scale
-        let pxH = Int(canvas.height) * scale
+        let pxW = Int(canvas.width * scale)
+        let pxH = Int(canvas.height * scale)
 
         guard let bitmap = NSBitmapImageRep(
             bitmapDataPlanes: nil,
@@ -29,7 +29,7 @@ enum SusurroIcon {
         NSColor.clear.setFill()
         NSRect(x: 0, y: 0, width: pxW, height: pxH).fill()
 
-        let fontSize = canvas.height * 0.95 * CGFloat(scale)
+        let fontSize = canvas.height * 0.95 * scale
         let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: fontSize)]
         let str = NSAttributedString(string: "🗣️", attributes: attrs)
         let large: CGFloat = 10_000
@@ -37,7 +37,7 @@ enum SusurroIcon {
             with: NSSize(width: large, height: large),
             options: [.usesDeviceMetrics]
         )
-        let verticalNudgeDown: CGFloat = 2.8 * CGFloat(scale)
+        let verticalNudgeDown = 2.8 * scale
         let drawX = (CGFloat(pxW) - glyphBounds.width) / 2 - glyphBounds.minX
         let drawY = (CGFloat(pxH) - glyphBounds.height) / 2 - glyphBounds.minY - verticalNudgeDown
         str.draw(at: NSPoint(x: drawX, y: drawY))

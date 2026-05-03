@@ -31,7 +31,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         stopButton = NSButton()
         super.init()
 
-        configureStatusItem()
         configureSubButtons()
         menu.delegate = self
         applyPlaybackVisibility(isPlaying: false, isPaused: false)
@@ -39,14 +38,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     func updatePlayback(isPlaying: Bool, isPaused: Bool) {
         applyPlaybackVisibility(isPlaying: isPlaying, isPaused: isPaused)
-    }
-
-    private func configureStatusItem() {
-        guard let button = statusItem.button else { return }
-        button.image = nil
-        button.title = ""
-        button.target = nil
-        button.action = nil
     }
 
     private func configureSubButtons() {
@@ -108,7 +99,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func applySpeakerState(isPlaying: Bool, isPaused: Bool) {
-        speakerImageView.image = SusurroIcon.template()
         speakerImageView.layer?.removeAnimation(forKey: "susurro.pulse")
 
         if isPlaying {

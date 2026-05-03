@@ -16,8 +16,8 @@ enum Pronunciations {
 
     private static func ensureFileExists() {
         let url = fileURL
-        if FileManager.default.fileExists(atPath: url.path) { return }
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        guard !FileManager.default.fileExists(atPath: url.path) else { return }
         let template = """
         {
           "es": {
