@@ -20,6 +20,7 @@ actor PlaybackCoordinator {
     private var snapshotContinuations: [AsyncStream<PlaybackSnapshot>.Continuation] = []
 
     private var sourceText: String = ""
+    private var sourceLanguage: String?
     private var chunks: [String] = []
     private var snapshot: PlaybackSnapshot = .empty
 
@@ -35,13 +36,14 @@ actor PlaybackCoordinator {
     func read(text: String) async {
         await stop(preserveTranscript: false)
         sourceText = text
+        sourceLanguage = LanguageDetector.detect(in: text)
 
         guard case .ready(let client) = await backend.state else {
             AppLogger.playback.error("backend not ready, cannot read")
             return
         }
         do {
-            let result = try await client.fetchChunks(text: text, language: nil)
+            let result = try await client.fetchChunks(text: text, language: sourceLanguage)
             chunks = result
         } catch {
             AppLogger.playback.error("chunks fetch failed: \(error.localizedDescription, privacy: .public)")
@@ -63,6 +65,7 @@ actor PlaybackCoordinator {
         guard chunks.isEmpty else { return }
         guard let session = SessionStore.load() else { return }
         sourceText = session.text
+        sourceLanguage = LanguageDetector.detect(in: session.text)
         chunks = session.chunks
         snapshot = PlaybackSnapshot(
             chunks: session.chunks,
@@ -186,7 +189,7 @@ actor PlaybackCoordinator {
         let request: URLRequest
         do {
             request = try client.streamingTTSRequest(
-                text: sourceText, language: nil, startChunk: startChunk
+                text: sourceText, language: sourceLanguage, startChunk: startChunk
             )
         } catch {
             AppLogger.playback.error("tts stream request build failed: \(error.localizedDescription, privacy: .public)")
