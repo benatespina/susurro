@@ -33,11 +33,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panelController: PanelController?
     private var accessibilityPollTask: Task<Void, Never>?
     private var menuBarController: MenuBarController?
+    private var ipcServer: IPCServer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSigtermHandler()
         permissionCoordinator = PermissionCoordinator(appState: appState)
-        playbackCoordinator = PlaybackCoordinator(backend: backend)
+        let coordinator = PlaybackCoordinator(backend: backend)
+        playbackCoordinator = coordinator
+        let socketPath = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appending(path: "Susurro/ipc.sock")
+            .path
+        let server = IPCServer(socketPath: socketPath, speaker: coordinator, settings: ttsSettings)
+        ipcServer = server
+        Task {
+            do {
+                try await server.start()
+            } catch {
+                AppLogger.app.error("IPCServer start failed: \(error, privacy: .public)")
+            }
+        }
         installMenuBarController()
         let env = ttsSettings.envVars()
         Task { [weak self] in
@@ -90,7 +105,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func installMenuBarController() {
-        let controller = MenuBarController(appState: appState, settings: ttsSettings, backend: backend)
+        guard let server = ipcServer else { return }
+        let controller = MenuBarController(appState: appState, settings: ttsSettings, backend: backend, ipcServer: server)
         controller.onShowTranscript = { [weak self] in
             guard let self, let coordinator = self.playbackCoordinator else { return }
             TranscriptWindowController.show(
@@ -172,7 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AppLogger.selection.info("read requested for: \(text.prefix(60), privacy: .public)")
             Task { @MainActor in
                 guard let self, let coordinator = self.playbackCoordinator else { return }
-                await coordinator.read(text: text)
+                _ = await coordinator.read(text: text)
             }
         }
         panelController?.onStop = { [weak self] in
@@ -204,7 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     resolved: resolved, clipboardURL: fallback
                 )
                 AppLogger.app.info("read source title=\(content.title ?? "-", privacy: .public) chars=\(content.text.count, privacy: .public)")
-                await coordinator.read(text: content.text)
+                _ = await coordinator.read(text: content.text)
             } catch {
                 AppLogger.app.error("read source failed: \(error.localizedDescription, privacy: .public)")
                 await MainActor.run { NSSound.beep() }
@@ -278,7 +294,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         AppLogger.app.info("applicationShouldTerminate — stopping backend")
         let backend = self.backend
+        let ipcServer = self.ipcServer
         Task.detached {
+            await ipcServer?.stop()
             await backend.stop()
             // NSApp.terminate's modal loop runs in NSModalRunLoopMode, which is
             // excluded from NSRunLoopCommonModes. DispatchQueue.main and

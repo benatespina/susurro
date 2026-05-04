@@ -12,6 +12,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let appState: AppState
     private let settings: TTSSettings
     private let backend: BackendProcess
+    private let ipcServer: IPCServer
+
+    private var cachedLastSeenCwd: String?
 
     private let statusItem: NSStatusItem
     private let speakerImageView: NSImageView
@@ -21,10 +24,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private static let slotSize: CGFloat = 22
 
-    init(appState: AppState, settings: TTSSettings, backend: BackendProcess) {
+    init(appState: AppState, settings: TTSSettings, backend: BackendProcess, ipcServer: IPCServer) {
         self.appState = appState
         self.settings = settings
         self.backend = backend
+        self.ipcServer = ipcServer
         statusItem = NSStatusBar.system.statusItem(withLength: Self.slotSize)
         speakerImageView = NSImageView()
         pauseButton = NSButton()
@@ -124,10 +128,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func speakerClicked(_ sender: Any?) {
-        rebuildMenu()
-        guard let host = statusItem.button else { return }
-        let origin = NSPoint(x: 0, y: host.bounds.height + 4)
-        menu.popUp(positioning: nil, at: origin, in: host)
+        let server = ipcServer
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.cachedLastSeenCwd = await server.lastSeenCwd
+            self.rebuildMenu()
+            guard let host = self.statusItem.button else { return }
+            let origin = NSPoint(x: 0, y: host.bounds.height + 4)
+            self.menu.popUp(positioning: nil, at: origin, in: host)
+        }
     }
 
     @objc private func togglePauseClicked(_ sender: Any?) {
@@ -154,6 +163,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(menuItem(title: "Show transcript…", action: #selector(handleShowTranscript)))
 
         menu.addItem(buildTTSMenu())
+        menu.addItem(buildClaudeIntegrationMenu())
         menu.addItem(buildDiagnosticsMenu())
         menu.addItem(.separator())
         menu.addItem(menuItem(title: "Quit Susurro", action: #selector(handleQuit)))
@@ -210,6 +220,143 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return parent
     }
 
+    private func buildClaudeIntegrationMenu() -> NSMenuItem {
+        let parent = NSMenuItem(title: "Claude Code Integration", action: nil, keyEquivalent: "")
+        let sub = NSMenu()
+
+        let cliInstalled = CLIInstaller.isInstalled()
+        let cliItem = NSMenuItem(
+            title: cliInstalled ? "Uninstall command-line tool" : "Install command-line tool",
+            action: cliInstalled ? #selector(handleUninstallCLI) : #selector(handleInstallCLI),
+            keyEquivalent: ""
+        )
+        cliItem.target = self
+        sub.addItem(cliItem)
+
+        let hookInstalled = ClaudeHookInstaller.isInstalled()
+        let hookItem = NSMenuItem(
+            title: hookInstalled ? "Uninstall Claude Code integration" : "Install Claude Code integration",
+            action: hookInstalled ? #selector(handleUninstallHook) : #selector(handleInstallHook),
+            keyEquivalent: ""
+        )
+        hookItem.target = self
+        sub.addItem(hookItem)
+
+        sub.addItem(.separator())
+
+        let autoReadItem = NSMenuItem(
+            title: "Auto-read responses",
+            action: #selector(handleToggleAutoRead),
+            keyEquivalent: ""
+        )
+        autoReadItem.target = self
+        autoReadItem.state = settings.autoReadEnabled ? .on : .off
+        sub.addItem(autoReadItem)
+
+        sub.addItem(.separator())
+        sub.addItem(buildProjectDisableItem())
+
+        parent.submenu = sub
+        return parent
+    }
+
+    private func buildProjectDisableItem() -> NSMenuItem {
+        guard let cwd = cachedLastSeenCwd else {
+            let item = NSMenuItem(
+                title: "Disable in current project",
+                action: nil,
+                keyEquivalent: ""
+            )
+            item.isEnabled = false
+            item.toolTip = "Send a Claude turn first to identify the project"
+            return item
+        }
+
+        let basename = URL(fileURLWithPath: cwd).lastPathComponent
+        let markerPath = (cwd as NSString).appendingPathComponent(".susurro-disable")
+        let hasMarker = FileManager.default.fileExists(atPath: markerPath)
+
+        let title = hasMarker ? "Re-enable in \"\(basename)\"" : "Disable in \"\(basename)\""
+        let action: Selector = hasMarker ? #selector(handleReenableProject) : #selector(handleDisableProject)
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        return item
+    }
+
+    @objc private func handleDisableProject() {
+        guard let cwd = cachedLastSeenCwd else { return }
+        let markerPath = (cwd as NSString).appendingPathComponent(".susurro-disable")
+        do {
+            try Data().write(to: URL(fileURLWithPath: markerPath))
+        } catch {
+            showError(error)
+        }
+    }
+
+    @objc private func handleReenableProject() {
+        guard let cwd = cachedLastSeenCwd else { return }
+        let markerPath = (cwd as NSString).appendingPathComponent(".susurro-disable")
+        do {
+            try FileManager.default.removeItem(atPath: markerPath)
+        } catch {
+            showError(error)
+        }
+    }
+
+    @objc private func handleInstallCLI() {
+        Task.detached {
+            do {
+                try CLIInstaller.install()
+            } catch {
+                await self.showError(error)
+            }
+            await MainActor.run { self.rebuildMenu() }
+        }
+    }
+
+    @objc private func handleUninstallCLI() {
+        Task.detached {
+            do {
+                try CLIInstaller.uninstall()
+            } catch {
+                await self.showError(error)
+            }
+            await MainActor.run { self.rebuildMenu() }
+        }
+    }
+
+    @objc private func handleInstallHook() {
+        Task.detached {
+            do {
+                try ClaudeHookInstaller.install()
+                await MainActor.run { ClaudeOnboarding.showIfFirstInstall() }
+            } catch {
+                await self.showError(error)
+            }
+            await MainActor.run { self.rebuildMenu() }
+        }
+    }
+
+    @objc private func handleUninstallHook() {
+        Task.detached {
+            do {
+                try ClaudeHookInstaller.uninstall()
+            } catch {
+                await self.showError(error)
+            }
+            await MainActor.run { self.rebuildMenu() }
+        }
+    }
+
+    @MainActor
+    private func showError(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "Susurro"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.runModal()
+    }
+
     private func buildDiagnosticsMenu() -> NSMenuItem {
         let parent = NSMenuItem(title: "Diagnostics", action: nil, keyEquivalent: "")
         let sub = NSMenu()
@@ -238,6 +385,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func handleReadThis() { onReadThis() }
     @objc private func handleShowTranscript() { onShowTranscript() }
     @objc private func handleQuit() { NSApp.terminate(nil) }
+    @objc private func handleToggleAutoRead() { settings.autoReadEnabled.toggle() }
     @objc private func handleOpenAccessibility() { AccessibilityPermission.openSystemSettings() }
     @objc private func handleRestartCrashedBackend() {
         let env = settings.envVars()

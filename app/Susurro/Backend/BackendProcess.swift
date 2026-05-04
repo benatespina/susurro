@@ -35,8 +35,29 @@ actor BackendProcess {
 
         if let existing = try? readLockfile() {
             if isPidAlive(existing.pid) {
-                await setState(.crashed(reason: "already running pid \(existing.pid)"))
-                throw BackendProcessError.alreadyRunning(pid: existing.pid)
+                // The recorded PID is alive. Probe health with a short timeout to
+                // distinguish a healthy backend we can adopt from an orphan that is
+                // still occupying the port but not serving requests.
+                let candidate = BackendClient(
+                    lockfile: existing,
+                    session: makeShortTimeoutSession(timeout: 0.5)
+                )
+                let isHealthy = (try? await candidate.health()) == .ready
+                if isHealthy {
+                    // Healthy leftover — adopt it, skip spawn entirely.
+                    AppLogger.backend.info("adopted existing backend pid=\(existing.pid, privacy: .public) port=\(existing.port, privacy: .public)")
+                    restartAttempts = 0
+                    await setState(.ready(BackendClient(lockfile: existing)))
+                    return
+                } else {
+                    // Orphan: alive but not serving. Kill it so we can bind the port.
+                    kill(existing.pid, SIGTERM)
+                    AppLogger.backend.info("recovered from stale lockfile, killed orphan PID \(existing.pid, privacy: .public)")
+                    try? FileManager.default.removeItem(at: LockfileLocator.path)
+                }
+            } else {
+                // PID is dead — stale lockfile. Clean it up so our fresh lockfile lands cleanly.
+                try? FileManager.default.removeItem(at: LockfileLocator.path)
             }
         }
 
@@ -200,6 +221,13 @@ actor BackendProcess {
         await setState(.crashed(reason: "health timeout"))
         throw BackendProcessError.healthTimeout
     }
+}
+
+private func makeShortTimeoutSession(timeout: TimeInterval) -> URLSession {
+    let config = URLSessionConfiguration.ephemeral
+    config.timeoutIntervalForRequest = timeout
+    config.timeoutIntervalForResource = timeout
+    return URLSession(configuration: config)
 }
 
 private func isPidAlive(_ pid: Int32) -> Bool {
