@@ -284,7 +284,6 @@ struct StopScriptTests {
 		let shimDir = try makeFakeSusurroDir(capturing: captureFile)
 		defer { try? FileManager.default.removeItem(atPath: shimDir) }
 
-		// stdin carries a fresh NEW message alongside the stale transcript path.
 		let stdinJSON = """
 		{"cwd":"/tmp","transcript_path":"\(transcriptFile.path)","last_assistant_message":"NEW fresh message from stdin"}
 		"""
