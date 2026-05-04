@@ -42,42 +42,59 @@ if [ -n "$cwd" ]; then
 	done
 fi
 
-# --- Extract last assistant message text from JSONL transcript (layer 1) ---
+# --- Layer 1: top-level last_assistant_message field from stdin JSON ---
+# This is the most reliable source: Claude Code provides the freshly-finished
+# message here before the JSONL transcript is fsynced to disk.
 message_text=""
-if [ -n "$transcript_path" ] && [ -f "$transcript_path" ]; then
-	if command -v jq >/dev/null 2>&1; then
-		# Stream JSONL lines through jq:
-		# 1. Collect all assistant events (top-level "type":"assistant")
-		# 2. Filter to those containing at least one text block (skip tool-use-only turns)
-		# 3. Take the last such event
-		# 4. Concatenate all its text blocks
-		message_text="$(jq -rn \
-			'[inputs | select(.type == "assistant" and .message.role == "assistant" and (any(.message.content[]?; .type == "text")))] | last | .message.content[]? | select(.type == "text") | .text' \
-			"$transcript_path" 2>/dev/null | paste -sd' ' -)"
-	else
-		# awk/grep fallback (no jq): approximate extraction — known limitation.
-		# Real schema: each line is {"type":"assistant","message":{"role":"assistant","content":[...]}}
-		# Strategy: take the last line that has both "type":"assistant" and "type":"text" in content,
-		# then extract "text":"<value>" substrings, unescaping basic JSON escapes.
-		last_assistant="$(grep '"type"[[:space:]]*:[[:space:]]*"assistant"' "$transcript_path" | \
-			grep '"type"[[:space:]]*:[[:space:]]*"text"' | tail -1)"
-		message_text="$(printf '%s' "$last_assistant" | \
-			grep -o '"text"[[:space:]]*:[[:space:]]*"[^"]*"' | \
-			awk -F'"' 'BEGIN{t=""} {v=$4; gsub(/\\n/,"\n",v); gsub(/\\"/,"\"",v); if(t!="")t=t" "; t=t v} END{print t}')"
-	fi
-	_log "Layer 1 (transcript) extracted text length=${#message_text}"
+if command -v jq >/dev/null 2>&1; then
+	message_text="$(printf '%s' "$input" | jq -r '.last_assistant_message // empty' 2>/dev/null)"
 else
-	_log "No transcript_path or file missing; skipping layer 1"
+	message_text="$(printf '%s' "$input" | grep -o '"last_assistant_message"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | awk -F'"' '{print $4}')"
+fi
+if [ -n "$message_text" ]; then
+	_log "Layer 1 (stdin last_assistant_message) succeeded; preview: $(printf '%s' "$message_text" | head -c 80)"
+else
+	_log "Layer 1 (stdin last_assistant_message) empty; falling through to transcript"
 fi
 
-# --- Layer 2: top-level last_assistant_message field from stdin JSON ---
+# --- Layer 2: extract last assistant message text from JSONL transcript ---
+# Fallback when stdin field is absent or empty (e.g. older Claude Code builds).
 if [ -z "$message_text" ]; then
-	if command -v jq >/dev/null 2>&1; then
-		message_text="$(printf '%s' "$input" | jq -r '.last_assistant_message // empty' 2>/dev/null)"
+	if [ -n "$transcript_path" ] && [ -f "$transcript_path" ]; then
+		if command -v jq >/dev/null 2>&1; then
+			# Stream JSONL lines through jq:
+			# 1. Collect all assistant events (top-level "type":"assistant")
+			# 2. Filter to those containing at least one text block (skip tool-use-only turns)
+			# 3. Take the last such event
+			# 4. Concatenate all its text blocks
+			message_text="$(jq -rn \
+				'[inputs | select(.type == "assistant" and .message.role == "assistant" and (any(.message.content[]?; .type == "text")))] | last | .message.content[]? | select(.type == "text") | .text' \
+				"$transcript_path" 2>/dev/null | paste -sd' ' -)"
+			if [ -n "$message_text" ]; then
+				_log "Layer 2 (transcript jq) succeeded; preview: $(printf '%s' "$message_text" | head -c 80)"
+			else
+				_log "Layer 2 (transcript jq) empty; falling through to awk/grep"
+			fi
+		else
+			# --- Layer 3: awk/grep fallback (no jq) ---
+			# Approximate extraction — known limitation.
+			# Real schema: each line is {"type":"assistant","message":{"role":"assistant","content":[...]}}
+			# Strategy: take the last line that has both "type":"assistant" and "type":"text" in content,
+			# then extract "text":"<value>" substrings, unescaping basic JSON escapes.
+			last_assistant="$(grep '"type"[[:space:]]*:[[:space:]]*"assistant"' "$transcript_path" | \
+				grep '"type"[[:space:]]*:[[:space:]]*"text"' | tail -1)"
+			message_text="$(printf '%s' "$last_assistant" | \
+				grep -o '"text"[[:space:]]*:[[:space:]]*"[^"]*"' | \
+				awk -F'"' 'BEGIN{t=""} {v=$4; gsub(/\\n/,"\n",v); gsub(/\\"/,"\"",v); if(t!="")t=t" "; t=t v} END{print t}')"
+			if [ -n "$message_text" ]; then
+				_log "Layer 3 (transcript awk/grep) succeeded; preview: $(printf '%s' "$message_text" | head -c 80)"
+			else
+				_log "Layer 3 (transcript awk/grep) empty; no extractable text found"
+			fi
+		fi
 	else
-		message_text="$(printf '%s' "$input" | grep -o '"last_assistant_message"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | awk -F'"' '{print $4}')"
+		_log "No transcript_path or file missing; skipping transcript layers"
 	fi
-	_log "Layer 2 (last_assistant_message) extracted text length=${#message_text}"
 fi
 
 _log "Final extracted text length=${#message_text}"
