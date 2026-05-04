@@ -242,15 +242,6 @@ struct BackendClient: Sendable {
     }
 }
 
-enum HealthStatus: Sendable, Equatable { case ready, loading }
-
-struct ExtractedArticle: Decodable, Sendable {
-    let text: String
-    let title: String?
-    let url: String
-    let language: String?
-}
-
 private struct ChunksResponse: Decodable {
     let chunks: [String]
     let language: String?
@@ -264,14 +255,6 @@ struct AnyEncodable: Encodable {
     func encode(to encoder: Encoder) throws {
         try _encode(encoder)
     }
-}
-
-struct PronunciationCandidate: Codable, Sendable, Identifiable, Hashable {
-    let kind: String
-    let label: String
-    let ssml: String
-
-    var id: String { ssml }
 }
 
 private struct CandidatesResponse: Decodable {
