@@ -1,10 +1,26 @@
 import AppKit
 
 enum SusurroIcon {
-    private static let canvas = NSSize(width: 22, height: 22)
+    private static let canvasHeight: CGFloat = 22
     private static let scale: CGFloat = 3
+    private static let horizontalMargin: CGFloat = 0
+
+    static let iconWidth: CGFloat = {
+        let bounds = visualGlyphBounds()
+        let rawWidth = bounds.width / scale + horizontalMargin
+        return (rawWidth * 2).rounded() / 2
+    }()
+
+    private static func visualGlyphBounds() -> CGRect {
+        let fontSize = canvasHeight * 0.95 * scale
+        let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: fontSize)]
+        let str = NSAttributedString(string: "🗣️", attributes: attrs)
+        let line = CTLineCreateWithAttributedString(str as CFAttributedString)
+        return CTLineGetImageBounds(line, nil)
+    }
 
     static func template() -> NSImage {
+        let canvas = NSSize(width: iconWidth, height: canvasHeight)
         let pxW = Int(canvas.width * scale)
         let pxH = Int(canvas.height * scale)
 
@@ -29,14 +45,10 @@ enum SusurroIcon {
         NSColor.clear.setFill()
         NSRect(x: 0, y: 0, width: pxW, height: pxH).fill()
 
-        let fontSize = canvas.height * 0.95 * scale
+        let fontSize = canvasHeight * 0.95 * scale
         let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: fontSize)]
         let str = NSAttributedString(string: "🗣️", attributes: attrs)
-        let large: CGFloat = 10_000
-        let glyphBounds = str.boundingRect(
-            with: NSSize(width: large, height: large),
-            options: [.usesDeviceMetrics]
-        )
+        let glyphBounds = Self.visualGlyphBounds()
         let verticalNudgeDown = 2.8 * scale
         let drawX = (CGFloat(pxW) - glyphBounds.width) / 2 - glyphBounds.minX
         let drawY = (CGFloat(pxH) - glyphBounds.height) / 2 - glyphBounds.minY - verticalNudgeDown

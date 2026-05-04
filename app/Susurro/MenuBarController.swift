@@ -29,7 +29,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         self.settings = settings
         self.backend = backend
         self.ipcServer = ipcServer
-        statusItem = NSStatusBar.system.statusItem(withLength: Self.slotSize)
+        statusItem = NSStatusBar.system.statusItem(withLength: SusurroIcon.iconWidth)
         speakerImageView = NSImageView()
         pauseButton = NSButton()
         stopButton = NSButton()
@@ -47,7 +47,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func configureSubButtons() {
         guard let host = statusItem.button else { return }
 
-        speakerImageView.frame = NSRect(x: 0, y: 0, width: Self.slotSize, height: Self.slotSize)
+        speakerImageView.frame = NSRect(x: 0, y: 0, width: SusurroIcon.iconWidth, height: Self.slotSize)
         speakerImageView.imageScaling = .scaleProportionallyDown
         speakerImageView.imageAlignment = .alignCenter
         speakerImageView.image = SusurroIcon.template()
@@ -61,7 +61,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             pauseButton,
             symbol: "pause.fill",
             label: "Pause",
-            x: Self.slotSize,
+            x: SusurroIcon.iconWidth,
             action: #selector(togglePauseClicked(_:))
         )
         pauseButton.isHidden = true
@@ -71,7 +71,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             stopButton,
             symbol: "stop.fill",
             label: "Stop",
-            x: Self.slotSize * 2,
+            x: SusurroIcon.iconWidth + Self.slotSize,
             action: #selector(stopClicked(_:))
         )
         stopButton.isHidden = true
@@ -98,7 +98,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let label = isPaused ? "Resume" : "Pause"
         pauseButton.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
         pauseButton.toolTip = label
-        statusItem.length = active ? Self.slotSize * 3 : Self.slotSize
+        statusItem.length = active ? SusurroIcon.iconWidth + Self.slotSize * 2 : SusurroIcon.iconWidth
         applySpeakerState(isPlaying: isPlaying, isPaused: isPaused)
     }
 
