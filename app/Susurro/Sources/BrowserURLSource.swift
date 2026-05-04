@@ -123,25 +123,7 @@ enum BrowserURLSource {
     }
 
     private static func isAddressFieldHinted(_ element: AXUIElement) -> Bool {
-        var idRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(
-            element, kAXIdentifierAttribute as CFString, &idRef
-        ) == .success, let identifier = idRef as? String {
-            let lowered = identifier.lowercased()
-            if lowered.contains("address") || lowered.contains("url") || lowered.contains("location") || lowered.contains("omnibox") {
-                return true
-            }
-        }
-        var descRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(
-            element, kAXDescriptionAttribute as CFString, &descRef
-        ) == .success, let desc = descRef as? String {
-            let lowered = desc.lowercased()
-            if lowered.contains("address") || lowered.contains("url") || lowered.contains("location") {
-                return true
-            }
-        }
-        return false
+        URLBarFilter.isAddressBar(element)
     }
 
     private static func children(of element: AXUIElement) -> [AXUIElement] {
