@@ -7,7 +7,7 @@ enum TranscriptWindowController {
     private static var windowController: NSWindowController?
     private static var bridge: TranscriptStateBridge?
 
-    static func show(coordinator: PlaybackCoordinator, backend: BackendProcess, settings: TTSSettings) {
+    static func show(coordinator: PlaybackCoordinator, settings: TTSSettings) {
         if let existing = windowController {
             existing.window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -18,7 +18,6 @@ enum TranscriptWindowController {
         let view = TranscriptView(
             bridge: bridge,
             coordinator: coordinator,
-            backend: backend,
             settings: settings
         )
         let hosting = NSHostingController(rootView: view)
@@ -71,7 +70,6 @@ final class TranscriptStateBridge: ObservableObject {
 private struct TranscriptView: View {
     @ObservedObject var bridge: TranscriptStateBridge
     let coordinator: PlaybackCoordinator
-    let backend: BackendProcess
     let settings: TTSSettings
 
     @State private var pronunciationDraft: PronunciationDraft?
@@ -88,7 +86,6 @@ private struct TranscriptView: View {
         .frame(minWidth: 460, minHeight: 360)
         .sheet(item: $pronunciationDraft) { draft in
             AddPronunciationSheet(
-                backend: backend,
                 settings: settings,
                 initial: AddPronunciationSheet.Initial(
                     word: draft.word,

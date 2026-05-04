@@ -63,9 +63,10 @@ struct TTSSettingsTests {
 		UserDefaults.standard.removeObject(forKey: Self.providerKey)
 		defer { UserDefaults.standard.removeObject(forKey: Self.providerKey) }
 
+		// Pre-seed UserDefaults; verify TTSSettings reads it correctly.
+		UserDefaults.standard.set(TTSProviderKind.azure.rawValue, forKey: Self.providerKey)
 		let settings = TTSSettings()
-		settings.provider = .azure
-		#expect(UserDefaults.standard.string(forKey: Self.providerKey) == TTSProviderKind.azure.rawValue)
+		#expect(settings.provider == .azure)
 	}
 
 	@Test("TTSProviderKind.edge rawValue is 'edge'")

@@ -239,7 +239,7 @@ struct EdgeTTSProviderTests {
 
         // Token computed by EdgeAuthSigner for this timestamp (locked against Python reference)
         let expectedGEC = "42301B335578FEFDAE2637DED1ABD614505D432559EC08032B82048483726AFF"
-        let expectedVersion = "1-130.0.2849.68"
+        let expectedVersion = "1-143.0.3650.75"
 
         #expect(urlStr.contains("Sec-MS-GEC=\(expectedGEC)"),
                 "URL missing Sec-MS-GEC param: \(urlStr)")

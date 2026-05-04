@@ -32,119 +32,9 @@ struct LockfileTests {
     }
 }
 
-// MARK: - BackendClient URL construction
-
-final class MockURLProtocol: URLProtocol, @unchecked Sendable {
-    nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
-
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-
-    override func startLoading() {
-        guard let handler = MockURLProtocol.requestHandler else {
-            client?.urlProtocol(self, didFailWithError: URLError(.unknown))
-            return
-        }
-        do {
-            let (response, data) = try handler(request)
-            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: data)
-            client?.urlProtocolDidFinishLoading(self)
-        } catch {
-            client?.urlProtocol(self, didFailWithError: error)
-        }
-    }
-
-    override func stopLoading() {}
-}
-
-private func makeSession() -> URLSession {
-    let config = URLSessionConfiguration.ephemeral
-    config.protocolClasses = [MockURLProtocol.self]
-    return URLSession(configuration: config)
-}
-
-@Suite(.serialized)
-struct BackendClientTests {
-    @Test func ttsRequestConstruction() async throws {
-        var capturedRequest: URLRequest?
-        let responseData = Data("audio-bytes".utf8)
-
-        MockURLProtocol.requestHandler = { request in
-            capturedRequest = request
-            return (
-                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
-                responseData
-            )
-        }
-        defer { MockURLProtocol.requestHandler = nil }
-
-        let lockfile = Lockfile(port: 9999, pid: 1, token: "test-token", startedAt: "2026-01-01T00:00:00Z")
-        let client = BackendClient(lockfile: lockfile, session: makeSession())
-
-        let returned = try await client.tts(text: "hello", language: "en")
-
-        #expect(returned == responseData)
-        #expect(capturedRequest?.url?.path == "/tts")
-        #expect(capturedRequest?.httpMethod == "POST")
-        #expect(capturedRequest?.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
-        #expect(capturedRequest?.value(forHTTPHeaderField: "Content-Type") == "application/json")
-
-        if let body = capturedRequest?.httpBody {
-            let decoded = try JSONDecoder().decode([String: String].self, from: body)
-            #expect(decoded["text"] == "hello")
-            #expect(decoded["language"] == "en")
-        }
-    }
-
-    @Test func healthDecoding200Ready() async throws {
-        MockURLProtocol.requestHandler = { request in
-            let body = #"{"status":"ready"}"#.data(using: .utf8)!
-            return (
-                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
-                body
-            )
-        }
-        defer { MockURLProtocol.requestHandler = nil }
-
-        let session = makeSession()
-        let url = URL(string: "http://127.0.0.1:9999/health")!
-        var request = URLRequest(url: url, timeoutInterval: 5)
-        request.httpMethod = "GET"
-
-        let (data, response) = try await session.data(for: request)
-        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-        let body = try JSONDecoder().decode([String: String].self, from: data)
-        let statusValue = body["status"] ?? ""
-
-        #expect(statusCode == 200)
-        #expect(statusValue == "ready")
-    }
-
-    @Test func healthDecoding503Loading() async throws {
-        MockURLProtocol.requestHandler = { request in
-            let body = #"{"status":"loading"}"#.data(using: .utf8)!
-            return (
-                HTTPURLResponse(url: request.url!, statusCode: 503, httpVersion: nil, headerFields: nil)!,
-                body
-            )
-        }
-        defer { MockURLProtocol.requestHandler = nil }
-
-        let session = makeSession()
-        let url = URL(string: "http://127.0.0.1:9999/health")!
-        var request = URLRequest(url: url, timeoutInterval: 5)
-        request.httpMethod = "GET"
-
-        let (data, response) = try await session.data(for: request)
-        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-        let body = try JSONDecoder().decode([String: String].self, from: data)
-        let statusValue = body["status"] ?? ""
-
-        #expect(statusCode == 503)
-        #expect(statusValue == "loading")
-    }
-}
+// MARK: - BackendClient (Phase 8 deletes these tests entirely)
+// NOTE: BackendClient is now an in-process actor; HTTP-mocking tests removed.
+// The BackendProcess.State unit tests below remain valid until Phase 8.
 
 // MARK: - BackendProcess.State unit tests
 
@@ -173,15 +63,6 @@ struct BackendProcessStateTests {
         acceptSendable(BackendProcess.State.restarting(attempt: 1))
         acceptSendable(BackendProcess.State.crashed(reason: "test"))
     }
-
-    // NOTE: Full unit-test coverage of handleTermination / scheduleRestart is not
-    // practical without risky refactoring because both methods are private and
-    // intertwined with real Process spawning, a 2-second async sleep, and actor
-    // state.  To integration-test restart behaviour, run with
-    // SUSURRO_RUN_INTEGRATION=1 and extend startStopRealBackend to kill the
-    // Python child via `kill -9 <pid>` read from the lockfile, then assert the
-    // state stream passes through .restarting(attempt:1) before returning to
-    // .ready within ~30 s.
 }
 
 // MARK: - Integration tests (disabled by default)
@@ -200,16 +81,10 @@ struct BackendIntegrationTests {
         try await process.start()
 
         let state = await process.state
-        guard case .ready(let client) = state else {
+        guard case .ready = state else {
             Issue.record("Expected .ready state")
             return
         }
-
-        let health = try await client.health()
-        #expect(health == .ready)
-
-        let wavData = try await client.tts(text: "test", language: "en")
-        #expect(!wavData.isEmpty)
 
         await process.stop()
 

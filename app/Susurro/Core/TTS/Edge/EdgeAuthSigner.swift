@@ -17,9 +17,9 @@ enum EdgeAuthSigner {
     static let trustedClientToken = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"
 
     /// `Sec-MS-GEC-Version` header value. Bump when Microsoft rotates the expected version.
-    // Pin to plan version. Upstream edge-tts uses 1-143.0.3650.75 as of 2026-05.
+    // Upstream edge-tts uses 1-143.0.3650.75 as of 2026-05.
     // Bump only when Microsoft starts rejecting requests with the older version.
-    static let secMSGECVersion = "1-130.0.2849.68"
+    static let secMSGECVersion = "1-143.0.3650.75"
 
     /// Windows epoch offset: seconds between 1601-01-01 and 1970-01-01.
     private static let winEpochSeconds: Double = 11_644_473_600

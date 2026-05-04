@@ -16,7 +16,7 @@ final class TTSSettings {
     var provider: TTSProviderKind {
         didSet {
             UserDefaults.standard.set(provider.rawValue, forKey: Self.providerKey)
-            guard isInitialized else { return }
+            guard isInitialized, oldValue != provider else { return }
             Task { @MainActor in
                 await TTSProviderRegistry.shared.swap(to: provider)
             }

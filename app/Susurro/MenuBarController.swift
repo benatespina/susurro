@@ -11,7 +11,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private let appState: AppState
     private let settings: TTSSettings
-    private let backend: BackendProcess
     private let ipcServer: IPCServer
 
     private var cachedLastSeenCwd: String?
@@ -26,10 +25,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private static let slotSize: CGFloat = 22
 
-    init(appState: AppState, settings: TTSSettings, backend: BackendProcess, ipcServer: IPCServer) {
+    init(appState: AppState, settings: TTSSettings, ipcServer: IPCServer) {
         self.appState = appState
         self.settings = settings
-        self.backend = backend
         self.ipcServer = ipcServer
         statusItem = NSStatusBar.system.statusItem(withLength: SusurroIcon.iconWidth)
         speakerImageView = NSImageView()
@@ -186,16 +184,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             menu.addItem(disabledItem(title: "TTS: Loading…"))
         } else {
             switch appState.backendStatus {
-            case .unknown:
-                menu.addItem(disabledItem(title: "Backend: stopped"))
             case .starting:
-                menu.addItem(disabledItem(title: "Backend: starting…"))
+                menu.addItem(disabledItem(title: "TTS: Loading…"))
             case .ready:
-                menu.addItem(disabledItem(title: "Backend: ready — \(settings.provider.displayName)"))
-            case .restarting(let attempt):
-                menu.addItem(disabledItem(title: "Backend: restarting (\(attempt)/3)…"))
-            case .crashed:
-                menu.addItem(disabledItem(title: "Backend: crashed"))
+                menu.addItem(disabledItem(title: "Ready — \(settings.provider.displayName)"))
             }
         }
 
@@ -380,8 +372,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let parent = NSMenuItem(title: "Diagnostics", action: nil, keyEquivalent: "")
         let sub = NSMenu()
         sub.addItem(menuItem(title: "Show Backend Logs", action: #selector(handleShowBackendLogs)))
-        sub.addItem(menuItem(title: "Reveal Lockfile in Finder", action: #selector(handleRevealLockfile)))
-        sub.addItem(menuItem(title: "Restart Backend", action: #selector(handleRestartBackendFromDiagnostics)))
         sub.addItem(.separator())
         sub.addItem(menuItem(title: "Copy Diagnostics to Clipboard", action: #selector(handleCopyDiagnostics)))
         parent.submenu = sub
@@ -407,11 +397,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func handleToggleAutoRead() { settings.autoReadEnabled.toggle() }
     @objc private func handleOpenAccessibility() { AccessibilityPermission.openSystemSettings() }
 
-    @objc private func handleRestartBackendFromDiagnostics() {
-        let env = settings.envVars()
-        Task { try? await backend.start(extraEnv: env) }
-    }
-
     @objc private func handleSelectProvider(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String,
               let provider = TTSProviderKind(rawValue: raw) else { return }
@@ -436,20 +421,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func handleOpenPronunciations() {
-        PronunciationsWindowController.show(backend: backend, settings: settings)
+        PronunciationsWindowController.show(settings: settings)
     }
 
     @objc private func handleShowBackendLogs() {
         NSWorkspace.shared.open(URL(filePath: "/System/Applications/Utilities/Console.app"))
-    }
-
-    @objc private func handleRevealLockfile() {
-        let lockfileURL = LockfileLocator.path
-        if FileManager.default.fileExists(atPath: lockfileURL.path) {
-            NSWorkspace.shared.activateFileViewerSelecting([lockfileURL])
-        } else {
-            NSWorkspace.shared.activateFileViewerSelecting([lockfileURL.deletingLastPathComponent()])
-        }
     }
 
     @objc private func handleCopyDiagnostics() {

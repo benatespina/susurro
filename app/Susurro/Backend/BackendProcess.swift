@@ -1,3 +1,5 @@
+// NOTE: BackendProcess is retained on disk for Phase 8 deletion.
+// It is no longer invoked from the app — BackendClient is now an in-process actor.
 import Darwin
 import Foundation
 import os
@@ -35,28 +37,19 @@ actor BackendProcess {
 
         if let existing = try? readLockfile() {
             if isPidAlive(existing.pid) {
-                // The recorded PID is alive. Probe health with a short timeout to
-                // distinguish a healthy backend we can adopt from an orphan that is
-                // still occupying the port but not serving requests.
-                let candidate = BackendClient(
-                    lockfile: existing,
-                    session: makeShortTimeoutSession(timeout: 0.5)
-                )
-                let isHealthy = (try? await candidate.health()) == .ready
+                // The recorded PID is alive. Probe health — use the shared client.
+                let isHealthy = await BackendClient.shared.health() == .ready
                 if isHealthy {
-                    // Healthy leftover — adopt it, skip spawn entirely.
                     AppLogger.backend.info("adopted existing backend pid=\(existing.pid, privacy: .public) port=\(existing.port, privacy: .public)")
                     restartAttempts = 0
-                    await setState(.ready(BackendClient(lockfile: existing)))
+                    await setState(.ready(BackendClient.shared))
                     return
                 } else {
-                    // Orphan: alive but not serving. Kill it so we can bind the port.
                     kill(existing.pid, SIGTERM)
                     AppLogger.backend.info("recovered from stale lockfile, killed orphan PID \(existing.pid, privacy: .public)")
                     try? FileManager.default.removeItem(at: LockfileLocator.path)
                 }
             } else {
-                // PID is dead — stale lockfile. Clean it up so our fresh lockfile lands cleanly.
                 try? FileManager.default.removeItem(at: LockfileLocator.path)
             }
         }
@@ -115,12 +108,11 @@ actor BackendProcess {
 
         self.process = proc
 
-        let lockfile = try await waitForLockfile()
-        let client = BackendClient(lockfile: lockfile)
-        try await waitForHealth(client: client)
+        _ = try await waitForLockfile()
+        try await waitForHealth()
 
         restartAttempts = 0
-        await setState(.ready(client))
+        await setState(.ready(BackendClient.shared))
     }
 
     func stop() async {
@@ -134,7 +126,6 @@ actor BackendProcess {
         }
 
         let pid = proc.processIdentifier
-        // SIGTERM grace before SIGKILL — keeps Python's atexit handlers running
         kill(pid, SIGTERM)
 
         let deadline = Date().addingTimeInterval(3)
@@ -207,10 +198,10 @@ actor BackendProcess {
         throw BackendProcessError.noLockfile
     }
 
-    private func waitForHealth(client: BackendClient) async throws {
+    private func waitForHealth() async throws {
         let startedAt = Date()
         while Date().timeIntervalSince(startedAt) < 30 {
-            if let status = try? await client.health(), status == .ready {
+            if await BackendClient.shared.health() == .ready {
                 return
             }
             try? await Task.sleep(nanoseconds: 500_000_000)

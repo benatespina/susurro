@@ -4,9 +4,6 @@ struct DiagnosticsReport: Sendable {
     let appVersion: String
     let bundleId: String
     let backendStatus: String
-    let lockfilePath: String
-    let lockfileExists: Bool
-    let lockfileContent: String?
     let recentLogs: String
     let macOSVersion: String
 
@@ -19,13 +16,9 @@ struct DiagnosticsReport: Sendable {
         Bundle ID:       \(bundleId)
         macOS:           \(macOSVersion)
 
-        Backend
-        -------
+        TTS
+        ---
         Status:          \(backendStatus)
-        Lockfile path:   \(lockfilePath)
-        Lockfile exists: \(lockfileExists)
-        Lockfile:
-        \(lockfileContent ?? "(none)")
 
         Recent logs (last 5 min)
         ------------------------
@@ -40,9 +33,6 @@ enum Diagnostics {
         let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
         let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
         let backendStatus = describeBackendStatus(state.backendStatus)
-        let lockfilePath = LockfileLocator.path.path
-        let lockfileExists = FileManager.default.fileExists(atPath: lockfilePath)
-        let lockfileContent = lockfileExists ? (try? String(contentsOfFile: lockfilePath, encoding: .utf8)) : nil
         let recentLogs = await fetchRecentLogs()
         let macOSVersion = ProcessInfo.processInfo.operatingSystemVersionString
 
@@ -50,9 +40,6 @@ enum Diagnostics {
             appVersion: appVersion,
             bundleId: bundleId,
             backendStatus: backendStatus,
-            lockfilePath: lockfilePath,
-            lockfileExists: lockfileExists,
-            lockfileContent: lockfileContent,
             recentLogs: recentLogs,
             macOSVersion: macOSVersion
         )
@@ -60,11 +47,8 @@ enum Diagnostics {
 
     private static func describeBackendStatus(_ status: AppState.BackendStatus) -> String {
         switch status {
-        case .unknown: return "unknown/stopped"
         case .starting: return "starting"
         case .ready: return "ready"
-        case .restarting(let attempt): return "restarting (attempt \(attempt)/3)"
-        case .crashed: return "crashed"
         }
     }
 
