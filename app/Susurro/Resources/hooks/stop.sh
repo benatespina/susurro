@@ -77,7 +77,7 @@ if [ -z "$message_text" ]; then
 			if [ -n "$message_text" ]; then
 				_log "Layer 2 (transcript jq) succeeded; preview: $(printf '%.80s' "$message_text")"
 			else
-				_log "Layer 2 (transcript jq) empty; falling through to awk/grep"
+				_log "Layer 2 (transcript jq) empty; no text found in transcript"
 			fi
 		else
 			# --- Layer 3: awk/grep fallback (no jq) ---

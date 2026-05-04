@@ -246,7 +246,7 @@ struct StopScriptTests {
 
 		// transcript_path points at a nonexistent file — transcript layers (2/3) won't fire; this test verifies Layer 1 (stdin) drives extraction
 		let stdinJSON = """
-		{"cwd":"/tmp","transcript_path":"/nonexistent/path/transcript.jsonl","last_assistant_message":"Fallback layer two text"}
+		{"cwd":"/tmp","transcript_path":"/nonexistent/path/transcript.jsonl","last_assistant_message":"stdin primary layer text"}
 		"""
 
 		var env = ProcessInfo.processInfo.environment
@@ -257,7 +257,7 @@ struct StopScriptTests {
 		#expect(FileManager.default.fileExists(atPath: captureFile),
 				"susurro shim must be invoked when last_assistant_message is present")
 		let captured = (try? String(contentsOfFile: captureFile, encoding: .utf8)) ?? ""
-		#expect(captured.contains("Fallback layer two text"))
+		#expect(captured.contains("stdin primary layer text"))
 	}
 
 	// --- Test: stdin last_assistant_message overrides stale transcript content ---
