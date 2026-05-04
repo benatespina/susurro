@@ -7,9 +7,17 @@ import Testing
 
 private actor FakeSpeaker: Speakable {
 	private(set) var calls: [String] = []
+	let shouldSucceed: Bool
 
-	func read(text: String) async {
-		calls.append(text)
+	init(shouldSucceed: Bool = true) {
+		self.shouldSucceed = shouldSucceed
+	}
+
+	func read(text: String) async -> Bool {
+		if shouldSucceed {
+			calls.append(text)
+		}
+		return shouldSucceed
 	}
 
 	func callCount() -> Int { calls.count }
@@ -343,5 +351,24 @@ struct IPCServerTests {
 
 		let stored = await server.lastSeenCwd
 		#expect(stored == "/tmp/proj-b")
+	}
+
+	@Test("speaker failure: ok:false with playback failed error")
+	func speakerFailure() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker(shouldSucceed: false)
+		let settings = await makeSettings(autoReadEnabled: true)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		let resp = try await sendJSON(socketPath: path, object: ["cmd": "read", "text": "Hello world"])
+		#expect(resp["ok"] as? Bool == false)
+		#expect(resp["error"] as? String == "playback failed")
+
+		let count = await speaker.callCount()
+		#expect(count == 0)
 	}
 }

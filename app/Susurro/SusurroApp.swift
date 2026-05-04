@@ -188,7 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AppLogger.selection.info("read requested for: \(text.prefix(60), privacy: .public)")
             Task { @MainActor in
                 guard let self, let coordinator = self.playbackCoordinator else { return }
-                await coordinator.read(text: text)
+                _ = await coordinator.read(text: text)
             }
         }
         panelController?.onStop = { [weak self] in
@@ -220,7 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     resolved: resolved, clipboardURL: fallback
                 )
                 AppLogger.app.info("read source title=\(content.title ?? "-", privacy: .public) chars=\(content.text.count, privacy: .public)")
-                await coordinator.read(text: content.text)
+                _ = await coordinator.read(text: content.text)
             } catch {
                 AppLogger.app.error("read source failed: \(error.localizedDescription, privacy: .public)")
                 await MainActor.run { NSSound.beep() }

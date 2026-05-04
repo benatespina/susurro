@@ -3,7 +3,7 @@ import Network
 import os
 
 protocol Speakable: Sendable {
-	func read(text: String) async
+	func read(text: String) async -> Bool
 }
 
 extension PlaybackCoordinator: Speakable {}
@@ -147,9 +147,14 @@ actor IPCServer {
 			return spokeResponse(false)
 		}
 
-		await speaker.read(text: filtered)
-		AppLogger.claudeSpoke(charCount: filtered.count)
-		return spokeResponse(true)
+		let spoke = await speaker.read(text: filtered)
+		if spoke {
+			AppLogger.claudeSpoke(charCount: filtered.count)
+			return spokeResponse(true)
+		} else {
+			AppLogger.claudeSkipped(reason: "playback failed")
+			return errorResponse("playback failed")
+		}
 	}
 
 	private func send(_ data: Data, on connection: NWConnection) async {

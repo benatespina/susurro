@@ -33,21 +33,21 @@ actor PlaybackCoordinator {
         self.backend = backend
     }
 
-    func read(text: String) async {
+    func read(text: String) async -> Bool {
         await stop(preserveTranscript: false)
         sourceText = text
         sourceLanguage = LanguageDetector.detect(in: text)
 
         guard case .ready(let client) = await backend.state else {
             AppLogger.playback.error("backend not ready, cannot read")
-            return
+            return false
         }
         do {
             let result = try await client.fetchChunks(text: text, language: sourceLanguage)
             chunks = result
         } catch {
             AppLogger.playback.error("chunks fetch failed: \(error.localizedDescription, privacy: .public)")
-            chunks = []
+            return false
         }
         snapshot = PlaybackSnapshot(
             chunks: chunks, currentChunkIndex: 0, isPlaying: false, isPaused: false
@@ -56,6 +56,7 @@ actor PlaybackCoordinator {
         persistSnapshot()
 
         startStream(fromChunk: 0)
+        return true
     }
 
     /// Restore a previously persisted session into memory without auto-playing.
