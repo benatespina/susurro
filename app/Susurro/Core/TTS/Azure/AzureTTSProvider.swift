@@ -5,7 +5,7 @@ import Foundation
 /// Uses the Azure REST Speech Synthesis endpoint.
 /// Key and region are read on every call via closures so that Settings UI
 /// changes propagate without re-initializing the provider.
-actor AzureTTSProvider: TTSSynthesizer {
+actor AzureTTSProvider: TTSProvider {
 
     // MARK: - Dependencies
 
@@ -30,7 +30,7 @@ actor AzureTTSProvider: TTSSynthesizer {
         self.pronunciationsApply = pronunciationsApply
     }
 
-    // MARK: - TTSProvider
+    // MARK: - TTSProvider conformance
 
     func warmup() async throws {
         guard let key = keyProvider(), !key.isEmpty,

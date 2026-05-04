@@ -35,7 +35,7 @@ enum EdgeURLBuilder {
 ///
 /// Uses `URLSessionWebSocketTask` for the WebSocket connection; does NOT use `BreakInjector`.
 /// Mirrors the Python `tts_edge.py` + upstream `edge-tts` library behaviour.
-actor EdgeTTSProvider: TTSSynthesizer {
+actor EdgeTTSProvider: TTSProvider {
 
     // MARK: - Dependencies
 
@@ -71,7 +71,7 @@ actor EdgeTTSProvider: TTSSynthesizer {
         }
     }
 
-    // MARK: - TTSSynthesizer
+    // MARK: - TTSProvider
 
     /// Warms up the connection by synthesizing a silent space in Spanish.
     ///

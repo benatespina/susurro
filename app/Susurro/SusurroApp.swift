@@ -54,6 +54,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         installMenuBarController()
+        // Warm up the TTS registry (live-swap provider).
+        Task { @MainActor in
+            await TTSProviderRegistry.shared.warmup()
+        }
         let env = ttsSettings.envVars()
         Task { [weak self] in
             guard let self else { return }
@@ -125,14 +129,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         controller.onReadThis = { [weak self] in
             self?.readFromCurrentApp()
-        }
-        controller.onRestartBackend = { [weak self] in
-            guard let self else { return }
-            let env = self.ttsSettings.envVars()
-            Task {
-                await self.backend.stop()
-                try? await self.backend.start(extraEnv: env)
-            }
         }
         controller.onTogglePause = { [weak self] in
             Task { @MainActor [weak self] in

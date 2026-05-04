@@ -36,6 +36,7 @@
 		3E6BDA6663282FA55D0F26BA /* ContentSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10220536275C03C0BF2020D6 /* ContentSource.swift */; };
 		405DAAD0EE316956958873A4 /* SSMLBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A2C0C2734E31B960DBA3D9 /* SSMLBuilder.swift */; };
 		426A55BEAA3DE5BC562A9343 /* stop.sh in Resources */ = {isa = PBXBuildFile; fileRef = AFDEF385826969C783C614A1 /* stop.sh */; };
+		43EC8993D97697842770874F /* TTSProviderRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 443F5A9EEF7373DEBCA3EA9C /* TTSProviderRegistry.swift */; };
 		449C34B48F54E84EAD7C0984 /* BackendProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECC3E034930CEA0A13CD4CB9 /* BackendProcess.swift */; };
 		462B3ED88A98C60D2430BC11 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ACD5A614AA9DE5ACF2FF2F8 /* main.swift */; };
 		46E676DE8CCD29A76DCFD90E /* LangDetect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2165F46A52E7CD61886B2CC0 /* LangDetect.swift */; };
@@ -52,6 +53,8 @@
 		65604C6E459644B7DA661338 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1DD401E8ECC683293028F4F /* Keychain.swift */; };
 		671DC84DF13634D4D459D541 /* TextAppSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A85D0BB3738610DA9538300 /* TextAppSource.swift */; };
 		68B16A789DE1E93D0CFBB9F1 /* SusurroApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA2C69786A97D2FD135087F5 /* SusurroApp.swift */; };
+		6B9714B216086C4B04410D42 /* TTSProviderRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D03093625DCFBC35F0C9DB /* TTSProviderRegistryTests.swift */; };
+		6BC8ACFAD6A39AAFC9B96659 /* TTSProviderKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE345B8600296B4F2B6754CA /* TTSProviderKind.swift */; };
 		6E702CF1C6974A4A9B4FE915 /* AzureTTSProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44991C64BD02B9E7D875D91F /* AzureTTSProvider.swift */; };
 		7358E40DD07CEDA518EC1037 /* PronunciationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049BECB8047B0F4A78A7E6E8 /* PronunciationStore.swift */; };
 		74ECFEBBDF0E479263A8BA00 /* Logging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C6622D79F394C34231FB27 /* Logging.swift */; };
@@ -168,6 +171,7 @@
 		42256335966E46A2B4B0EDF7 /* SwiftSoupExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftSoupExtractor.swift; sourceTree = "<group>"; };
 		428C5C9C5DACCB7557F0E784 /* Pronunciations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pronunciations.swift; sourceTree = "<group>"; };
 		4322ABB9A3F040AFB47572B2 /* PanelPositionerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPositionerTests.swift; sourceTree = "<group>"; };
+		443F5A9EEF7373DEBCA3EA9C /* TTSProviderRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSProviderRegistry.swift; sourceTree = "<group>"; };
 		44991C64BD02B9E7D875D91F /* AzureTTSProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AzureTTSProvider.swift; sourceTree = "<group>"; };
 		44B2987664520BF898214521 /* PDFKitSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFKitSource.swift; sourceTree = "<group>"; };
 		45A8E0314B400FAB476BB330 /* SusurroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SusurroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -227,6 +231,7 @@
 		C121E9671CB32EEBBD334489 /* SelectionObserverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionObserverTests.swift; sourceTree = "<group>"; };
 		C7CA9DFC30C00FE7661E8EC9 /* VisualEffectBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualEffectBackground.swift; sourceTree = "<group>"; };
 		C8F458D52C278864FCEBC915 /* PlaybackCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinator.swift; sourceTree = "<group>"; };
+		CE345B8600296B4F2B6754CA /* TTSProviderKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSProviderKind.swift; sourceTree = "<group>"; };
 		D3EC8D0AE60105669D2E128A /* SelectionReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionReaderTests.swift; sourceTree = "<group>"; };
 		DBC21D43392AD604C426CBC7 /* SelectionReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionReader.swift; sourceTree = "<group>"; };
 		DFE2ABE38F56C078AB499FFE /* IPCClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPCClient.swift; sourceTree = "<group>"; };
@@ -242,6 +247,7 @@
 		F091B0E999FA1115D826C339 /* tool-only-transcript.jsonl */ = {isa = PBXFileReference; path = "tool-only-transcript.jsonl"; sourceTree = "<group>"; };
 		F15B1BA091E2DDDB4266B4BE /* DTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DTOs.swift; sourceTree = "<group>"; };
 		F6290840592647DE4399F44B /* PronunciationDict.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PronunciationDict.swift; sourceTree = "<group>"; };
+		F8D03093625DCFBC35F0C9DB /* TTSProviderRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSProviderRegistryTests.swift; sourceTree = "<group>"; };
 		FBB27368493473E40D3E933E /* Readability.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = Readability.js; sourceTree = "<group>"; };
 		FE5A75572F74F2C780FCB553 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -529,6 +535,9 @@
 			children = (
 				AC273F34BC1F5B9C331FA9F6 /* TTSConstants.swift */,
 				7BD5E83AC86B248D4F6638D6 /* TTSProvider.swift */,
+				CE345B8600296B4F2B6754CA /* TTSProviderKind.swift */,
+				443F5A9EEF7373DEBCA3EA9C /* TTSProviderRegistry.swift */,
+				F8D03093625DCFBC35F0C9DB /* TTSProviderRegistryTests.swift */,
 				82DA91115D0238AE15681EDE /* Azure */,
 				C1FD165253F3DA1F1F2B713B /* Edge */,
 			);
@@ -778,6 +787,8 @@
 				D22923CAA562AB0BFFF83587 /* TTSConfigWindow.swift in Sources */,
 				FB3B1A7A9A4C56CAF91B9128 /* TTSConstants.swift in Sources */,
 				ADABB192C905EEC05CD5BDCB /* TTSProvider.swift in Sources */,
+				6BC8ACFAD6A39AAFC9B96659 /* TTSProviderKind.swift in Sources */,
+				43EC8993D97697842770874F /* TTSProviderRegistry.swift in Sources */,
 				E380060A2A297F597BE4ABB3 /* TTSSettings.swift in Sources */,
 				671DC84DF13634D4D459D541 /* TextAppSource.swift in Sources */,
 				0300F2DD4FB35F5C17B693E4 /* ToolbarButton.swift in Sources */,
@@ -832,6 +843,7 @@
 				0B851284326536C287346916 /* SelectionReaderTests.swift in Sources */,
 				D6DA5BB97009726D561EC40F /* StopScriptTests.swift in Sources */,
 				C0A8C05ABEE128B6DB37A939 /* SwiftSoupExtractorTests.swift in Sources */,
+				6B9714B216086C4B04410D42 /* TTSProviderRegistryTests.swift in Sources */,
 				5E8BFF92069DA009D4F8C04B /* TTSSettingsTests.swift in Sources */,
 				0369F057ED8D9BFBEEEDCEDC /* URLBarFilterTests.swift in Sources */,
 				48CA1AEA9ACFBC066F46D90B /* Version.swift in Sources */,
