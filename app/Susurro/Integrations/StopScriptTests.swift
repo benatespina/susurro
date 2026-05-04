@@ -233,7 +233,7 @@ struct StopScriptTests {
 				"susurro shim must not be invoked when transcript is malformed with no extractable text")
 	}
 
-	// --- Test: last_assistant_message field in stdin JSON used as layer-2 fallback ---
+	// --- Test: last_assistant_message field in stdin JSON used as Layer 1 (primary source) ---
 	@Test func lastAssistantMessageFieldFallback() throws {
 		let scriptPath = try stopScriptPath()
 
@@ -244,9 +244,9 @@ struct StopScriptTests {
 		let shimDir = try makeFakeSusurroDir(capturing: captureFile)
 		defer { try? FileManager.default.removeItem(atPath: shimDir) }
 
-		// transcript_path points at a nonexistent file to force layer-1 to fail
+		// transcript_path points at a nonexistent file — transcript layers (2/3) won't fire; this test verifies Layer 1 (stdin) drives extraction
 		let stdinJSON = """
-		{"cwd":"/tmp","transcript_path":"/nonexistent/path/transcript.jsonl","last_assistant_message":"Fallback layer two text"}
+		{"cwd":"/tmp","transcript_path":"/nonexistent/path/transcript.jsonl","last_assistant_message":"stdin primary layer text"}
 		"""
 
 		var env = ProcessInfo.processInfo.environment
@@ -257,7 +257,49 @@ struct StopScriptTests {
 		#expect(FileManager.default.fileExists(atPath: captureFile),
 				"susurro shim must be invoked when last_assistant_message is present")
 		let captured = (try? String(contentsOfFile: captureFile, encoding: .utf8)) ?? ""
-		#expect(captured.contains("Fallback layer two text"))
+		#expect(captured.contains("stdin primary layer text"))
+	}
+
+	// --- Test: stdin last_assistant_message overrides stale transcript content ---
+	// Regression test for the async-race fix: stdin Layer 1 must win over transcript Layer 2.
+	@Test func stdinLastAssistantMessageOverridesTranscript() throws {
+		let scriptPath = try stopScriptPath()
+
+		// Build a transcript that contains an OLD message.
+		let transcriptDir = FileManager.default.temporaryDirectory
+			.appending(path: "susurro-transcript-\(UUID().uuidString)")
+		try FileManager.default.createDirectory(at: transcriptDir, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: transcriptDir) }
+
+		let transcriptFile = transcriptDir.appending(path: "transcript.jsonl")
+		let oldLine = """
+		{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"OLD stale message from transcript"}]}}
+		"""
+		try oldLine.write(to: transcriptFile, atomically: true, encoding: .utf8)
+
+		let captureFile = FileManager.default.temporaryDirectory
+			.appending(path: "susurro-capture-\(UUID().uuidString).txt").path
+		defer { try? FileManager.default.removeItem(atPath: captureFile) }
+
+		let shimDir = try makeFakeSusurroDir(capturing: captureFile)
+		defer { try? FileManager.default.removeItem(atPath: shimDir) }
+
+		let stdinJSON = """
+		{"cwd":"/tmp","transcript_path":"\(transcriptFile.path)","last_assistant_message":"NEW fresh message from stdin"}
+		"""
+
+		var env = ProcessInfo.processInfo.environment
+		env["PATH"] = shimDir + ":" + (env["PATH"] ?? "/usr/bin:/bin")
+
+		let (exitCode, _, _) = try runScript(scriptPath: scriptPath, stdinJSON: stdinJSON, extraEnv: env)
+		#expect(exitCode == 0)
+		#expect(FileManager.default.fileExists(atPath: captureFile),
+				"susurro shim must be invoked when last_assistant_message is present")
+		let captured = (try? String(contentsOfFile: captureFile, encoding: .utf8)) ?? ""
+		#expect(captured.contains("NEW fresh message from stdin"),
+				"stdin last_assistant_message must take priority over transcript; got: \(captured)")
+		#expect(!captured.contains("OLD stale message from transcript"),
+				"stale transcript content must not reach susurro when stdin provides a message")
 	}
 
 	// --- Test: valid transcript causes susurro invocation with correct text ---
