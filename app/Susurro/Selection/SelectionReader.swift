@@ -28,6 +28,10 @@ enum SelectionReader {
 
         guard let focused else { return nil }
 
+        if URLBarFilter.isAddressBar(focused) {
+            return nil
+        }
+
         // Try the focused element directly first; if it doesn't carry the selection
         // itself, walk its subtree. Walking only under the focused element avoids
         // returning stale selections from unrelated parts of the same window (e.g.
