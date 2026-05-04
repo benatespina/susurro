@@ -23,3 +23,5 @@ enum BackendError: Error, Sendable {
     case extractFailed(String)
     case generationCancelled
 }
+
+extension BackendError: Equatable {}

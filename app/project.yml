@@ -1,4 +1,8 @@
 name: Susurro
+packages:
+  SwiftSoup:
+    url: https://github.com/scinfu/SwiftSoup
+    from: 2.7.0
 options:
   bundleIdPrefix: com.benatespina
   deploymentTarget:
@@ -24,6 +28,8 @@ targets:
           - "**/*Tests.swift"
       - path: Susurro/Resources/hooks/stop.sh
         buildPhase: resources
+      - path: Susurro/Resources/Readability.js
+        buildPhase: resources
     info:
       path: Susurro/Info.plist
       properties:
@@ -41,6 +47,7 @@ targets:
       - target: SusurroCLI
         link: false
         embed: false
+      - package: SwiftSoup
     postBuildScripts:
       - name: "Embed susurro CLI"
         script: |
