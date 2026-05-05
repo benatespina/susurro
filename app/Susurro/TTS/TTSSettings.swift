@@ -9,6 +9,7 @@ final class TTSSettings {
     private static let azureRegionKey = "tts.azure.region"
     private static let azureKeyAccount = "tts.azure.key"
     private static let autoReadEnabledKey = "claude.autoRead.enabled"
+    private static let translateToSpanishKey = "translation.toSpanish.enabled"
 
     /// Set to true after init so that the registry swap is only triggered post-init.
     private var isInitialized = false
@@ -25,6 +26,10 @@ final class TTSSettings {
 
     var autoReadEnabled: Bool {
         didSet { UserDefaults.standard.set(autoReadEnabled, forKey: Self.autoReadEnabledKey) }
+    }
+
+    var translateToSpanish: Bool {
+        didSet { UserDefaults.standard.set(translateToSpanish, forKey: Self.translateToSpanishKey) }
     }
 
     var azureRegion: String {
@@ -48,6 +53,7 @@ final class TTSSettings {
             UserDefaults.standard.set(sanitized, forKey: Self.azureRegionKey)
         }
         self.autoReadEnabled = UserDefaults.standard.bool(forKey: Self.autoReadEnabledKey)
+        self.translateToSpanish = UserDefaults.standard.bool(forKey: Self.translateToSpanishKey)
         self.isInitialized = true
     }
 
