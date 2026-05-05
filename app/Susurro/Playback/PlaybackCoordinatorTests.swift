@@ -1,16 +1,38 @@
 import Testing
 @testable import Susurro
 
+// MARK: - Mock
+
+final class MockPlaybackTranslator: TranslatorProviding, @unchecked Sendable {
+    var translateCallCount = 0
+    var translateInvocations: [(String, String)] = []
+    var nextResult: Result<String, Error> = .success("MOCK_TRANSLATED")
+
+    func translate(_ text: String, to targetLanguage: String) async throws -> String {
+        translateCallCount += 1
+        translateInvocations.append((text, targetLanguage))
+        return try nextResult.get()
+    }
+}
+
+// MARK: - Tests
+
 struct PlaybackCoordinatorTests {
     @Test func stopIsIdempotent() async {
-        let coordinator = PlaybackCoordinator()
+        let coordinator = PlaybackCoordinator(
+            translator: MockPlaybackTranslator(),
+            isTranslateToSpanishEnabled: { false }
+        )
 
         await coordinator.stop()
         await coordinator.stop()
     }
 
     @Test func readThenStopClearsState() async {
-        let coordinator = PlaybackCoordinator()
+        let coordinator = PlaybackCoordinator(
+            translator: MockPlaybackTranslator(),
+            isTranslateToSpanishEnabled: { false }
+        )
 
         // Registry not warmed up — tts will fail gracefully; we verify no crash.
         _ = await coordinator.read(text: "hello world")
@@ -18,7 +40,10 @@ struct PlaybackCoordinatorTests {
     }
 
     @Test func playingStatesEmitsFalseAfterStop() async {
-        let coordinator = PlaybackCoordinator()
+        let coordinator = PlaybackCoordinator(
+            translator: MockPlaybackTranslator(),
+            isTranslateToSpanishEnabled: { false }
+        )
 
         let stream = await coordinator.playingStates()
         await coordinator.stop()
@@ -35,12 +60,82 @@ struct PlaybackCoordinatorTests {
     }
 
     @Test func readWhenNotReadyDoesNotCrash() async {
-        let coordinator = PlaybackCoordinator()
+        let coordinator = PlaybackCoordinator(
+            translator: MockPlaybackTranslator(),
+            isTranslateToSpanishEnabled: { false }
+        )
 
         // Registry not warmed up — executeRead should bail at the health check.
         let task = Task { _ = await coordinator.read(text: "test text") }
         try? await Task.sleep(for: .milliseconds(50))
         task.cancel()
         _ = await task.value
+    }
+
+    // MARK: - Translation flow tests
+
+    @Test func readWithToggleOffDoesNotCallTranslator() async {
+        let mock = MockPlaybackTranslator()
+        let coordinator = PlaybackCoordinator(
+            translator: mock,
+            isTranslateToSpanishEnabled: { false }
+        )
+
+        _ = await coordinator.read(text: "this is english text")
+
+        #expect(mock.translateCallCount == 0)
+    }
+
+    @Test func readWithToggleOnAndSpanishTextSkipsTranslation() async {
+        let mock = MockPlaybackTranslator()
+        let coordinator = PlaybackCoordinator(
+            translator: mock,
+            isTranslateToSpanishEnabled: { true }
+        )
+
+        // Text that LanguageDetector will detect as Spanish (>= 10 chars, Spanish content).
+        _ = await coordinator.read(text: "hola mundo, esto es texto en español para prueba")
+
+        #expect(mock.translateCallCount == 0)
+    }
+
+    @Test func readWithToggleOnAndEnglishTextCallsTranslatorAndReplaces() async {
+        let mock = MockPlaybackTranslator()
+        mock.nextResult = .success("texto traducido al español")
+        let coordinator = PlaybackCoordinator(
+            translator: mock,
+            isTranslateToSpanishEnabled: { true }
+        )
+
+        _ = await coordinator.read(text: "this is a sufficiently long english sentence for detection")
+
+        #expect(mock.translateCallCount == 1)
+        #expect(mock.translateInvocations.first?.0 == "this is a sufficiently long english sentence for detection")
+        #expect(mock.translateInvocations.first?.1 == "es")
+
+        // Verify the snapshot reflects the translated text (sourceText was replaced).
+        let snapshot = await coordinator.currentSnapshot()
+        // Backend not ready in tests so chunks is empty, but sourceText must reflect the translation.
+        #expect(snapshot.sourceText == "texto traducido al español")
+    }
+
+    @Test func readWithToggleOnAndTranslatorErrorFallsBackToOriginal() async {
+        let mock = MockPlaybackTranslator()
+        mock.nextResult = .failure(TranslatorError.modelNotReady)
+        let coordinator = PlaybackCoordinator(
+            translator: mock,
+            isTranslateToSpanishEnabled: { true }
+        )
+
+        // Must not throw — read() should return normally even when translation fails.
+        let result = await coordinator.read(text: "this is a sufficiently long english sentence for detection")
+
+        // result is false because backend is not ready in test environment — that's OK.
+        // The key assertions: translator was called, read() did not crash/throw,
+        // and the snapshot retains the ORIGINAL text (not a partial translation).
+        #expect(mock.translateCallCount == 1)
+        _ = result
+        let snapshot = await coordinator.currentSnapshot()
+        #expect(snapshot.sourceText == "this is a sufficiently long english sentence for detection")
     }
 }

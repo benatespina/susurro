@@ -3,16 +3,19 @@ import Foundation
 import os
 
 struct PlaybackSnapshot: Sendable, Equatable {
+    var sourceText: String
     var chunks: [String]
     var currentChunkIndex: Int
     var isPlaying: Bool
     var isPaused: Bool
 
-    static let empty = PlaybackSnapshot(chunks: [], currentChunkIndex: 0, isPlaying: false, isPaused: false)
+    static let empty = PlaybackSnapshot(sourceText: "", chunks: [], currentChunkIndex: 0, isPlaying: false, isPaused: false)
 }
 
 actor PlaybackCoordinator {
     private let client: BackendClient
+    private let translator: any TranslatorProviding
+    private let isTranslateToSpanishEnabled: @Sendable () -> Bool
     private var currentTask: Task<Void, Never>?
     private var currentPlayer: AVQueuePlayer?
     private var currentTempDir: URL?
@@ -29,14 +32,36 @@ actor PlaybackCoordinator {
     private var observedItems: Set<ObjectIdentifier> = []
     private var observerTask: Task<Void, Never>?
 
-    init(client: BackendClient = .shared) {
+    init(
+        client: BackendClient = .shared,
+        translator: any TranslatorProviding,
+        isTranslateToSpanishEnabled: @escaping @Sendable () -> Bool = { false }
+    ) {
         self.client = client
+        self.translator = translator
+        self.isTranslateToSpanishEnabled = isTranslateToSpanishEnabled
     }
 
     func read(text: String) async -> Bool {
         await stop(preserveTranscript: false)
-        sourceText = text
-        sourceLanguage = LanguageDetector.detect(in: text)
+        var effectiveText = text
+        var effectiveLang = LanguageDetector.detect(in: text)
+
+        if isTranslateToSpanishEnabled() && effectiveLang != "es" && !text.isEmpty {
+            do {
+                effectiveText = try await translator.translate(text, to: "es")
+                effectiveLang = "es"
+            } catch {
+                AppLogger.playback.error("translation failed: \(error.localizedDescription, privacy: .public)")
+                // Fall back to original text and detected language.
+            }
+        }
+
+        sourceText = effectiveText
+        sourceLanguage = effectiveLang
+        snapshot = PlaybackSnapshot(
+            sourceText: effectiveText, chunks: [], currentChunkIndex: 0, isPlaying: false, isPaused: false
+        )
 
         let health = await client.health()
         guard health == .ready else {
@@ -44,11 +69,11 @@ actor PlaybackCoordinator {
             return false
         }
 
-        let result = await client.fetchChunks(text: text, language: sourceLanguage)
+        let result = await client.fetchChunks(text: effectiveText, language: sourceLanguage)
         chunks = result.chunks
 
         snapshot = PlaybackSnapshot(
-            chunks: chunks, currentChunkIndex: 0, isPlaying: false, isPaused: false
+            sourceText: effectiveText, chunks: chunks, currentChunkIndex: 0, isPlaying: false, isPaused: false
         )
         emitSnapshot()
         persistSnapshot()
@@ -67,6 +92,7 @@ actor PlaybackCoordinator {
         sourceLanguage = LanguageDetector.detect(in: session.text)
         chunks = session.chunks
         snapshot = PlaybackSnapshot(
+            sourceText: session.text,
             chunks: session.chunks,
             currentChunkIndex: min(session.currentChunkIndex, max(0, session.chunks.count - 1)),
             isPlaying: false,

@@ -39,7 +39,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSigtermHandler()
         permissionCoordinator = PermissionCoordinator(appState: appState)
-        let coordinator = PlaybackCoordinator()
+        let settings = ttsSettings
+        let coordinator = PlaybackCoordinator(
+            translator: Translator.shared,
+            isTranslateToSpanishEnabled: { [weak settings] in settings?.translateToSpanish ?? false }
+        )
         playbackCoordinator = coordinator
         let socketPath = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
