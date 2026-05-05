@@ -1,15 +1,15 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to build (e.g. 0.1.0 or v0.1.0) — release step is skipped for manual runs'
-        required: false
-        default: '0.1.0'
+        description: 'Version to release, e.g. 0.1.0 (without leading v)'
+        required: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -42,11 +42,7 @@ jobs:
       - name: Resolve version
         id: version
         run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            VERSION="${{ github.ref_name }}"
-          else
-            VERSION="${{ github.event.inputs.version }}"
-          fi
+          VERSION="${{ github.event.inputs.version }}"
           VERSION="${VERSION#v}"
           echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
@@ -94,7 +90,6 @@ jobs:
             "$RUNNER_TEMP/Susurro-${VERSION}.dmg"
 
       - name: Create GitHub Release
-        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.VERSION }}
@@ -102,4 +97,5 @@ jobs:
           gh release create "v${VERSION}" \
             --title "Susurro v${VERSION}" \
             --generate-notes \
+            --target main \
             "$RUNNER_TEMP/Susurro-${VERSION}.dmg"
