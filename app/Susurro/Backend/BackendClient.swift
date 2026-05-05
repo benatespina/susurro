@@ -5,13 +5,17 @@ actor BackendClient {
 
     private let extractor: ArticleExtractor
     private let pronunciations: PronunciationStore
+    /// Overrides TTS synthesis for testing. When non-nil, `tts` and `streamingTTS` use this closure instead of the registry.
+    let ttsOverride: (@Sendable (String, String) async throws -> Data)?
 
     init(
         extractor: ArticleExtractor = ArticleExtractor(),
-        pronunciations: PronunciationStore = .shared
+        pronunciations: PronunciationStore = .shared,
+        ttsOverride: (@Sendable (String, String) async throws -> Data)? = nil
     ) {
         self.extractor = extractor
         self.pronunciations = pronunciations
+        self.ttsOverride = ttsOverride
     }
 
     // MARK: - Health
@@ -25,6 +29,9 @@ actor BackendClient {
 
     func tts(text: String, language: String?) async throws -> Data {
         let lang = language ?? LangDetect.detect(text)
+        if let override = ttsOverride {
+            return try await override(text, lang)
+        }
         let provider = await MainActor.run { TTSProviderRegistry.shared.current }
         return try await provider.synthesize(text: text, language: lang)
     }
@@ -40,6 +47,13 @@ actor BackendClient {
             let task = Task {
                 do {
                     let lang = language ?? LangDetect.detect(text)
+                    let override = await self.ttsOverride
+                    if let override {
+                        let data = try await override(text, lang)
+                        continuation.yield(data)
+                        continuation.finish()
+                        return
+                    }
                     let chunks = Chunker.chunk(text)
                     let sliced = startChunk > 0 && startChunk < chunks.count
                         ? Array(chunks[startChunk...])

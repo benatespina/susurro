@@ -371,4 +371,286 @@ struct IPCServerTests {
 		let count = await speaker.callCount()
 		#expect(count == 0)
 	}
+
+	// MARK: - New command tests
+
+	@Test("cmd health: returns ok:true with data.ready bool")
+	func healthCommand() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		let client = BackendClient(
+			extractor: ArticleExtractor(),
+			pronunciations: PronunciationStore(fileURL: URL(fileURLWithPath: NSTemporaryDirectory() + "pron-\(UUID().uuidString).json"))
+		)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings, client: client)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		let resp = try await sendJSON(socketPath: path, object: ["cmd": "health"])
+		#expect(resp["ok"] as? Bool == true)
+		let data = resp["data"] as? [String: Any]
+		#expect(data != nil)
+		#expect(data?["ready"] is Bool)
+	}
+
+	@Test("cmd tts: returns ok:true with audioBase64 for mocked provider")
+	func ttsCommand() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		let fixedAudio = Data([0xAA, 0xBB, 0xCC])
+		let client = BackendClient(
+			extractor: ArticleExtractor(),
+			pronunciations: PronunciationStore(fileURL: URL(fileURLWithPath: NSTemporaryDirectory() + "pron-\(UUID().uuidString).json")),
+			ttsOverride: { _, _ in fixedAudio }
+		)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings, client: client)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		let resp = try await sendJSON(socketPath: path, object: ["cmd": "tts", "text": "Hello"])
+		#expect(resp["ok"] as? Bool == true)
+		let data = resp["data"] as? [String: Any]
+		#expect(data?["audioBase64"] as? String == fixedAudio.base64EncodedString())
+		#expect(data?["mimeType"] as? String == "audio/mpeg")
+	}
+
+	@Test("cmd tts: missing text returns ok:false")
+	func ttsCommandMissingText() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		let resp = try await sendJSON(socketPath: path, object: ["cmd": "tts"])
+		#expect(resp["ok"] as? Bool == false)
+	}
+
+	@Test("cmd tts-stream: header + framed chunks + terminator")
+	func ttsStreamCommand() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		let fixedAudio = Data(repeating: 0xFF, count: 16)
+		let client = BackendClient(
+			extractor: ArticleExtractor(),
+			pronunciations: PronunciationStore(fileURL: URL(fileURLWithPath: NSTemporaryDirectory() + "pron-\(UUID().uuidString).json")),
+			ttsOverride: { _, _ in fixedAudio }
+		)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings, client: client)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		let payload = try JSONSerialization.data(withJSONObject: ["cmd": "tts-stream", "text": "Hello stream"])
+		let raw = try await sendAndReceive(socketPath: path, payload: payload)
+
+		// Parse header line
+		guard let newlineRange = raw.range(of: Data("\n".utf8)) else {
+			Issue.record("No newline found in tts-stream response")
+			return
+		}
+		let headerData = raw[raw.startIndex ..< newlineRange.lowerBound]
+		let header = try JSONSerialization.jsonObject(with: headerData) as? [String: Any]
+		#expect(header?["ok"] as? Bool == true)
+		#expect(header?["stream"] as? Bool == true)
+
+		// Parse framed body
+		var pos = raw.index(after: newlineRange.lowerBound)
+		var chunks: [Data] = []
+		while pos < raw.endIndex {
+			let remaining = raw.distance(from: pos, to: raw.endIndex)
+			guard remaining >= 4 else { break }
+			let lenBytes = raw[pos ..< raw.index(pos, offsetBy: 4)]
+			let length = lenBytes.withUnsafeBytes { ptr in
+				UInt32(bigEndian: ptr.loadUnaligned(as: UInt32.self))
+			}
+			if length == 0 {
+				// terminator
+				break
+			}
+			pos = raw.index(pos, offsetBy: 4)
+			guard raw.distance(from: pos, to: raw.endIndex) >= Int(length) else { break }
+			let chunk = raw[pos ..< raw.index(pos, offsetBy: Int(length))]
+			chunks.append(Data(chunk))
+			pos = raw.index(pos, offsetBy: Int(length))
+		}
+
+		#expect(!chunks.isEmpty)
+		let totalBytes = chunks.reduce(0) { $0 + $1.count }
+		#expect(totalBytes == fixedAudio.count)
+	}
+
+	@Test("cmd extract: missing url returns ok:false")
+	func extractCommandMissingURL() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		let resp = try await sendJSON(socketPath: path, object: ["cmd": "extract"])
+		#expect(resp["ok"] as? Bool == false)
+	}
+
+	@Test("cmd extract: invalid url returns ok:false")
+	func extractCommandInvalidURL() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		let resp = try await sendJSON(socketPath: path, object: ["cmd": "extract", "url": "not-a-url"])
+		#expect(resp["ok"] as? Bool == false)
+	}
+
+	@Test("cmd pron-list: returns ok:true with data dict")
+	func pronListCommand() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		let pronStore = PronunciationStore(fileURL: URL(fileURLWithPath: NSTemporaryDirectory() + "pron-\(UUID().uuidString).json"))
+		let client = BackendClient(extractor: ArticleExtractor(), pronunciations: pronStore)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings, client: client)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		let resp = try await sendJSON(socketPath: path, object: ["cmd": "pron-list"])
+		#expect(resp["ok"] as? Bool == true)
+		#expect(resp["data"] is [String: Any])
+	}
+
+	@Test("cmd pron-upsert: stores word and pron-delete removes it")
+	func pronUpsertAndDeleteCommands() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		let pronStore = PronunciationStore(fileURL: URL(fileURLWithPath: NSTemporaryDirectory() + "pron-\(UUID().uuidString).json"))
+		let client = BackendClient(extractor: ArticleExtractor(), pronunciations: pronStore)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings, client: client)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		// Upsert
+		let upsertResp = try await sendJSON(socketPath: path, object: [
+			"cmd": "pron-upsert",
+			"language": "en",
+			"word": "testword",
+			"replacement": "<phoneme alphabet=\"ipa\" ph=\"tɛstwɜrd\">testword</phoneme>"
+		])
+		#expect(upsertResp["ok"] as? Bool == true)
+
+		// Verify list contains it
+		let listResp = try await sendJSON(socketPath: path, object: ["cmd": "pron-list"])
+		let listData = listResp["data"] as? [String: [String: String]]
+		#expect(listData?["en"]?["testword"] != nil)
+
+		// Delete
+		let deleteResp = try await sendJSON(socketPath: path, object: [
+			"cmd": "pron-delete",
+			"language": "en",
+			"word": "testword"
+		])
+		#expect(deleteResp["ok"] as? Bool == true)
+		let deleteData = deleteResp["data"] as? [String: Any]
+		#expect(deleteData?["deleted"] as? Bool == true)
+	}
+
+	@Test("cmd pron-candidates: returns candidates array for es word")
+	func pronCandidatesCommand() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		let pronStore = PronunciationStore(fileURL: URL(fileURLWithPath: NSTemporaryDirectory() + "pron-\(UUID().uuidString).json"))
+		let client = BackendClient(extractor: ArticleExtractor(), pronunciations: pronStore)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings, client: client)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		let resp = try await sendJSON(socketPath: path, object: [
+			"cmd": "pron-candidates",
+			"word": "API",
+			"language": "es"
+		])
+		#expect(resp["ok"] as? Bool == true)
+		let data = resp["data"] as? [String: Any]
+		let candidates = data?["candidates"] as? [[String: Any]]
+		#expect(candidates != nil)
+		#expect((candidates?.count ?? 0) > 0)
+	}
+
+	@Test("cmd pron-preview: without Azure returns azure not configured error")
+	func pronPreviewWithoutAzure() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		// Default client uses Edge provider, not Azure — preview should fail
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		let resp = try await sendJSON(socketPath: path, object: [
+			"cmd": "pron-preview",
+			"ssml": "<phoneme alphabet=\"ipa\" ph=\"ˈei.pi.ai\">API</phoneme>",
+			"language": "es"
+		])
+		#expect(resp["ok"] as? Bool == false)
+		#expect(resp["error"] as? String == "azure not configured")
+	}
+
+	@Test("cmd stop: returns ok:true")
+	func stopCommand() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		let resp = try await sendJSON(socketPath: path, object: ["cmd": "stop"])
+		#expect(resp["ok"] as? Bool == true)
+	}
+
+	@Test("cmd unknown: returns ok:false with unknown command error")
+	func unknownCommandExtended() async throws {
+		let path = tempSocketPath()
+		let speaker = FakeSpeaker()
+		let settings = await makeSettings(autoReadEnabled: true)
+		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings)
+		try await server.start()
+		defer { Task { await server.stop() } }
+
+		try await Task.sleep(for: .milliseconds(50))
+
+		let resp = try await sendJSON(socketPath: path, object: ["cmd": "totally-unknown"])
+		#expect(resp["ok"] as? Bool == false)
+		#expect(resp["error"] as? String == "unknown command")
+	}
 }
