@@ -66,13 +66,4 @@ final class TTSSettings {
         !azureKey.isEmpty && !azureRegion.isEmpty
     }
 
-    // TODO(Phase 6): remove — backend process is being eliminated.
-    func envVars() -> [String: String] {
-        var env: [String: String] = ["SUSURRO_TTS_PROVIDER": provider.rawValue]
-        if provider == .azure {
-            env["AZURE_SPEECH_KEY"] = azureKey
-            env["AZURE_SPEECH_REGION"] = azureRegion
-        }
-        return env
-    }
 }
