@@ -34,6 +34,12 @@ Alternative — System Settings (macOS 15 Sequoia and 26 Tahoe removed the right
 3. Scroll to the bottom → click **Open Anyway** next to the Susurro message.
 4. Confirm with password / Touch ID.
 
+**Upgrading from a prior release:** macOS caches Accessibility permission per binary signature. After replacing `Susurro.app` with a new version, reset the cached grant so the new binary is recognised, then relaunch and re-grant Accessibility when prompted:
+
+```bash
+tccutil reset Accessibility com.benatespina.susurro
+```
+
 ### Build from source
 
 **Requirements:** macOS 26 Tahoe, Apple Silicon, Xcode 26 with Swift 6, `xcodegen` (`brew install xcodegen`)
@@ -79,7 +85,7 @@ To keep it permanent, drag `Susurro.app` from `build/Build/Products/Debug/` to `
 tccutil reset Accessibility com.benatespina.susurro
 ```
 
-Then relaunch. After the first signed build, subsequent rebuilds keep the same TCC identity — no re-grant needed.
+Then relaunch. Each new DMG release has a different ad-hoc signature, so this reset is needed after every update. Local dev builds signed with the self-signed cert from `scripts/create_signing_cert.sh` keep the same TCC identity across rebuilds.
 
 ---
 
