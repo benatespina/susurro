@@ -33,6 +33,8 @@ targets:
         buildPhase: resources
       - path: Susurro/Resources/Readability.js
         buildPhase: resources
+      - path: Susurro/Resources/AppIcon.icns
+        buildPhase: resources
     info:
       path: Susurro/Info.plist
       properties:
@@ -42,6 +44,7 @@ targets:
         NSHumanReadableCopyright: "© 2026 Beñat Espiña"
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "1"
+        CFBundleIconFile: AppIcon
     entitlements:
       path: Susurro/Susurro.entitlements
       properties:

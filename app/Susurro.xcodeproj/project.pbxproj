@@ -92,6 +92,7 @@
 		C69E9BAAE79DBC03681A2737 /* BackendClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33D877B11BEF32928D1E0262 /* BackendClient.swift */; };
 		C79F1CF5C062ED771890BA72 /* tool-only-transcript.jsonl in Resources */ = {isa = PBXBuildFile; fileRef = F091B0E999FA1115D826C339 /* tool-only-transcript.jsonl */; };
 		C8596CC55A53C0FD8E2AD69B /* ArticleExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED65D724C25E47B086B5F122 /* ArticleExtractorTests.swift */; };
+		CC46D4AF54409A0F03EF1C95 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 2B943072991E57601E138FF8 /* AppIcon.icns */; };
 		CE506843F7D8A6E856FD459F /* SelectionReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBC21D43392AD604C426CBC7 /* SelectionReader.swift */; };
 		CFA228AAD1ACBB76DBEB9F2C /* DTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15B1BA091E2DDDB4266B4BE /* DTOs.swift */; };
 		D21EB687B332BE32F132D932 /* ClaudeHookInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 029D438F7D88B9D01F4AF30C /* ClaudeHookInstaller.swift */; };
@@ -166,6 +167,7 @@
 		25EEF87FE39A57FC6F1EC438 /* ChunkerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChunkerTests.swift; sourceTree = "<group>"; };
 		2836DE65C1A31DB206311EED /* SSMLBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSMLBuilderTests.swift; sourceTree = "<group>"; };
 		28F320D903530B409700C8D7 /* lang-corpus.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "lang-corpus.json"; sourceTree = "<group>"; };
+		2B943072991E57601E138FF8 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		2EFE953F37BB457E966830CF /* AccessibilityPermissionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPermissionTests.swift; sourceTree = "<group>"; };
 		33D877B11BEF32928D1E0262 /* BackendClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendClient.swift; sourceTree = "<group>"; };
 		34749B305F84A6D6FCC81D04 /* TTSSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSSettingsTests.swift; sourceTree = "<group>"; };
@@ -426,6 +428,7 @@
 		889FD15B9C5F5D34275D0F8D /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				2B943072991E57601E138FF8 /* AppIcon.icns */,
 				FBB27368493473E40D3E933E /* Readability.js */,
 				63BFED6C302099DD6723698C /* hooks */,
 				68D1E4AC2A693AE4537EE74F /* test-fixtures */,
@@ -700,6 +703,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CC46D4AF54409A0F03EF1C95 /* AppIcon.icns in Resources */,
 				519925E0EA8B878021AA9F51 /* Readability.js in Resources */,
 				6155A67F8F569D35F89CD1F7 /* extract-urls.txt in Resources */,
 				0C36714781A60213254A0AE1 /* future-schema-transcript.jsonl in Resources */,
