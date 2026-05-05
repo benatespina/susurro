@@ -72,23 +72,11 @@ jobs:
 
       - name: Export app from archive
         run: |
-          cat > "$RUNNER_TEMP/ExportOptions.plist" <<'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>mac-application</string>
-            <key>signingStyle</key>
-            <string>manual</string>
-          </dict>
-          </plist>
-          EOF
-
-          xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/Susurro.xcarchive" \
-            -exportPath "$RUNNER_TEMP/export" \
-            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+          # xcodebuild -exportArchive no longer accepts method=mac-application in Xcode 26.
+          # The .app is already signed during archive; copy it directly from the archive products.
+          mkdir -p "$RUNNER_TEMP/export"
+          cp -R "$RUNNER_TEMP/Susurro.xcarchive/Products/Applications/Susurro.app" \
+                "$RUNNER_TEMP/export/Susurro.app"
 
       - name: Verify ad-hoc signature
         run: |
