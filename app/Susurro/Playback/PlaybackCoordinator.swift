@@ -12,7 +12,7 @@ struct PlaybackSnapshot: Sendable, Equatable {
 }
 
 actor PlaybackCoordinator {
-    private let backend: BackendProcess
+    private let client: BackendClient
     private var currentTask: Task<Void, Never>?
     private var currentPlayer: AVQueuePlayer?
     private var currentTempDir: URL?
@@ -29,8 +29,8 @@ actor PlaybackCoordinator {
     private var observedItems: Set<ObjectIdentifier> = []
     private var observerTask: Task<Void, Never>?
 
-    init(backend: BackendProcess) {
-        self.backend = backend
+    init(client: BackendClient = .shared) {
+        self.client = client
     }
 
     func read(text: String) async -> Bool {
@@ -38,17 +38,15 @@ actor PlaybackCoordinator {
         sourceText = text
         sourceLanguage = LanguageDetector.detect(in: text)
 
-        guard case .ready(let client) = await backend.state else {
+        let health = await client.health()
+        guard health == .ready else {
             AppLogger.playback.error("backend not ready, cannot read")
             return false
         }
-        do {
-            let result = try await client.fetchChunks(text: text, language: sourceLanguage)
-            chunks = result
-        } catch {
-            AppLogger.playback.error("chunks fetch failed: \(error.localizedDescription, privacy: .public)")
-            return false
-        }
+
+        let result = await client.fetchChunks(text: text, language: sourceLanguage)
+        chunks = result.chunks
+
         snapshot = PlaybackSnapshot(
             chunks: chunks, currentChunkIndex: 0, isPlaying: false, isPaused: false
         )
@@ -135,10 +133,6 @@ actor PlaybackCoordinator {
         }
         currentTempDir = nil
 
-        if case .ready(let client) = await backend.state {
-            try? await client.stop()
-        }
-
         if !preserveTranscript {
             sourceText = ""
             chunks = []
@@ -182,34 +176,9 @@ actor PlaybackCoordinator {
     }
 
     private func executeStream(startChunk: Int) async {
-        guard case .ready(let client) = await backend.state else {
+        let health = await client.health()
+        guard health == .ready else {
             AppLogger.playback.error("backend not ready, cannot stream")
-            return
-        }
-
-        let request: URLRequest
-        do {
-            request = try client.streamingTTSRequest(
-                text: sourceText, language: sourceLanguage, startChunk: startChunk
-            )
-        } catch {
-            AppLogger.playback.error("tts stream request build failed: \(error.localizedDescription, privacy: .public)")
-            return
-        }
-
-        let asyncBytes: URLSession.AsyncBytes
-        let response: URLResponse
-        do {
-            (asyncBytes, response) = try await URLSession.shared.bytes(for: request)
-        } catch is CancellationError {
-            return
-        } catch {
-            AppLogger.playback.error("tts stream open failed: \(error.localizedDescription, privacy: .public)")
-            return
-        }
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else {
-            AppLogger.playback.error("tts stream http=\(status, privacy: .public)")
             return
         }
 
@@ -223,44 +192,47 @@ actor PlaybackCoordinator {
 
         startObservingItemEnds()
 
-        var iter = asyncBytes.makeAsyncIterator()
         var fileIndex = 0
         var startedPlaying = false
 
-        readLoop: while !Task.isCancelled {
-            guard let lenBytes = await readExact(4, from: &iter) else { break }
-            let length = (UInt32(lenBytes[0]) << 24)
-                | (UInt32(lenBytes[1]) << 16)
-                | (UInt32(lenBytes[2]) << 8)
-                | UInt32(lenBytes[3])
-            if length == 0 { break }
-            guard let chunk = await readExact(Int(length), from: &iter) else { break }
+        do {
+            for try await mp3Chunk in client.streamingTTS(
+                text: sourceText,
+                language: sourceLanguage,
+                startChunk: startChunk
+            ) {
+                if Task.isCancelled { break }
 
-            let url = tempDir.appendingPathComponent("\(fileIndex).mp3")
-            fileIndex += 1
-            do {
-                try chunk.write(to: url)
-            } catch {
-                AppLogger.playback.error("tts chunk write failed: \(error.localizedDescription, privacy: .public)")
-                continue readLoop
-            }
+                let url = tempDir.appendingPathComponent("\(fileIndex).mp3")
+                fileIndex += 1
+                do {
+                    try mp3Chunk.write(to: url)
+                } catch {
+                    AppLogger.playback.error("tts chunk write failed: \(error.localizedDescription, privacy: .public)")
+                    continue
+                }
 
-            let item = AVPlayerItem(url: url)
-            observedItems.insert(ObjectIdentifier(item))
-            await MainActor.run {
-                player.insert(item, after: nil)
+                let item = AVPlayerItem(url: url)
+                observedItems.insert(ObjectIdentifier(item))
+                await MainActor.run {
+                    player.insert(item, after: nil)
+                    if !startedPlaying {
+                        player.play()
+                    }
+                }
                 if !startedPlaying {
-                    player.play()
+                    startedPlaying = true
+                    snapshot.isPlaying = true
+                    snapshot.isPaused = false
+                    snapshot.currentChunkIndex = startChunk
+                    emitSnapshot()
+                    emitPlaying(true)
                 }
             }
-            if !startedPlaying {
-                startedPlaying = true
-                snapshot.isPlaying = true
-                snapshot.isPaused = false
-                snapshot.currentChunkIndex = startChunk
-                emitSnapshot()
-                emitPlaying(true)
-            }
+        } catch is CancellationError {
+            return
+        } catch {
+            AppLogger.playback.error("tts stream failed: \(error.localizedDescription, privacy: .public)")
         }
 
         if Task.isCancelled {
@@ -321,23 +293,6 @@ actor PlaybackCoordinator {
             savedAt: Date()
         )
         SessionStore.save(session)
-    }
-
-    private func readExact(
-        _ count: Int,
-        from iterator: inout URLSession.AsyncBytes.AsyncIterator
-    ) async -> Data? {
-        var data = Data()
-        data.reserveCapacity(count)
-        while data.count < count {
-            do {
-                guard let byte = try await iterator.next() else { return nil }
-                data.append(byte)
-            } catch {
-                return nil
-            }
-        }
-        return data
     }
 
     private func emitPlaying(_ playing: Bool) {

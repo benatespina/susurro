@@ -3,25 +3,22 @@ import Testing
 
 struct PlaybackCoordinatorTests {
     @Test func stopIsIdempotent() async {
-        let backend = BackendProcess()
-        let coordinator = PlaybackCoordinator(backend: backend)
+        let coordinator = PlaybackCoordinator()
 
         await coordinator.stop()
         await coordinator.stop()
     }
 
     @Test func readThenStopClearsState() async {
-        let backend = BackendProcess()
-        let coordinator = PlaybackCoordinator(backend: backend)
+        let coordinator = PlaybackCoordinator()
 
-        // Backend not started — tts will fail gracefully; we verify no crash.
-        await coordinator.read(text: "hello world")
+        // Registry not warmed up — tts will fail gracefully; we verify no crash.
+        _ = await coordinator.read(text: "hello world")
         await coordinator.stop()
     }
 
     @Test func playingStatesEmitsFalseAfterStop() async {
-        let backend = BackendProcess()
-        let coordinator = PlaybackCoordinator(backend: backend)
+        let coordinator = PlaybackCoordinator()
 
         let stream = await coordinator.playingStates()
         await coordinator.stop()
@@ -37,14 +34,13 @@ struct PlaybackCoordinatorTests {
         #expect(received)
     }
 
-    @Test func readOnStoppedBackendDoesNotCrash() async {
-        let backend = BackendProcess()
-        let coordinator = PlaybackCoordinator(backend: backend)
+    @Test func readWhenNotReadyDoesNotCrash() async {
+        let coordinator = PlaybackCoordinator()
 
-        // Backend never started — executeRead should bail at the guard.
-        let task = Task { await coordinator.read(text: "test text") }
+        // Registry not warmed up — executeRead should bail at the health check.
+        let task = Task { _ = await coordinator.read(text: "test text") }
         try? await Task.sleep(for: .milliseconds(50))
         task.cancel()
-        await task.value
+        _ = await task.value
     }
 }

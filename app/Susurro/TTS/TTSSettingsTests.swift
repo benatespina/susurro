@@ -6,6 +6,7 @@ import Testing
 @MainActor
 struct TTSSettingsTests {
 	private static let autoReadKey = "claude.autoRead.enabled"
+	private static let providerKey = "tts.provider"
 
 	@Test("autoReadEnabled defaults to false when key is absent")
 	func autoReadEnabledDefaultsFalse() {
@@ -46,5 +47,35 @@ struct TTSSettingsTests {
 
 		let reader = TTSSettings()
 		#expect(reader.autoReadEnabled == true)
+	}
+
+	@Test("provider defaults to edge")
+	func providerDefaultsToEdge() {
+		UserDefaults.standard.removeObject(forKey: Self.providerKey)
+		defer { UserDefaults.standard.removeObject(forKey: Self.providerKey) }
+
+		let settings = TTSSettings()
+		#expect(settings.provider == TTSProviderKind.edge)
+	}
+
+	@Test("provider persists to UserDefaults")
+	func providerPersistsToUserDefaults() {
+		UserDefaults.standard.removeObject(forKey: Self.providerKey)
+		defer { UserDefaults.standard.removeObject(forKey: Self.providerKey) }
+
+		// Pre-seed UserDefaults; verify TTSSettings reads it correctly.
+		UserDefaults.standard.set(TTSProviderKind.azure.rawValue, forKey: Self.providerKey)
+		let settings = TTSSettings()
+		#expect(settings.provider == .azure)
+	}
+
+	@Test("TTSProviderKind.edge rawValue is 'edge'")
+	func providerKindEdgeRawValue() {
+		#expect(TTSProviderKind.edge.rawValue == "edge")
+	}
+
+	@Test("TTSProviderKind.azure rawValue is 'azure'")
+	func providerKindAzureRawValue() {
+		#expect(TTSProviderKind.azure.rawValue == "azure")
 	}
 }

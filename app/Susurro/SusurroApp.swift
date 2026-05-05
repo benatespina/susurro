@@ -1,3 +1,4 @@
+import Combine
 import Darwin
 import SwiftUI
 
@@ -24,7 +25,6 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    let backend = BackendProcess()
     let appState = AppState()
     let ttsSettings = TTSSettings()
     var playbackCoordinator: PlaybackCoordinator?
@@ -34,11 +34,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var accessibilityPollTask: Task<Void, Never>?
     private var menuBarController: MenuBarController?
     private var ipcServer: IPCServer?
+    private var registryCancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSigtermHandler()
         permissionCoordinator = PermissionCoordinator(appState: appState)
-        let coordinator = PlaybackCoordinator(backend: backend)
+        let coordinator = PlaybackCoordinator()
         playbackCoordinator = coordinator
         let socketPath = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -54,15 +55,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         installMenuBarController()
-        let env = ttsSettings.envVars()
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                try await self.backend.start(extraEnv: env)
-            } catch {
-                AppLogger.backend.error("backend start failed: \(error)")
-            }
+
+        // Warm up the TTS registry (live-swap provider).
+        Task { @MainActor in
+            await TTSProviderRegistry.shared.warmup()
         }
+
+        // Wire registry readiness to AppState.backendStatus.
+        TTSProviderRegistry.shared.$isReady
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] ready in
+                guard let self else { return }
+                self.appState.backendStatus = ready ? .ready : .starting
+            }
+            .store(in: &registryCancellables)
+
         Task { [weak self] in
             guard let self, let coordinator = self.playbackCoordinator else { return }
             await coordinator.restorePersistedSession()
@@ -78,14 +85,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.menuBarController?.updatePlayback(
                         isPlaying: snap.isPlaying, isPaused: snap.isPaused
                     )
-                }
-            }
-        }
-        Task { [weak self] in
-            guard let self else { return }
-            for await state in await self.backend.states() {
-                await MainActor.run {
-                    self.appState.update(from: state)
                 }
             }
         }
@@ -106,12 +105,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func installMenuBarController() {
         guard let server = ipcServer else { return }
-        let controller = MenuBarController(appState: appState, settings: ttsSettings, backend: backend, ipcServer: server)
+        let controller = MenuBarController(appState: appState, settings: ttsSettings, ipcServer: server)
         controller.onShowTranscript = { [weak self] in
             guard let self, let coordinator = self.playbackCoordinator else { return }
             TranscriptWindowController.show(
                 coordinator: coordinator,
-                backend: self.backend,
                 settings: self.ttsSettings
             )
         }
@@ -125,14 +123,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         controller.onReadThis = { [weak self] in
             self?.readFromCurrentApp()
-        }
-        controller.onRestartBackend = { [weak self] in
-            guard let self else { return }
-            let env = self.ttsSettings.envVars()
-            Task {
-                await self.backend.stop()
-                try? await self.backend.start(extraEnv: env)
-            }
         }
         controller.onTogglePause = { [weak self] in
             Task { @MainActor [weak self] in
@@ -197,7 +187,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panelController?.onTeachPronunciation = { [weak self] word in
             guard let self else { return }
             PronunciationsWindowController.show(
-                backend: self.backend,
                 settings: self.ttsSettings,
                 initialWord: word
             )
@@ -252,10 +241,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AppLogger.app.info("source: browser URL is PDF, downloading via PDFKit")
             return try await PDFKitSource.extractText(fromRemote: parsed)
         }
-        guard case .ready(let client) = await backend.state else {
+        let health = await BackendClient.shared.health()
+        guard health == .ready else {
             throw ContentExtractionError.backendNotReady
         }
-        let article = try await client.extract(url: url)
+        let article = try await BackendClient.shared.extract(url: url)
         return ResolvedContent(
             text: article.text, title: article.title, language: article.language
         )
@@ -292,12 +282,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        AppLogger.app.info("applicationShouldTerminate — stopping backend")
-        let backend = self.backend
+        AppLogger.app.info("applicationShouldTerminate — stopping IPC server")
         let ipcServer = self.ipcServer
         Task.detached {
             await ipcServer?.stop()
-            await backend.stop()
             // NSApp.terminate's modal loop runs in NSModalRunLoopMode, which is
             // excluded from NSRunLoopCommonModes. DispatchQueue.main and
             // await MainActor.run use NSDefaultRunLoopMode and are not processed

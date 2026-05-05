@@ -1,17 +1,16 @@
 import AppKit
+import Combine
 
 @MainActor
 final class MenuBarController: NSObject, NSMenuDelegate {
     var onShowTranscript: () -> Void = {}
     var onResumeReading: () -> Void = {}
     var onReadThis: () -> Void = {}
-    var onRestartBackend: () -> Void = {}
     var onTogglePause: () -> Void = {}
     var onStop: () -> Void = {}
 
     private let appState: AppState
     private let settings: TTSSettings
-    private let backend: BackendProcess
     private let ipcServer: IPCServer
 
     private var cachedLastSeenCwd: String?
@@ -22,12 +21,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let stopButton: NSButton
     private let menu = NSMenu()
 
+    private var registryCancellables = Set<AnyCancellable>()
+
     private static let slotSize: CGFloat = 22
 
-    init(appState: AppState, settings: TTSSettings, backend: BackendProcess, ipcServer: IPCServer) {
+    init(appState: AppState, settings: TTSSettings, ipcServer: IPCServer) {
         self.appState = appState
         self.settings = settings
-        self.backend = backend
         self.ipcServer = ipcServer
         statusItem = NSStatusBar.system.statusItem(withLength: SusurroIcon.iconWidth)
         speakerImageView = NSImageView()
@@ -38,6 +38,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         configureSubButtons()
         menu.delegate = self
         applyPlaybackVisibility(isPlaying: false, isPaused: false)
+
+        // Observe registry readiness so the menu status reflects live-swap.
+        TTSProviderRegistry.shared.$isReady
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                // Menus are rebuilt on open; no persistent menu item to update here.
+                _ = self
+            }
+            .store(in: &registryCancellables)
     }
 
     func updatePlayback(isPlaying: Bool, isPaused: Bool) {
@@ -170,18 +179,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func addBackendStatus() {
-        switch appState.backendStatus {
-        case .unknown:
-            menu.addItem(disabledItem(title: "Backend: stopped"))
-        case .starting:
-            menu.addItem(disabledItem(title: "Backend: starting…"))
-        case .ready:
-            menu.addItem(disabledItem(title: "Backend: ready"))
-        case .restarting(let attempt):
-            menu.addItem(disabledItem(title: "Backend: restarting (\(attempt)/3)…"))
-        case .crashed:
-            menu.addItem(disabledItem(title: "Backend: crashed"))
-            menu.addItem(menuItem(title: "Restart backend", action: #selector(handleRestartCrashedBackend)))
+        let registry = TTSProviderRegistry.shared
+        if !registry.isReady {
+            menu.addItem(disabledItem(title: "TTS: Loading…"))
+        } else {
+            switch appState.backendStatus {
+            case .starting:
+                menu.addItem(disabledItem(title: "TTS: Loading…"))
+            case .ready:
+                menu.addItem(disabledItem(title: "Ready — \(settings.provider.displayName)"))
+            }
+        }
+
+        if registry.azureConfigurationRequired {
+            menu.addItem(disabledItem(title: "⚠ Azure key/region required"))
         }
     }
 
@@ -202,7 +213,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             title: "TTS Provider: \(settings.provider.displayName)", action: nil, keyEquivalent: ""
         )
         let sub = NSMenu()
-        for p in TTSProvider.allCases {
+        for p in TTSProviderKind.allCases {
             let item = NSMenuItem(
                 title: p.displayName,
                 action: #selector(handleSelectProvider(_:)),
@@ -361,8 +372,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let parent = NSMenuItem(title: "Diagnostics", action: nil, keyEquivalent: "")
         let sub = NSMenu()
         sub.addItem(menuItem(title: "Show Backend Logs", action: #selector(handleShowBackendLogs)))
-        sub.addItem(menuItem(title: "Reveal Lockfile in Finder", action: #selector(handleRevealLockfile)))
-        sub.addItem(menuItem(title: "Restart Backend", action: #selector(handleRestartBackendFromDiagnostics)))
         sub.addItem(.separator())
         sub.addItem(menuItem(title: "Copy Diagnostics to Clipboard", action: #selector(handleCopyDiagnostics)))
         parent.submenu = sub
@@ -387,48 +396,36 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func handleQuit() { NSApp.terminate(nil) }
     @objc private func handleToggleAutoRead() { settings.autoReadEnabled.toggle() }
     @objc private func handleOpenAccessibility() { AccessibilityPermission.openSystemSettings() }
-    @objc private func handleRestartCrashedBackend() {
-        let env = settings.envVars()
-        Task { try? await backend.start(extraEnv: env) }
-    }
-    @objc private func handleRestartBackendFromDiagnostics() { onRestartBackend() }
 
     @objc private func handleSelectProvider(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String,
-              let provider = TTSProvider(rawValue: raw) else { return }
+              let provider = TTSProviderKind(rawValue: raw) else { return }
         if provider == .azure && !settings.azureConfigured {
             TTSConfigWindowController.show(settings: settings) { [weak self] in
                 self?.settings.provider = .azure
-                self?.onRestartBackend()
             }
         } else {
             settings.provider = provider
-            onRestartBackend()
         }
     }
 
     @objc private func handleConfigureAzure() {
         TTSConfigWindowController.show(settings: settings) { [weak self] in
             guard let self else { return }
-            if self.settings.provider == .azure { self.onRestartBackend() }
+            if self.settings.provider == .azure {
+                Task { @MainActor in
+                    await TTSProviderRegistry.shared.swap(to: .azure)
+                }
+            }
         }
     }
 
     @objc private func handleOpenPronunciations() {
-        PronunciationsWindowController.show(backend: backend, settings: settings)
+        PronunciationsWindowController.show(settings: settings)
     }
 
     @objc private func handleShowBackendLogs() {
         NSWorkspace.shared.open(URL(filePath: "/System/Applications/Utilities/Console.app"))
-    }
-
-    @objc private func handleRevealLockfile() {
-        let lockfileURL = LockfileLocator.path
-        if FileManager.default.fileExists(atPath: lockfileURL.path) {
-            NSWorkspace.shared.activateFileViewerSelecting([lockfileURL])
-        } else {
-            NSWorkspace.shared.activateFileViewerSelecting([lockfileURL.deletingLastPathComponent()])
-        }
     }
 
     @objc private func handleCopyDiagnostics() {

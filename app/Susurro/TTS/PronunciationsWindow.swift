@@ -6,7 +6,7 @@ import SwiftUI
 enum PronunciationsWindowController {
     private static var windowController: NSWindowController?
 
-    static func show(backend: BackendProcess, settings: TTSSettings, initialWord: String? = nil) {
+    static func show(settings: TTSSettings, initialWord: String? = nil) {
         if let existing = windowController {
             existing.window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -14,7 +14,6 @@ enum PronunciationsWindowController {
         }
 
         let view = PronunciationsView(
-            backend: backend,
             settings: settings,
             initialWord: normalizeInitialWord(initialWord)
         )
@@ -52,7 +51,6 @@ private struct PronunciationsEntry: Identifiable, Hashable {
 }
 
 private struct PronunciationsView: View {
-    let backend: BackendProcess
     let settings: TTSSettings
     let initialWord: String?
 
@@ -141,7 +139,6 @@ private struct PronunciationsView: View {
         .onDisappear { rowAudio.stop() }
         .sheet(isPresented: $showingAdd) {
             AddPronunciationSheet(
-                backend: backend,
                 settings: settings,
                 initial: initialWord.map { AddPronunciationSheet.Initial(word: $0, language: "es", currentReplacement: "") },
                 onSaved: {
@@ -153,7 +150,6 @@ private struct PronunciationsView: View {
         }
         .sheet(item: $editingEntry) { entry in
             AddPronunciationSheet(
-                backend: backend,
                 settings: settings,
                 initial: AddPronunciationSheet.Initial(
                     word: entry.word,
@@ -176,12 +172,8 @@ private struct PronunciationsView: View {
         }
         previewingId = entry.id
         defer { previewingId = nil }
-        guard case .ready(let client) = await backend.state else {
-            errorMessage = "Backend not ready."
-            return
-        }
         do {
-            let mp3 = try await client.previewSSML(
+            let mp3 = try await BackendClient.shared.previewSSML(
                 ssml: entry.replacement, language: entry.language
             )
             await rowAudio.play(mp3: mp3)
@@ -246,34 +238,24 @@ private struct PronunciationsView: View {
         loading = true
         defer { loading = false }
         errorMessage = nil
-        guard case .ready(let client) = await backend.state else {
-            errorMessage = "Backend not ready."
-            return
-        }
-        do {
-            let raw = try await client.listPronunciations()
-            var rows: [PronunciationsEntry] = []
-            for (language, dict) in raw {
-                for (word, replacement) in dict {
-                    rows.append(PronunciationsEntry(
-                        language: language, word: word, replacement: replacement
-                    ))
-                }
+        let raw = await BackendClient.shared.listPronunciations()
+        var rows: [PronunciationsEntry] = []
+        for (language, dict) in raw {
+            for (word, replacement) in dict {
+                rows.append(PronunciationsEntry(
+                    language: language, word: word, replacement: replacement
+                ))
             }
-            rows.sort { ($0.language, $0.word.lowercased()) < ($1.language, $1.word.lowercased()) }
-            entries = rows
-        } catch {
-            errorMessage = "Failed to load: \(error.localizedDescription)"
         }
+        rows.sort { ($0.language, $0.word.lowercased()) < ($1.language, $1.word.lowercased()) }
+        entries = rows
     }
 
     private func delete(_ entry: PronunciationsEntry) async {
-        guard case .ready(let client) = await backend.state else {
-            errorMessage = "Backend not ready."
-            return
-        }
         do {
-            try await client.deletePronunciation(language: entry.language, word: entry.word)
+            _ = try await BackendClient.shared.deletePronunciation(
+                language: entry.language, word: entry.word
+            )
             await reload()
         } catch {
             errorMessage = "Delete failed: \(error.localizedDescription)"
@@ -289,7 +271,6 @@ struct AddPronunciationSheet: View {
         let currentReplacement: String
     }
 
-    let backend: BackendProcess
     let settings: TTSSettings
     let initial: Initial?
     let onSaved: () -> Void
@@ -436,22 +417,16 @@ struct AddPronunciationSheet: View {
         loadingCandidates = true
         defer { loadingCandidates = false }
         errorMessage = nil
-        guard case .ready(let client) = await backend.state else {
-            errorMessage = "Backend not ready."
-            return
-        }
-        do {
-            let generated = try await client.pronunciationCandidates(word: trimmed, language: language)
-            if let current = preserveCurrent {
-                let dedup = generated.filter { $0.ssml != current.ssml }
-                candidates = [current] + dedup
-                selected = current
-            } else {
-                candidates = generated
-                selected = generated.first
-            }
-        } catch {
-            errorMessage = "Could not generate candidates: \(error.localizedDescription)"
+        let generated = await BackendClient.shared.pronunciationCandidates(
+            word: trimmed, language: language
+        )
+        if let current = preserveCurrent {
+            let dedup = generated.filter { $0.ssml != current.ssml }
+            candidates = [current] + dedup
+            selected = current
+        } else {
+            candidates = generated
+            selected = generated.first
         }
     }
 
@@ -462,12 +437,10 @@ struct AddPronunciationSheet: View {
         }
         previewing = candidate
         defer { previewing = nil }
-        guard case .ready(let client) = await backend.state else {
-            errorMessage = "Backend not ready."
-            return
-        }
         do {
-            let mp3 = try await client.previewSSML(ssml: candidate.ssml, language: language)
+            let mp3 = try await BackendClient.shared.previewSSML(
+                ssml: candidate.ssml, language: language
+            )
             await audio.play(mp3: mp3)
         } catch {
             errorMessage = "Preview failed: \(error.localizedDescription)"
@@ -481,12 +454,8 @@ struct AddPronunciationSheet: View {
         saving = true
         defer { saving = false }
         errorMessage = nil
-        guard case .ready(let client) = await backend.state else {
-            errorMessage = "Backend not ready."
-            return
-        }
         do {
-            try await client.upsertPronunciation(
+            try await BackendClient.shared.upsertPronunciation(
                 language: language, word: trimmed, replacement: selected.ssml
             )
             onSaved()

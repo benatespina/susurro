@@ -1,0 +1,50 @@
+# Extraction smoke-test URL list — 20 stable, publicly accessible URLs
+# Mix: Wikipedia, MDN, Apple docs, GitHub, news, blogs, dev.to, plain-text
+
+# Wikipedia (EN + ES)
+https://en.wikipedia.org/wiki/Swift_(programming_language)
+https://en.wikipedia.org/wiki/HTTPS
+https://en.wikipedia.org/wiki/Natural_language_processing
+https://es.wikipedia.org/wiki/Lenguaje_de_programaci%C3%B3n
+https://es.wikipedia.org/wiki/Inteligencia_artificial
+
+# MDN Web Docs
+https://developer.mozilla.org/en-US/docs/Web/HTTP/Overview
+https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/How_the_Web_works
+
+# Apple Developer Documentation
+https://developer.apple.com/documentation/foundation
+
+# MDN Web Docs (additional)
+https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array
+
+# GitHub READMEs
+https://github.com/scinfu/SwiftSoup/blob/master/README.md
+https://github.com/nicklockwood/SwiftFormat/blob/main/README.md
+
+# BBC News
+https://www.bbc.com/news/science-environment
+
+# Dev.to
+https://dev.to/apple/getting-started-with-swift-concurrency
+
+# W3C / IETF plain-text specifications
+https://www.rfc-editor.org/rfc/rfc2616
+
+# Hacker News (link aggregator, simple HTML)
+https://news.ycombinator.com/
+
+# Stack Overflow
+https://stackoverflow.com/questions/24004791/what-is-the-definition-of-actor-in-swift-concurrency
+
+# Paul Hudson's Hacking with Swift
+https://www.hackingwithswift.com/swift
+
+# Swift Forums
+https://forums.swift.org/
+
+# OpenAI blog (publicly accessible article)
+https://openai.com/research/gpt-4
+
+# Wikipedia (additional)
+https://en.wikipedia.org/wiki/WebSocket

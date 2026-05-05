@@ -1,17 +1,7 @@
 import Foundation
 import Observation
 
-enum TTSProvider: String, CaseIterable, Sendable {
-    case edge
-    case azure
-
-    var displayName: String {
-        switch self {
-        case .edge: "Edge (free)"
-        case .azure: "Azure Speech (subscription)"
-        }
-    }
-}
+// TTSProviderKind enum lives in Core/TTS/TTSProviderKind.swift
 
 @MainActor @Observable
 final class TTSSettings {
@@ -20,8 +10,17 @@ final class TTSSettings {
     private static let azureKeyAccount = "tts.azure.key"
     private static let autoReadEnabledKey = "claude.autoRead.enabled"
 
-    var provider: TTSProvider {
-        didSet { UserDefaults.standard.set(provider.rawValue, forKey: Self.providerKey) }
+    /// Set to true after init so that the registry swap is only triggered post-init.
+    private var isInitialized = false
+
+    var provider: TTSProviderKind {
+        didSet {
+            UserDefaults.standard.set(provider.rawValue, forKey: Self.providerKey)
+            guard isInitialized, oldValue != provider else { return }
+            Task { @MainActor in
+                await TTSProviderRegistry.shared.swap(to: provider)
+            }
+        }
     }
 
     var autoReadEnabled: Bool {
@@ -40,8 +39,8 @@ final class TTSSettings {
     }
 
     init() {
-        let raw = UserDefaults.standard.string(forKey: Self.providerKey) ?? TTSProvider.edge.rawValue
-        self.provider = TTSProvider(rawValue: raw) ?? .edge
+        let raw = UserDefaults.standard.string(forKey: Self.providerKey) ?? TTSProviderKind.edge.rawValue
+        self.provider = TTSProviderKind(rawValue: raw) ?? .edge
         let storedRegion = UserDefaults.standard.string(forKey: Self.azureRegionKey) ?? ""
         let sanitized = Self.sanitizeRegion(storedRegion)
         self.azureRegion = sanitized
@@ -49,6 +48,7 @@ final class TTSSettings {
             UserDefaults.standard.set(sanitized, forKey: Self.azureRegionKey)
         }
         self.autoReadEnabled = UserDefaults.standard.bool(forKey: Self.autoReadEnabledKey)
+        self.isInitialized = true
     }
 
     private static func sanitizeRegion(_ raw: String) -> String {
@@ -66,12 +66,4 @@ final class TTSSettings {
         !azureKey.isEmpty && !azureRegion.isEmpty
     }
 
-    func envVars() -> [String: String] {
-        var env: [String: String] = ["SUSURRO_TTS_PROVIDER": provider.rawValue]
-        if provider == .azure {
-            env["AZURE_SPEECH_KEY"] = azureKey
-            env["AZURE_SPEECH_REGION"] = azureRegion
-        }
-        return env
-    }
 }
