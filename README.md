@@ -152,6 +152,77 @@ export SUSURRO_DEBUG=1
 
 Set this in your shell profile so it persists across Claude Code sessions.
 
+## Phase 9 verification
+
+### Automated checks
+
+Run the parity audit suite (gated by `PARITY_AUDIT`; not included in regular builds):
+
+```bash
+cd app
+xcodebuild -scheme SusurroTests \
+  -destination 'platform=macOS' \
+  test \
+  SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) PARITY_AUDIT' \
+  | tee /tmp/p9-parity.log
+grep -E "langDetectionAccuracy|extractionSmoke|ParityAudit" /tmp/p9-parity.log | tail -20
+```
+
+Expected outcomes:
+
+- `langDetectionAccuracy`: reports ≥95% agreement on the 100-sentence EN/ES corpus (`app/Susurro/Resources/test-fixtures/parity/lang-corpus.json`).
+- `extractionSmoke`: for each of the 20 URLs in `app/Susurro/Resources/test-fixtures/parity/extract-urls.txt`, asserts the extracted text is >200 characters, or skips the URL on network error.
+
+Regular test runs (`xcodebuild -scheme SusurroTests test`) do NOT execute these tests — the suite is compiled only when `PARITY_AUDIT` is set.
+
+To record an extraction baseline (for regression comparisons in future runs), capture the JSON printed by the test when no `extract-baseline.json` exists, and save it to `app/Susurro/Resources/test-fixtures/parity/extract-baseline.json`.
+
+### Manual TTS smoke
+
+Perform these steps after a clean build:
+
+1. **Provider Edge, Spanish** — paste a Spanish paragraph into any supported app, select it, click "Read this", confirm intelligible audio is produced.
+2. **Provider Edge, English** — repeat with an English paragraph.
+3. **Provider Azure, Spanish** — open Settings, enter a valid Azure Cognitive Services key and region, switch the provider to Azure, repeat step 1.
+4. **Provider Azure, English** — repeat step 2 with Azure selected.
+
+### Notarization smoke
+
+Run these steps on a development machine with a valid Apple Distribution certificate and notarization credentials:
+
+```bash
+# 1. Archive
+cd app
+xcodebuild -scheme Susurro -configuration Release archive \
+  -archivePath /tmp/Susurro.xcarchive
+
+# 2. Export
+xcodebuild -exportArchive \
+  -archivePath /tmp/Susurro.xcarchive \
+  -exportPath /tmp/SusurroExport \
+  -exportOptionsPlist ExportOptions.plist
+
+# 3. Notarize
+cd /tmp/SusurroExport
+zip -r Susurro.app.zip Susurro.app
+xcrun notarytool submit Susurro.app.zip \
+  --apple-id <your-apple-id> \
+  --team-id <your-team-id> \
+  --password <app-specific-password> \
+  --wait
+
+# 4. Staple
+xcrun stapler staple Susurro.app
+```
+
+Then validate on a clean macOS account:
+
+1. Drag `Susurro.app` to `/Applications`.
+2. Launch it — confirm the menu bar icon appears.
+3. Select text in Safari and click "Read this" — confirm audio plays.
+4. Confirm no Python interpreter is bundled: `find /Applications/Susurro.app -name "*.py"` should return no output.
+5. Confirm no Python process is spawned: `ps -ef | grep python` should show no Susurro-related entry after launch.
+
 ## Architecture decisions
 
 - **In-process TTS**: Azure Cognitive Services and Edge TTS run entirely within the Swift app via native WebSocket connections. Non-autoregressive synthesis delivers low-latency audio on Apple Silicon.
