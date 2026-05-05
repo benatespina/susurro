@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. 0.1.0 or v0.1.0) — release step is skipped for manual runs'
+        required: false
+        default: '0.1.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # macos-15 ships Xcode 16; Susurro targets macOS 26 (Tahoe) SDK.
+      # Use the latest Xcode available on the runner until GitHub provides macos-26.
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest
+
+      # Log Xcode version after selection so build failures from a wrong SDK are obvious
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Install create-dmg
+        run: npm install -g create-dmg
+
+      - name: Generate Xcode project
+        working-directory: app
+        run: xcodegen generate
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="${{ github.event.inputs.version || '0.1.0' }}"
+          fi
+          # Strip leading 'v' if present
+          VERSION="${VERSION#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build archive
+        working-directory: app
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          xcodebuild archive \
+            -project Susurro.xcodeproj \
+            -scheme Susurro \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/Susurro.xcarchive" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_STYLE=Manual \
+            MARKETING_VERSION="$VERSION" \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            SKIP_INSTALL=NO
+
+      - name: Export app from archive
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>mac-application</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Susurro.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Verify ad-hoc signature
+        run: |
+          # Informational only — does not fail the build
+          codesign -dv "$RUNNER_TEMP/export/Susurro.app" || true
+
+      - name: Create DMG
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          create-dmg --no-internet-enable "$RUNNER_TEMP/export/Susurro.app" "$RUNNER_TEMP"
+          # create-dmg names the file after the app + version from the bundle;
+          # rename it to our canonical form.
+          DMG=$(find "$RUNNER_TEMP" -maxdepth 1 -name "*.dmg" | head -1)
+          if [ -z "$DMG" ]; then echo "ERROR: no DMG produced by create-dmg" >&2; exit 1; fi
+          mv "$DMG" "$RUNNER_TEMP/Susurro-${VERSION}.dmg"
+
+      - name: Create GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          gh release create "v${VERSION}" \
+            --title "Susurro v${VERSION}" \
+            --generate-notes \
+            "$RUNNER_TEMP/Susurro-${VERSION}.dmg"
