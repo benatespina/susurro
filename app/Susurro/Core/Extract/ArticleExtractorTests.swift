@@ -4,7 +4,6 @@ import Testing
 
 // MARK: - URLProtocol Mock
 
-// Named with module prefix to avoid collision with BackendProcessTests.MockURLProtocol
 nonisolated(unsafe) private var mockResponseHTML: String = ""
 nonisolated(unsafe) private var mockShouldError: Bool = false
 
