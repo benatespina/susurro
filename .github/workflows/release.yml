@@ -35,9 +35,6 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Install create-dmg
-        run: npm install -g create-dmg
-
       - name: Generate Xcode project
         working-directory: app
         run: xcodegen generate
@@ -87,12 +84,14 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
-          create-dmg --no-internet-enable "$RUNNER_TEMP/export/Susurro.app" "$RUNNER_TEMP"
-          # create-dmg names the file after the app + version from the bundle;
-          # rename it to our canonical form.
-          DMG=$(find "$RUNNER_TEMP" -maxdepth 1 -name "*.dmg" | head -1)
-          if [ -z "$DMG" ]; then echo "ERROR: no DMG produced by create-dmg" >&2; exit 1; fi
-          mv "$DMG" "$RUNNER_TEMP/Susurro-${VERSION}.dmg"
+          # create-dmg requires a signing identity that is not available on CI runners.
+          # Use hdiutil directly to produce an unsigned DMG (adequate for ad-hoc distribution).
+          hdiutil create \
+            -volname "Susurro" \
+            -srcfolder "$RUNNER_TEMP/export/Susurro.app" \
+            -ov \
+            -format UDZO \
+            "$RUNNER_TEMP/Susurro-${VERSION}.dmg"
 
       - name: Create GitHub Release
         if: github.ref_type == 'tag'
