@@ -16,8 +16,10 @@ struct EdgeSSMLBuilderTests {
         )
 
         #expect(ssml.contains("<speak version='1.0'"))
-        #expect(ssml.contains("xml:lang='es-ES'"))
-        #expect(ssml.contains("<voice name='es-ES-AlvaroNeural'>"))
+        // Microsoft Edge endpoint requires `xml:lang='en-US'` regardless of
+        // voice locale (mirrors upstream edge-tts `mkssml` quirk).
+        #expect(ssml.contains("xml:lang='en-US'"))
+        #expect(ssml.contains("Microsoft Server Speech Text to Speech Voice (es-ES, AlvaroNeural)"))
         #expect(ssml.contains("<prosody pitch='+0Hz' rate='+0%' volume='+0%'>"))
         #expect(ssml.contains("</prosody>"))
         #expect(ssml.contains("</voice>"))
@@ -33,27 +35,43 @@ struct EdgeSSMLBuilderTests {
         )
 
         #expect(ssml.contains("xml:lang='en-US'"))
-        #expect(ssml.contains("<voice name='en-US-AriaNeural'>"))
+        #expect(ssml.contains("Microsoft Server Speech Text to Speech Voice (en-US, AriaNeural)"))
     }
 
-    @Test("uses en-US as fallback for unknown language")
-    func fallsBackToEnUS() {
-        let ssml = EdgeSSMLBuilder.wrap(body: "text", code: "en-US", voice: "en-US-AriaNeural")
-        #expect(ssml.contains("xml:lang='en-US'"))
+    @Test("longVoiceName converts short form to long")
+    func longVoiceNameTransform() {
+        #expect(EdgeSSMLBuilder.longVoiceName("es-ES-AlvaroNeural")
+                == "Microsoft Server Speech Text to Speech Voice (es-ES, AlvaroNeural)")
+        #expect(EdgeSSMLBuilder.longVoiceName("en-US-AriaNeural")
+                == "Microsoft Server Speech Text to Speech Voice (en-US, AriaNeural)")
     }
 
-    // MARK: - Pronunciation application
+    // MARK: - Pronunciation behavior
 
-    @Test("applies pronunciation substitutions from default seed")
-    func appliesPronunciationSubstitutions() async {
-        // The default seed maps "dónde" → <emphasis level="moderate">dónde</emphasis>
+    @Test("does NOT apply pronunciation substitutions (Edge endpoint rejects nested SSML)")
+    func skipsPronunciationSubstitutions() async {
+        // Microsoft's Edge readaloud WebSocket closes with code 1007 "SSML is
+        // invalid" when the body contains <phoneme>, <sub>, <emphasis>, etc.
+        // EdgeSSMLBuilder must escape the body as plain text only.
         let ssml = await EdgeSSMLBuilder.build(
             body: "¿dónde estás?",
             language: "es",
             voice: "es-ES-AlvaroNeural"
         )
-        #expect(ssml.contains("<emphasis"))
+        #expect(!ssml.contains("<emphasis"))
+        #expect(!ssml.contains("<phoneme"))
+        #expect(!ssml.contains("<sub "))
         #expect(ssml.contains("dónde"))
+    }
+
+    @Test("XML-escapes ampersand and angle brackets in body")
+    func escapesXMLSpecials() async {
+        let ssml = await EdgeSSMLBuilder.build(
+            body: "Tom & Jerry < 5 > 3",
+            language: "en",
+            voice: "en-US-AriaNeural"
+        )
+        #expect(ssml.contains("Tom &amp; Jerry &lt; 5 &gt; 3"))
     }
 
     // MARK: - No break injection
