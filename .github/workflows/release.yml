@@ -48,9 +48,8 @@ jobs:
           if [ "${{ github.ref_type }}" = "tag" ]; then
             VERSION="${{ github.ref_name }}"
           else
-            VERSION="${{ github.event.inputs.version || '0.1.0' }}"
+            VERSION="${{ github.event.inputs.version }}"
           fi
-          # Strip leading 'v' if present
           VERSION="${VERSION#v}"
           echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
@@ -72,8 +71,6 @@ jobs:
             SKIP_INSTALL=NO
 
       - name: Export app from archive
-        env:
-          VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
