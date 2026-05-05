@@ -13,7 +13,16 @@ macOS menu bar app that reads selected text aloud. Select text in any app, click
 
 ## 📦 Install
 
-No Homebrew formula or pre-built release. Build from source.
+1. Download the latest `Susurro.dmg` from [Releases](https://github.com/benatespina/susurro/releases/latest).
+2. Open the DMG and drag `Susurro.app` to `/Applications`.
+3. Eject the DMG.
+
+**Gatekeeper warning:** because the app is not signed with an Apple Developer certificate, macOS will block the first launch. This is a one-time step — use either method:
+
+- Right-click `Susurro.app` in Applications → **Open** → click **Open** in the dialog.
+- Or via Terminal: `xattr -cr /Applications/Susurro.app`, then launch normally.
+
+### Build from source
 
 **Requirements:** macOS 26 Tahoe, Apple Silicon, Xcode 26 with Swift 6, `xcodegen` (`brew install xcodegen`)
 
