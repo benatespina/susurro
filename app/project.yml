@@ -40,7 +40,7 @@ targets:
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
         NSAccessibilityUsageDescription: "Susurro needs Accessibility access to detect text selection in other apps so it can read the selected text aloud."
         NSHumanReadableCopyright: "© 2026 Beñat Espiña"
-        CFBundleShortVersionString: "0.1.0"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "1"
     entitlements:
       path: Susurro/Susurro.entitlements
