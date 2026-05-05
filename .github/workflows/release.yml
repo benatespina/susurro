@@ -82,9 +82,14 @@ jobs:
         run: |
           # create-dmg requires a signing identity that is not available on CI runners.
           # Use hdiutil directly to produce an unsigned DMG (adequate for ad-hoc distribution).
+          # Stage the app and Applications symlink together, then create the DMG.
+          STAGING="$RUNNER_TEMP/dmg-staging"
+          mkdir -p "$STAGING"
+          cp -R "$RUNNER_TEMP/export/Susurro.app" "$STAGING/"
+          ln -s /Applications "$STAGING/Applications"
           hdiutil create \
             -volname "Susurro" \
-            -srcfolder "$RUNNER_TEMP/export/Susurro.app" \
+            -srcfolder "$STAGING" \
             -ov \
             -format UDZO \
             "$RUNNER_TEMP/Susurro-${VERSION}.dmg"
