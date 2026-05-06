@@ -17,12 +17,12 @@ enum TTSConfigWindowController {
             close()
         }
         let hosting = NSHostingController(rootView: view)
-        hosting.preferredContentSize = NSSize(width: 420, height: 270)
+        hosting.preferredContentSize = NSSize(width: 420, height: 180)
         let window = NSWindow(contentViewController: hosting)
         window.title = "Configure Azure Speech"
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 420, height: 270))
+        window.setContentSize(NSSize(width: 420, height: 180))
         window.center()
 
         let controller = NSWindowController(window: window)
@@ -63,18 +63,9 @@ private struct TTSConfigView: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(azureKey.isEmpty || settings.azureRegion.isEmpty)
             }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 6) {
-                Toggle("Translate to Spanish before reading", isOn: $settings.translateToSpanish)
-                Text("When enabled, non-Spanish text is translated to Spanish on-device before being read aloud. Spanish text is read directly.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
         .padding(16)
-        .frame(width: 420, height: 270)
+        .frame(width: 420, height: 180)
         .onAppear { azureKey = settings.azureKey }
     }
 }

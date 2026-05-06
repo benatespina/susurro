@@ -2,24 +2,6 @@ import Foundation
 import Testing
 @testable import Susurro
 
-// MARK: - Mock
-
-/// Test double that fulfils `TranslatorProviding` without touching the real
-/// Translation framework. Configure `result` / `errorToThrow` per test.
-final class MockTranslator: TranslatorProviding, @unchecked Sendable {
-    var result: String = ""
-    var errorToThrow: Error?
-    private(set) var lastText: String?
-    private(set) var lastTarget: String?
-
-    func translate(_ text: String, to targetLanguage: String) async throws -> String {
-        lastText = text
-        lastTarget = targetLanguage
-        if let error = errorToThrow { throw error }
-        return result
-    }
-}
-
 // MARK: - Unit tests (mock-based, run in CI)
 
 @Suite struct TranslatorTests {

@@ -1,26 +1,12 @@
 import Testing
 @testable import Susurro
 
-// MARK: - Mock
-
-final class MockPlaybackTranslator: TranslatorProviding, @unchecked Sendable {
-    var translateCallCount = 0
-    var translateInvocations: [(String, String)] = []
-    var nextResult: Result<String, Error> = .success("MOCK_TRANSLATED")
-
-    func translate(_ text: String, to targetLanguage: String) async throws -> String {
-        translateCallCount += 1
-        translateInvocations.append((text, targetLanguage))
-        return try nextResult.get()
-    }
-}
-
 // MARK: - Tests
 
 struct PlaybackCoordinatorTests {
     @Test func stopIsIdempotent() async {
         let coordinator = PlaybackCoordinator(
-            translator: MockPlaybackTranslator(),
+            translator: MockTranslator(),
             isTranslateToSpanishEnabled: { false }
         )
 
@@ -30,7 +16,7 @@ struct PlaybackCoordinatorTests {
 
     @Test func readThenStopClearsState() async {
         let coordinator = PlaybackCoordinator(
-            translator: MockPlaybackTranslator(),
+            translator: MockTranslator(),
             isTranslateToSpanishEnabled: { false }
         )
 
@@ -41,7 +27,7 @@ struct PlaybackCoordinatorTests {
 
     @Test func playingStatesEmitsFalseAfterStop() async {
         let coordinator = PlaybackCoordinator(
-            translator: MockPlaybackTranslator(),
+            translator: MockTranslator(),
             isTranslateToSpanishEnabled: { false }
         )
 
@@ -61,7 +47,7 @@ struct PlaybackCoordinatorTests {
 
     @Test func readWhenNotReadyDoesNotCrash() async {
         let coordinator = PlaybackCoordinator(
-            translator: MockPlaybackTranslator(),
+            translator: MockTranslator(),
             isTranslateToSpanishEnabled: { false }
         )
 
@@ -75,7 +61,7 @@ struct PlaybackCoordinatorTests {
     // MARK: - Translation flow tests
 
     @Test func readWithToggleOffDoesNotCallTranslator() async {
-        let mock = MockPlaybackTranslator()
+        let mock = MockTranslator()
         let coordinator = PlaybackCoordinator(
             translator: mock,
             isTranslateToSpanishEnabled: { false }
@@ -87,7 +73,7 @@ struct PlaybackCoordinatorTests {
     }
 
     @Test func readWithToggleOnAndSpanishTextSkipsTranslation() async {
-        let mock = MockPlaybackTranslator()
+        let mock = MockTranslator()
         let coordinator = PlaybackCoordinator(
             translator: mock,
             isTranslateToSpanishEnabled: { true }
@@ -100,7 +86,7 @@ struct PlaybackCoordinatorTests {
     }
 
     @Test func readWithToggleOnAndEnglishTextCallsTranslatorAndReplaces() async {
-        let mock = MockPlaybackTranslator()
+        let mock = MockTranslator()
         mock.nextResult = .success("texto traducido al español")
         let coordinator = PlaybackCoordinator(
             translator: mock,
@@ -120,7 +106,7 @@ struct PlaybackCoordinatorTests {
     }
 
     @Test func readWithToggleOnAndTranslatorErrorFallsBackToOriginal() async {
-        let mock = MockPlaybackTranslator()
+        let mock = MockTranslator()
         mock.nextResult = .failure(TranslatorError.modelNotReady)
         let coordinator = PlaybackCoordinator(
             translator: mock,
@@ -140,7 +126,7 @@ struct PlaybackCoordinatorTests {
     }
 
     @Test func readWithToggleOnAndEmptyTextSkipsTranslation() async {
-        let mock = MockPlaybackTranslator()
+        let mock = MockTranslator()
         let coordinator = PlaybackCoordinator(
             translator: mock,
             isTranslateToSpanishEnabled: { true }

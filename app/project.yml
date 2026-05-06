@@ -88,6 +88,7 @@ targets:
       - path: Susurro
         includes:
           - "**/*Tests.swift"
+          - "**/*TestDoubles.swift"
       - path: CLI
         includes:
           - "Version.swift"

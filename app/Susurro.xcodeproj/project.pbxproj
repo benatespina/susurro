@@ -36,6 +36,7 @@
 		35723048FD8093B09ECE82F7 /* PermissionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23560E679E1BCEE96C6197B3 /* PermissionCoordinator.swift */; };
 		3739A8010A4DC7914D2696B8 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B1ED06DFAC1CD8DE1254488 /* SessionStore.swift */; };
 		3E6BDA6663282FA55D0F26BA /* ContentSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10220536275C03C0BF2020D6 /* ContentSource.swift */; };
+		4029044C1A3029A646AC3A4F /* TranslatorTestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA34E2959B954072D100050 /* TranslatorTestDoubles.swift */; };
 		405DAAD0EE316956958873A4 /* SSMLBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A2C0C2734E31B960DBA3D9 /* SSMLBuilder.swift */; };
 		426A55BEAA3DE5BC562A9343 /* stop.sh in Resources */ = {isa = PBXBuildFile; fileRef = AFDEF385826969C783C614A1 /* stop.sh */; };
 		43EC8993D97697842770874F /* TTSProviderRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 443F5A9EEF7373DEBCA3EA9C /* TTSProviderRegistry.swift */; };
@@ -76,6 +77,7 @@
 		9A15B8F3E9C13C28CC7701A2 /* ReaderModeExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476A25F9BF07E05DD4396CB9 /* ReaderModeExtractor.swift */; };
 		9B7092356A872217E019CAC3 /* TranslatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016793B00CA289D1BEE9D3E5 /* TranslatorTests.swift */; };
 		9D1BE0196E466DA3231B5DA5 /* SourceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13571011A6ACAAF59135D95 /* SourceResolver.swift */; };
+		A0F691C3032B4257AE86A83C /* TranslatorTestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA34E2959B954072D100050 /* TranslatorTestDoubles.swift */; };
 		A233636E3438EFC1D58BE900 /* AccessibilityPermissionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EFE953F37BB457E966830CF /* AccessibilityPermissionTests.swift */; };
 		A2812E7BDC5FFBE8074A4350 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 914A132B59FC2B0FD7A9A2E3 /* AppStateTests.swift */; };
 		A2CECAAD8160A3A9288BFC8A /* IPCClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE2ABE38F56C078AB499FFE /* IPCClient.swift */; };
@@ -239,6 +241,7 @@
 		BBCDDAEBA408BA22B607694F /* sample-transcript.jsonl */ = {isa = PBXFileReference; path = "sample-transcript.jsonl"; sourceTree = "<group>"; };
 		BC22679CF83A34DF0BA3E243 /* PronunciationRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PronunciationRulesTests.swift; sourceTree = "<group>"; };
 		BCE9026DF3F7DD2ED1334BA4 /* ToolbarButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarButton.swift; sourceTree = "<group>"; };
+		BFA34E2959B954072D100050 /* TranslatorTestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslatorTestDoubles.swift; sourceTree = "<group>"; };
 		C121E9671CB32EEBBD334489 /* SelectionObserverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionObserverTests.swift; sourceTree = "<group>"; };
 		C7CA9DFC30C00FE7661E8EC9 /* VisualEffectBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualEffectBackground.swift; sourceTree = "<group>"; };
 		C8F458D52C278864FCEBC915 /* PlaybackCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinator.swift; sourceTree = "<group>"; };
@@ -468,6 +471,7 @@
 				D6A72C2B00602FB53BEC2AC3 /* Translator.swift */,
 				CDAB69DA2B2E990E9D705188 /* TranslatorError.swift */,
 				B0EBBCD343EBDCAA5A57E014 /* TranslatorHostView.swift */,
+				BFA34E2959B954072D100050 /* TranslatorTestDoubles.swift */,
 				016793B00CA289D1BEE9D3E5 /* TranslatorTests.swift */,
 			);
 			path = Translation;
@@ -840,6 +844,7 @@
 				664ED2AF8E2B0F3C93841837 /* Translator.swift in Sources */,
 				8EF6BBCD1038F55F425DE092 /* TranslatorError.swift in Sources */,
 				EB8A92096691664AC25431FE /* TranslatorHostView.swift in Sources */,
+				A0F691C3032B4257AE86A83C /* TranslatorTestDoubles.swift in Sources */,
 				B52F5EB450801BDED4997175 /* URLBarFilter.swift in Sources */,
 				343293A77E4F7B54B12E44EB /* VisualEffectBackground.swift in Sources */,
 			);
@@ -892,6 +897,7 @@
 				C0A8C05ABEE128B6DB37A939 /* SwiftSoupExtractorTests.swift in Sources */,
 				6B9714B216086C4B04410D42 /* TTSProviderRegistryTests.swift in Sources */,
 				5E8BFF92069DA009D4F8C04B /* TTSSettingsTests.swift in Sources */,
+				4029044C1A3029A646AC3A4F /* TranslatorTestDoubles.swift in Sources */,
 				9B7092356A872217E019CAC3 /* TranslatorTests.swift in Sources */,
 				0369F057ED8D9BFBEEEDCEDC /* URLBarFilterTests.swift in Sources */,
 				48CA1AEA9ACFBC066F46D90B /* Version.swift in Sources */,
