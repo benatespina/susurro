@@ -1,3 +1,4 @@
+import AppKit
 import AVFoundation
 import Foundation
 import os
@@ -53,6 +54,9 @@ actor PlaybackCoordinator {
                 effectiveLang = "es"
             } catch {
                 AppLogger.playback.error("translation failed: \(error.localizedDescription, privacy: .public)")
+                if case TranslatorError.modelNotReady = error {
+                    await MainActor.run { Self.showModelNotReadyAlertIfNeeded(targetLanguage: "Spanish") }
+                }
                 // Fall back to original text and detected language.
             }
         }
@@ -327,5 +331,39 @@ actor PlaybackCoordinator {
 
     private func emitSnapshot() {
         for continuation in snapshotContinuations { continuation.yield(snapshot) }
+    }
+
+    // MARK: - Model-not-ready alert
+
+    @MainActor
+    private static var modelAlertShownThisSession = false
+
+    @MainActor
+    private static func showModelNotReadyAlertIfNeeded(targetLanguage: String) {
+        guard !modelAlertShownThisSession else { return }
+        modelAlertShownThisSession = true
+
+        let alert = NSAlert()
+        alert.messageText = "Spanish translation model not installed"
+        alert.informativeText = """
+            Susurro could not load the on-device \(targetLanguage) translation model.
+
+            To install it:
+            1. Open System Settings → General → Language & Region.
+            2. Click Translation Languages.
+            3. Add Spanish (or your target language) and wait for it to download.
+            4. Try reading the text again.
+            """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Cancel")
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.Localization-Settings.extension") {
+                NSWorkspace.shared.open(url)
+            } else if let url = URL(string: "x-apple.systempreferences:") {
+                NSWorkspace.shared.open(url)
+            }
+        }
     }
 }

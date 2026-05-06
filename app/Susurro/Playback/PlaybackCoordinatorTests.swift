@@ -107,7 +107,7 @@ struct PlaybackCoordinatorTests {
 
     @Test func readWithToggleOnAndTranslatorErrorFallsBackToOriginal() async {
         let mock = MockTranslator()
-        mock.nextResult = .failure(TranslatorError.modelNotReady)
+        mock.nextResult = .failure(TranslatorError.failed(message: "test error"))
         let coordinator = PlaybackCoordinator(
             translator: mock,
             isTranslateToSpanishEnabled: { true }
