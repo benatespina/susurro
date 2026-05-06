@@ -173,7 +173,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(buildTTSMenu())
         menu.addItem(buildClaudeIntegrationMenu())
-        menu.addItem(buildDiagnosticsMenu())
         menu.addItem(.separator())
         menu.addItem(menuItem(title: "Quit Susurro", action: #selector(handleQuit)))
     }
@@ -377,16 +376,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         alert.runModal()
     }
 
-    private func buildDiagnosticsMenu() -> NSMenuItem {
-        let parent = NSMenuItem(title: "Diagnostics", action: nil, keyEquivalent: "")
-        let sub = NSMenu()
-        sub.addItem(menuItem(title: "Show Backend Logs", action: #selector(handleShowBackendLogs)))
-        sub.addItem(.separator())
-        sub.addItem(menuItem(title: "Copy Diagnostics to Clipboard", action: #selector(handleCopyDiagnostics)))
-        parent.submenu = sub
-        return parent
-    }
-
     private func menuItem(title: String, action: Selector) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = self
@@ -435,19 +424,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func handleOpenPronunciations() {
         PronunciationsWindowController.show(settings: settings)
-    }
-
-    @objc private func handleShowBackendLogs() {
-        NSWorkspace.shared.open(URL(filePath: "/System/Applications/Utilities/Console.app"))
-    }
-
-    @objc private func handleCopyDiagnostics() {
-        let state = appState
-        Task { @MainActor in
-            let report = await Diagnostics.collect(state: state)
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(report.formatted, forType: .string)
-        }
     }
 
     func menuDidClose(_ menu: NSMenu) {
