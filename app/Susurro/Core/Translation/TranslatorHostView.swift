@@ -39,9 +39,23 @@ final class TranslationChannel {
 
     /// Enqueue a translation request and trigger a session refresh on the host view.
     /// Suspends until the host view's `.translationTask` closure resumes the continuation.
+    ///
+    /// - Throws: `TranslatorError.failed` immediately if the channel is not yet ready
+    ///   (i.e. the host view has not initialised its stream). This prevents the caller
+    ///   from hanging indefinitely on an unresumable continuation.
     func enqueue(text: String, targetLanguage: String) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
-            streamContinuation?.yield(TranslationRequest(text: text, continuation: continuation))
+            guard let sc = streamContinuation else {
+                continuation.resume(throwing: TranslatorError.failed(message: "translation channel not ready"))
+                return
+            }
+
+            let request = TranslationRequest(text: text, continuation: continuation)
+            guard case .enqueued = sc.yield(request) else {
+                // Stream finished or dropped — resume with an error rather than leaking.
+                continuation.resume(throwing: TranslatorError.failed(message: "translation channel closed"))
+                return
+            }
 
             // Deliver a fresh configuration so `.translationTask` fires.
             // `invalidate()` bumps the internal version, forcing a re-trigger even if

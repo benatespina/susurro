@@ -24,13 +24,21 @@ final class MockTranslator: TranslatorProviding, @unchecked Sendable {
 
 @Suite struct TranslatorTests {
 
-    // MARK: Empty text short-circuit
+    // MARK: Blank text short-circuit
 
     /// Verifies the real `Translator` short-circuits before touching the Translation
     /// framework — this does NOT require a downloaded model or network access.
     @Test func emptyTextReturnsEmptyFromTranslator() async throws {
         let output = try await Translator.shared.translate("", to: "es")
         #expect(output == "")
+    }
+
+    /// Verifies the real `Translator` also short-circuits for whitespace-only input,
+    /// returning the original string unchanged.
+    @Test func whitespaceOnlyTextReturnsUnchanged() async throws {
+        let input = "   "
+        let output = try await Translator.shared.translate(input, to: "es")
+        #expect(output == input)
     }
 
     /// Confirms the mock honours whatever contract the caller sets; downstream code

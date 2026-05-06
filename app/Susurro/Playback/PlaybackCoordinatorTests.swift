@@ -138,4 +138,18 @@ struct PlaybackCoordinatorTests {
         let snapshot = await coordinator.currentSnapshot()
         #expect(snapshot.sourceText == "this is a sufficiently long english sentence for detection")
     }
+
+    @Test func readWithToggleOnAndEmptyTextSkipsTranslation() async {
+        let mock = MockPlaybackTranslator()
+        let coordinator = PlaybackCoordinator(
+            translator: mock,
+            isTranslateToSpanishEnabled: { true }
+        )
+
+        // Empty text hits the `!text.isEmpty` guard in PlaybackCoordinator.read —
+        // translator must not be called even when the toggle is on.
+        _ = await coordinator.read(text: "")
+
+        #expect(mock.translateCallCount == 0)
+    }
 }

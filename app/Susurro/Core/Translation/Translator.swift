@@ -8,7 +8,8 @@ import Translation
 protocol TranslatorProviding: Sendable {
     /// Translates `text` to `targetLanguage` (BCP-47 tag, e.g. `"es"`).
     ///
-    /// - Returns: the translated string. Returns `text` unchanged if it is empty.
+    /// - Returns: the translated string. Returns `text` unchanged if it is blank
+    ///   (empty or whitespace-only) without invoking the Translation framework.
     /// - Throws: `TranslatorError` on failure.
     func translate(_ text: String, to targetLanguage: String) async throws -> String
 }
@@ -82,14 +83,17 @@ final class Translator: TranslatorProviding {
 
     /// Translates `text` to `targetLanguage`.
     ///
-    /// - Empty text is returned as-is without invoking the Translation framework.
+    /// - Blank text (empty or whitespace-only) is returned as-is without invoking
+    ///   the Translation framework.
     /// - Source language is left as `nil` so Apple auto-detects it.
     /// - If the language model has not been downloaded, Apple presents its own
     ///   download-consent UI on first call. After the user accepts, subsequent
     ///   calls succeed. (Not automatically testable — see smoke tests.)
     nonisolated func translate(_ text: String, to targetLanguage: String) async throws -> String {
-        // Short-circuit empty strings — no framework call needed.
-        guard !text.isEmpty else { return "" }
+        // Short-circuit blank text — no framework call needed.
+        // Returns the original string (not "") so callers receive the same value back
+        // and the documented contract ("returns text unchanged if empty") is satisfied.
+        guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return text }
 
         do {
             // `gate.run` serializes concurrent callers so that only one request reaches
@@ -103,7 +107,7 @@ final class Translator: TranslatorProviding {
             return translated
         } catch let error as TranslationError {
             AppLogger.translation.error("Translation failed: \(error.localizedDescription, privacy: .public)")
-            if TranslationError.notInstalled ~= error {
+            if case .notInstalled = error {
                 throw TranslatorError.modelNotReady
             }
             throw TranslatorError.failed(message: error.localizedDescription)
