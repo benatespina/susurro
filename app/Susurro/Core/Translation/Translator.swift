@@ -87,8 +87,8 @@ final class Translator: TranslatorProviding {
     ///   the Translation framework.
     /// - Source language is left as `nil` so Apple auto-detects it.
     /// - If the language model has not been downloaded, Apple presents its own
-    ///   download-consent UI on first call. After the user accepts, subsequent
-    ///   calls succeed. (Not automatically testable — see smoke tests.)
+    ///   download-consent UI. The host window is brought on-screen so the sheet
+    ///   has a visible anchor; it returns off-screen after the request completes.
     nonisolated func translate(_ text: String, to targetLanguage: String) async throws -> String {
         // Short-circuit blank text — no framework call needed.
         // Returns the original string (not "") so callers receive the same value back
@@ -96,15 +96,48 @@ final class Translator: TranslatorProviding {
         guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return text }
 
         do {
-            // `gate.run` serializes concurrent callers so that only one request reaches
-            // the channel at a time. SwiftUI cannot coalesce two configuration publications
-            // that are delivered sequentially. `channel` is `@MainActor`-isolated;
-            // the `await` hops to the main actor automatically.
-            let translated = try await gate.run {
-                try await self.channel.enqueue(text: text, targetLanguage: targetLanguage)
+            // Probe model availability so we know whether the download sheet will appear.
+            // `status(for:to:)` auto-detects the source language from the text content,
+            // matching the same auto-detect behaviour used by the TranslationSession itself.
+            let target = Locale.Language(identifier: targetLanguage)
+            let status = try await LanguageAvailability().status(for: text, to: target)
+
+            switch status {
+            case .installed:
+                // Model is already on-device — host window can stay off-screen.
+                let translated = try await gate.run {
+                    try await self.channel.enqueue(text: text, targetLanguage: targetLanguage)
+                }
+                AppLogger.translation.debug("Translated \(text.count, privacy: .public) chars → \(targetLanguage, privacy: .public)")
+                return translated
+
+            case .supported:
+                // Model exists in the catalogue but must be downloaded. Bring the host
+                // window on-screen so Apple's consent sheet has a visible anchor window.
+                await MainActor.run { self.bringHostWindowOnScreen() }
+                do {
+                    let translated = try await gate.run {
+                        try await self.channel.enqueue(text: text, targetLanguage: targetLanguage)
+                    }
+                    await MainActor.run { self.sendHostWindowOffScreen() }
+                    AppLogger.translation.debug("Translated \(text.count, privacy: .public) chars → \(targetLanguage, privacy: .public)")
+                    return translated
+                } catch {
+                    await MainActor.run { self.sendHostWindowOffScreen() }
+                    throw error
+                }
+
+            case .unsupported:
+                throw TranslatorError.failed(message: "Target language \(targetLanguage) not supported")
+
+            @unknown default:
+                // Future availability states — treat like .installed (best-effort).
+                let translated = try await gate.run {
+                    try await self.channel.enqueue(text: text, targetLanguage: targetLanguage)
+                }
+                AppLogger.translation.debug("Translated \(text.count, privacy: .public) chars → \(targetLanguage, privacy: .public)")
+                return translated
             }
-            AppLogger.translation.debug("Translated \(text.count, privacy: .public) chars → \(targetLanguage, privacy: .public)")
-            return translated
         } catch let error as TranslationError {
             AppLogger.translation.error("Translation failed: \(error.localizedDescription, privacy: .public)")
             if case .notInstalled = error {
@@ -118,6 +151,26 @@ final class Translator: TranslatorProviding {
     }
 
     // MARK: - Private helpers
+
+    /// Moves the host window to the center of the main screen so that Apple's
+    /// model-download sheet has a visible anchor window to attach to.
+    private func bringHostWindowOnScreen() {
+        guard let window = hostWindow else { return }
+        let screenSize = NSScreen.main?.frame.size ?? CGSize(width: 1440, height: 900)
+        let x = (screenSize.width - 300) / 2
+        let y = (screenSize.height - 80) / 2
+        window.setFrame(NSRect(x: x, y: y, width: 300, height: 80), display: true)
+        window.orderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        AppLogger.translation.debug("Host window brought on-screen for model download")
+    }
+
+    /// Returns the host window to its off-screen position after the request completes.
+    private func sendHostWindowOffScreen() {
+        guard let window = hostWindow else { return }
+        window.setFrame(NSRect(x: -10000, y: -10000, width: 300, height: 80), display: false)
+        AppLogger.translation.debug("Host window returned off-screen")
+    }
 
     private func installHostView() {
         let hostView = TranslatorHostView(channel: channel)
