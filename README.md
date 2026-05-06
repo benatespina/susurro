@@ -5,6 +5,7 @@ macOS menu bar app that reads selected text aloud. Select text in any app, click
 - Detects text selection via the Accessibility API
 - Shows a floating toolbar near the selection
 - Streams audio via Edge TTS (default, free) or Azure TTS (optional)
+- Optional: translates non-Spanish text to Spanish before reading (Apple Translation framework, on-device)
 - Includes a `susurro` CLI for Claude Code stop-hook integration
 
 > macOS 26 Tahoe · Apple Silicon (arm64) only · No Intel · No iOS
@@ -103,6 +104,32 @@ Then relaunch. Each new DMG release has a different ad-hoc signature, so this re
 3. In Susurro: menu bar icon → Settings → paste key + region → switch provider to Azure.
 
 Credentials are stored in the system Keychain.
+
+---
+
+## 🌐 Translate to Spanish
+
+Susurro can translate non-Spanish selected text to Spanish before reading it aloud, using Apple's on-device Translation framework. Spanish text is read directly (no translation).
+
+**Enable:**
+
+1. Menu bar icon → **TTS Provider** → toggle **Translate to Spanish before reading** on (`✓`).
+
+**First use — install the language model:**
+
+The Translation framework requires a per-language model. Susurro detects when the model is missing and shows a one-time alert directing you to System Settings.
+
+1. Select non-Spanish text and click play. Susurro shows an alert: *Spanish translation model not installed*.
+2. Click **Open System Settings**. Settings opens to **General → Language & Region**.
+3. Click **Translation Languages** → **Add Language** → choose **Spanish (any variant)** → confirm.
+4. Wait for the download to finish (button switches to **Remove**).
+5. Back in Susurro, retry — the text is translated and read in `es-ES-AlvaroNeural` (Edge TTS) or the equivalent Azure voice.
+
+**Notes:**
+
+- Once the model is installed, subsequent translations are instant and offline.
+- If translation fails for any reason, Susurro falls back to reading the original text — never silent.
+- The toggle persists across launches.
 
 ---
 
