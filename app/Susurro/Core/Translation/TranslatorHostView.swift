@@ -40,7 +40,7 @@ final class TranslationChannel {
     /// Enqueue a translation request and trigger a session refresh on the host view.
     /// Suspends until the host view's `.translationTask` closure resumes the continuation.
     func enqueue(text: String, targetLanguage: String) async throws -> String {
-        return try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { continuation in
             streamContinuation?.yield(TranslationRequest(text: text, continuation: continuation))
 
             // Deliver a fresh configuration so `.translationTask` fires.

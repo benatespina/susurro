@@ -8,6 +8,7 @@ enum AppLogger {
 	static let playback = Logger(subsystem: subsystem, category: "playback")
 	static let accessibility = Logger(subsystem: subsystem, category: "accessibility")
 	static let claudeIntegration = Logger(subsystem: subsystem, category: "claudeIntegration")
+	static let translation = Logger(subsystem: subsystem, category: "translation")
 
 	static func claudeSkipped(reason: String) {
 		claudeIntegration.info("Skipped TTS: \(reason, privacy: .public)")

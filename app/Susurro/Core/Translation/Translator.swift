@@ -1,9 +1,6 @@
 import AppKit
-import os
 import SwiftUI
 import Translation
-
-private let logger = Logger(subsystem: AppLogger.subsystem, category: "translation")
 
 // MARK: - Protocol
 
@@ -102,16 +99,16 @@ final class Translator: TranslatorProviding {
             let translated = try await gate.run {
                 try await self.channel.enqueue(text: text, targetLanguage: targetLanguage)
             }
-            logger.debug("Translated \(text.count, privacy: .public) chars → \(targetLanguage, privacy: .public)")
+            AppLogger.translation.debug("Translated \(text.count, privacy: .public) chars → \(targetLanguage, privacy: .public)")
             return translated
         } catch let error as TranslationError {
-            logger.error("Translation failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.translation.error("Translation failed: \(error.localizedDescription, privacy: .public)")
             if TranslationError.notInstalled ~= error {
                 throw TranslatorError.modelNotReady
             }
             throw TranslatorError.failed(message: error.localizedDescription)
         } catch {
-            logger.error("Translation error: \(error.localizedDescription, privacy: .public)")
+            AppLogger.translation.error("Translation error: \(error.localizedDescription, privacy: .public)")
             throw error
         }
     }
@@ -134,6 +131,6 @@ final class Translator: TranslatorProviding {
         window.orderOut(nil) // keep off-screen but alive
         hostWindow = window
 
-        logger.debug("TranslatorHostView installed in off-screen window")
+        AppLogger.translation.debug("TranslatorHostView installed in off-screen window")
     }
 }
