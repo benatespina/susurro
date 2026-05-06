@@ -1,18 +1,22 @@
+import AppKit
 import AVFoundation
 import Foundation
 import os
 
 struct PlaybackSnapshot: Sendable, Equatable {
+    var sourceText: String
     var chunks: [String]
     var currentChunkIndex: Int
     var isPlaying: Bool
     var isPaused: Bool
 
-    static let empty = PlaybackSnapshot(chunks: [], currentChunkIndex: 0, isPlaying: false, isPaused: false)
+    static let empty = PlaybackSnapshot(sourceText: "", chunks: [], currentChunkIndex: 0, isPlaying: false, isPaused: false)
 }
 
 actor PlaybackCoordinator {
     private let client: BackendClient
+    private let translator: any TranslatorProviding
+    private let isTranslateToSpanishEnabled: @Sendable () -> Bool
     private var currentTask: Task<Void, Never>?
     private var currentPlayer: AVQueuePlayer?
     private var currentTempDir: URL?
@@ -29,14 +33,39 @@ actor PlaybackCoordinator {
     private var observedItems: Set<ObjectIdentifier> = []
     private var observerTask: Task<Void, Never>?
 
-    init(client: BackendClient = .shared) {
+    init(
+        client: BackendClient = .shared,
+        translator: any TranslatorProviding,
+        isTranslateToSpanishEnabled: @escaping @Sendable () -> Bool = { false }
+    ) {
         self.client = client
+        self.translator = translator
+        self.isTranslateToSpanishEnabled = isTranslateToSpanishEnabled
     }
 
     func read(text: String) async -> Bool {
         await stop(preserveTranscript: false)
-        sourceText = text
-        sourceLanguage = LanguageDetector.detect(in: text)
+        var effectiveText = text
+        var effectiveLang = LanguageDetector.detect(in: text)
+
+        if isTranslateToSpanishEnabled() && effectiveLang != "es" && !text.isEmpty {
+            do {
+                effectiveText = try await translator.translate(text, to: "es-ES")
+                effectiveLang = "es"
+            } catch {
+                AppLogger.playback.error("translation failed: \(error.localizedDescription, privacy: .public)")
+                if case TranslatorError.modelNotReady = error {
+                    await MainActor.run { Self.showModelNotReadyAlertIfNeeded(targetLanguage: "Spanish") }
+                }
+                // Fall back to original text and detected language.
+            }
+        }
+
+        sourceText = effectiveText
+        sourceLanguage = effectiveLang
+        snapshot = PlaybackSnapshot(
+            sourceText: effectiveText, chunks: [], currentChunkIndex: 0, isPlaying: false, isPaused: false
+        )
 
         let health = await client.health()
         guard health == .ready else {
@@ -44,11 +73,11 @@ actor PlaybackCoordinator {
             return false
         }
 
-        let result = await client.fetchChunks(text: text, language: sourceLanguage)
+        let result = await client.fetchChunks(text: effectiveText, language: sourceLanguage)
         chunks = result.chunks
 
         snapshot = PlaybackSnapshot(
-            chunks: chunks, currentChunkIndex: 0, isPlaying: false, isPaused: false
+            sourceText: effectiveText, chunks: chunks, currentChunkIndex: 0, isPlaying: false, isPaused: false
         )
         emitSnapshot()
         persistSnapshot()
@@ -67,6 +96,7 @@ actor PlaybackCoordinator {
         sourceLanguage = LanguageDetector.detect(in: session.text)
         chunks = session.chunks
         snapshot = PlaybackSnapshot(
+            sourceText: session.text,
             chunks: session.chunks,
             currentChunkIndex: min(session.currentChunkIndex, max(0, session.chunks.count - 1)),
             isPlaying: false,
@@ -301,5 +331,50 @@ actor PlaybackCoordinator {
 
     private func emitSnapshot() {
         for continuation in snapshotContinuations { continuation.yield(snapshot) }
+    }
+
+    // MARK: - Model-not-ready alert
+
+    @MainActor
+    private static var modelAlertShownThisSession = false
+
+    @MainActor
+    private static func showModelNotReadyAlertIfNeeded(targetLanguage: String) {
+        guard !modelAlertShownThisSession else {
+            AppLogger.playback.info("modelNotReady alert already shown this session — skipping")
+            return
+        }
+        modelAlertShownThisSession = true
+
+        AppLogger.playback.info("presenting modelNotReady alert for \(targetLanguage, privacy: .public)")
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.messageText = "Spanish translation model not installed"
+        alert.informativeText = """
+            Susurro could not load the on-device \(targetLanguage) translation model.
+
+            To install it:
+            1. Open System Settings → General → Language & Region.
+            2. Click Translation Languages.
+            3. Add Spanish (or your target language) and wait for it to download.
+            4. Try reading the text again.
+            """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Cancel")
+        if let panel = alert.window as? NSPanel {
+            panel.level = .modalPanel
+        } else {
+            alert.window.level = .modalPanel
+        }
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.Localization-Settings.extension") {
+                NSWorkspace.shared.open(url)
+            } else if let url = URL(string: "x-apple.systempreferences:") {
+                NSWorkspace.shared.open(url)
+            }
+        }
     }
 }

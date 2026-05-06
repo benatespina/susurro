@@ -226,6 +226,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         sub.addItem(.separator())
         sub.addItem(menuItem(title: "Configure Azure…", action: #selector(handleConfigureAzure)))
         sub.addItem(menuItem(title: "Pronunciations…", action: #selector(handleOpenPronunciations)))
+        sub.addItem(.separator())
+        let translateItem = NSMenuItem(
+            title: "Translate to Spanish before reading",
+            action: #selector(handleToggleTranslateToSpanish),
+            keyEquivalent: ""
+        )
+        translateItem.target = self
+        translateItem.state = settings.translateToSpanish ? .on : .off
+        sub.addItem(translateItem)
         parent.submenu = sub
         return parent
     }
@@ -384,6 +393,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func handleShowTranscript() { onShowTranscript() }
     @objc private func handleQuit() { NSApp.terminate(nil) }
     @objc private func handleToggleAutoRead() { settings.autoReadEnabled.toggle() }
+    @objc private func handleToggleTranslateToSpanish() {
+        settings.translateToSpanish.toggle()
+        rebuildMenu()
+    }
     @objc private func handleOpenAccessibility() { AccessibilityPermission.openSystemSettings() }
 
     @objc private func handleSelectProvider(_ sender: NSMenuItem) {

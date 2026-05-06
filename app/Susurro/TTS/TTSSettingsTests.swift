@@ -7,6 +7,7 @@ import Testing
 struct TTSSettingsTests {
 	private static let autoReadKey = "claude.autoRead.enabled"
 	private static let providerKey = "tts.provider"
+	private static let translateToSpanishKey = "translation.toSpanish.enabled"
 
 	@Test("autoReadEnabled defaults to false when key is absent")
 	func autoReadEnabledDefaultsFalse() {
@@ -77,5 +78,36 @@ struct TTSSettingsTests {
 	@Test("TTSProviderKind.azure rawValue is 'azure'")
 	func providerKindAzureRawValue() {
 		#expect(TTSProviderKind.azure.rawValue == "azure")
+	}
+
+	@Test("translateToSpanish defaults to false when key is absent")
+	func translateToSpanishDefaultsFalse() {
+		UserDefaults.standard.removeObject(forKey: Self.translateToSpanishKey)
+		defer { UserDefaults.standard.removeObject(forKey: Self.translateToSpanishKey) }
+
+		let settings = TTSSettings()
+		#expect(settings.translateToSpanish == false)
+	}
+
+	@Test("translateToSpanish persists true via UserDefaults")
+	func translateToSpanishPersistsTrue() {
+		UserDefaults.standard.removeObject(forKey: Self.translateToSpanishKey)
+		defer { UserDefaults.standard.removeObject(forKey: Self.translateToSpanishKey) }
+
+		let settings = TTSSettings()
+		settings.translateToSpanish = true
+		#expect(UserDefaults.standard.bool(forKey: Self.translateToSpanishKey) == true)
+	}
+
+	@Test("TTSSettings round-trips translateToSpanish across instances")
+	func translateToSpanishRoundTrips() {
+		UserDefaults.standard.removeObject(forKey: Self.translateToSpanishKey)
+		defer { UserDefaults.standard.removeObject(forKey: Self.translateToSpanishKey) }
+
+		let writer = TTSSettings()
+		writer.translateToSpanish = true
+
+		let reader = TTSSettings()
+		#expect(reader.translateToSpanish == true)
 	}
 }
