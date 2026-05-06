@@ -97,7 +97,7 @@ struct PlaybackCoordinatorTests {
 
         #expect(mock.translateCallCount == 1)
         #expect(mock.translateInvocations.first?.0 == "this is a sufficiently long english sentence for detection")
-        #expect(mock.translateInvocations.first?.1 == "es")
+        #expect(mock.translateInvocations.first?.1 == "es-ES")
 
         // Verify the snapshot reflects the translated text (sourceText was replaced).
         let snapshot = await coordinator.currentSnapshot()

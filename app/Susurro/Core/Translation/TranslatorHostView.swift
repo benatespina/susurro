@@ -29,9 +29,12 @@ final class TranslationChannel {
 
     // MARK: Request stream
 
-    private var streamContinuation: AsyncStream<TranslationRequest>.Continuation?
+    private let streamContinuation: AsyncStream<TranslationRequest>.Continuation
+    let requests: AsyncStream<TranslationRequest>
 
-    lazy var requests: AsyncStream<TranslationRequest> = AsyncStream { continuation in
+    init() {
+        let (stream, continuation) = AsyncStream<TranslationRequest>.makeStream()
+        self.requests = stream
         self.streamContinuation = continuation
     }
 
@@ -45,13 +48,8 @@ final class TranslationChannel {
     ///   from hanging indefinitely on an unresumable continuation.
     func enqueue(text: String, targetLanguage: String) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
-            guard let sc = streamContinuation else {
-                continuation.resume(throwing: TranslatorError.failed(message: "translation channel not ready"))
-                return
-            }
-
             let request = TranslationRequest(text: text, continuation: continuation)
-            guard case .enqueued = sc.yield(request) else {
+            guard case .enqueued = streamContinuation.yield(request) else {
                 // Stream finished or dropped — resume with an error rather than leaking.
                 continuation.resume(throwing: TranslatorError.failed(message: "translation channel closed"))
                 return
@@ -61,7 +59,7 @@ final class TranslationChannel {
             // `invalidate()` bumps the internal version, forcing a re-trigger even if
             // source/target haven't changed since the last call.
             var config = TranslationSession.Configuration(
-                source: nil,
+                source: Locale.Language(identifier: "en"),
                 target: Locale.Language(identifier: targetLanguage)
             )
             config.invalidate()
@@ -94,6 +92,12 @@ struct TranslatorHostView: View {
                 // across actors — the `TranslationSession` docs make no threading
                 // guarantees, so callers are responsible for single-task use.
                 nonisolated(unsafe) let s = session
+                // Drain all requests as they arrive, reusing the same session.
+                // We do NOT break after one — SwiftUI's `.translationTask` only re-fires
+                // when configuration changes, but `Configuration.==` compares source/target
+                // (not version), so identical-language calls would never get a new session.
+                // Keeping the loop alive lets us handle every enqueued request with a single
+                // session as long as the language pair stays the same.
                 for await request in channel.requests {
                     do {
                         try await s.prepareTranslation()
@@ -102,9 +106,6 @@ struct TranslatorHostView: View {
                     } catch {
                         request.continuation.resume(throwing: error)
                     }
-                    // One configuration trigger → one request. The next request will
-                    // deliver a new configuration which re-triggers .translationTask.
-                    break
                 }
             }
             .onReceive(channel.configurationPublisher) { newConfig in

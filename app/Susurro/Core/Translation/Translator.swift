@@ -96,51 +96,19 @@ final class Translator: TranslatorProviding {
         guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return text }
 
         do {
-            // Probe model availability so we know whether the download sheet will appear.
-            // `status(for:to:)` auto-detects the source language from the text content,
-            // matching the same auto-detect behaviour used by the TranslationSession itself.
-            let target = Locale.Language(identifier: targetLanguage)
-            let status = try await LanguageAvailability().status(for: text, to: target)
-            AppLogger.translation.info("LanguageAvailability.status = \(String(describing: status), privacy: .public) for target \(targetLanguage, privacy: .public)")
-
-            switch status {
-            case .installed:
-                // Model is already on-device — host window can stay off-screen.
-                AppLogger.translation.info("model installed — translating directly")
-                let translated = try await gate.run {
-                    try await self.channel.enqueue(text: text, targetLanguage: targetLanguage)
+            // Bring host window on-screen so Apple's model-download sheet has an anchor
+            // if needed. After the call returns (success or error) the window goes back off-screen.
+            await MainActor.run { self.bringHostWindowOnScreen() }
+            do {
+                let translated = try await gate.run { [channel = self.channel] in
+                    try await channel.enqueue(text: text, targetLanguage: targetLanguage)
                 }
+                await MainActor.run { self.sendHostWindowOffScreen() }
                 AppLogger.translation.debug("Translated \(text.count, privacy: .public) chars → \(targetLanguage, privacy: .public)")
                 return translated
-
-            case .supported:
-                // Model exists in the catalogue but must be downloaded. Bring the host
-                // window on-screen so Apple's consent sheet has a visible anchor window.
-                AppLogger.translation.info("model supported but not installed — bringing host window on-screen")
-                await MainActor.run { self.bringHostWindowOnScreen() }
-                do {
-                    let translated = try await gate.run {
-                        try await self.channel.enqueue(text: text, targetLanguage: targetLanguage)
-                    }
-                    await MainActor.run { self.sendHostWindowOffScreen() }
-                    AppLogger.translation.debug("Translated \(text.count, privacy: .public) chars → \(targetLanguage, privacy: .public)")
-                    return translated
-                } catch {
-                    await MainActor.run { self.sendHostWindowOffScreen() }
-                    throw error
-                }
-
-            case .unsupported:
-                AppLogger.translation.error("target language unsupported")
-                throw TranslatorError.failed(message: "Target language \(targetLanguage) not supported")
-
-            @unknown default:
-                // Future availability states — treat like .installed (best-effort).
-                let translated = try await gate.run {
-                    try await self.channel.enqueue(text: text, targetLanguage: targetLanguage)
-                }
-                AppLogger.translation.debug("Translated \(text.count, privacy: .public) chars → \(targetLanguage, privacy: .public)")
-                return translated
+            } catch {
+                await MainActor.run { self.sendHostWindowOffScreen() }
+                throw error
             }
         } catch let error as TranslationError {
             AppLogger.translation.error("Translation failed: \(error.localizedDescription, privacy: .public)")
@@ -150,7 +118,7 @@ final class Translator: TranslatorProviding {
             throw TranslatorError.failed(message: error.localizedDescription)
         } catch {
             AppLogger.translation.error("Translation error: \(error.localizedDescription, privacy: .public)")
-            throw error
+            throw TranslatorError.failed(message: error.localizedDescription)
         }
     }
 

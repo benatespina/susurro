@@ -50,7 +50,7 @@ actor PlaybackCoordinator {
 
         if isTranslateToSpanishEnabled() && effectiveLang != "es" && !text.isEmpty {
             do {
-                effectiveText = try await translator.translate(text, to: "es")
+                effectiveText = try await translator.translate(text, to: "es-ES")
                 effectiveLang = "es"
             } catch {
                 AppLogger.playback.error("translation failed: \(error.localizedDescription, privacy: .public)")
@@ -340,8 +340,14 @@ actor PlaybackCoordinator {
 
     @MainActor
     private static func showModelNotReadyAlertIfNeeded(targetLanguage: String) {
-        guard !modelAlertShownThisSession else { return }
+        guard !modelAlertShownThisSession else {
+            AppLogger.playback.info("modelNotReady alert already shown this session — skipping")
+            return
+        }
         modelAlertShownThisSession = true
+
+        AppLogger.playback.info("presenting modelNotReady alert for \(targetLanguage, privacy: .public)")
+        NSApp.activate(ignoringOtherApps: true)
 
         let alert = NSAlert()
         alert.messageText = "Spanish translation model not installed"
@@ -357,6 +363,11 @@ actor PlaybackCoordinator {
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Cancel")
+        if let panel = alert.window as? NSPanel {
+            panel.level = .modalPanel
+        } else {
+            alert.window.level = .modalPanel
+        }
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
             if let url = URL(string: "x-apple.systempreferences:com.apple.Localization-Settings.extension") {
