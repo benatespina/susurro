@@ -4,6 +4,15 @@ Read-aloud helper for macOS.
 
 ### Install
 
+**Homebrew (recommended):**
+
+```
+brew tap benatespina/susurro https://github.com/benatespina/susurro
+brew install --cask susurro
+```
+
+**DMG:**
+
 Download [Susurro.dmg](https://github.com/benatespina/susurro/releases/latest/download/Susurro.dmg) (always-latest) or `Susurro-{{VERSION}}.dmg` (versioned).
 
 Open the DMG, drag `Susurro.app` to `/Applications`, then on first launch:

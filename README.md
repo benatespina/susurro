@@ -14,7 +14,18 @@ macOS menu bar app that reads selected text aloud. Select text in any app, click
 
 ---
 
-## 📦 Install
+## 📦 Install (Homebrew)
+
+Recommended for easy upgrades.
+
+```bash
+brew tap benatespina/susurro https://github.com/benatespina/susurro
+brew install --cask susurro
+```
+
+To upgrade later: `brew upgrade --cask susurro`.
+
+## 📦 Install (DMG)
 
 Download the latest DMG: [Susurro.dmg](https://github.com/benatespina/susurro/releases/latest/download/Susurro.dmg)
 
