@@ -125,14 +125,16 @@ final class Translator: TranslatorProviding {
         hosting.frame = .zero
 
         let window = NSWindow(
-            contentRect: NSRect(x: -1, y: -1, width: 1, height: 1),
-            styleMask: [],
+            contentRect: NSRect(x: -10000, y: -10000, width: 300, height: 80),
+            styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
         window.contentView = hosting
         window.isReleasedWhenClosed = false
-        window.orderOut(nil) // keep off-screen but alive
+        window.title = "Susurro Translation"
+        window.level = .normal
+        window.orderFront(nil) // ordered into window list but off-screen so sheets can attach
         hostWindow = window
 
         AppLogger.translation.debug("TranslatorHostView installed in off-screen window")

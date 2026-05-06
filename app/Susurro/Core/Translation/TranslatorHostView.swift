@@ -96,6 +96,7 @@ struct TranslatorHostView: View {
                 nonisolated(unsafe) let s = session
                 for await request in channel.requests {
                     do {
+                        try await s.prepareTranslation()
                         let response = try await s.translate(request.text)
                         request.continuation.resume(returning: response.targetText)
                     } catch {
