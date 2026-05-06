@@ -1,5 +1,7 @@
 # Susurro
 
+[![Latest Release](https://img.shields.io/github/v/release/benatespina/susurro?style=flat-square)](https://github.com/benatespina/susurro/releases/latest)
+
 macOS menu bar app that reads selected text aloud. Select text in any app, click the floating toolbar, hear it spoken.
 
 - Detects text selection via the Accessibility API
@@ -14,26 +16,20 @@ macOS menu bar app that reads selected text aloud. Select text in any app, click
 
 ## 📦 Install
 
-1. Download the latest `Susurro-X.Y.Z.dmg` from [Releases](https://github.com/benatespina/susurro/releases/latest).
-2. Open the DMG and drag `Susurro.app` to `/Applications`.
-3. Eject the DMG.
+Download the latest DMG: [Susurro.dmg](https://github.com/benatespina/susurro/releases/latest/download/Susurro.dmg)
 
-**Gatekeeper warning:** because the app is not signed with an Apple Developer certificate, macOS will block the first launch with *"Apple could not verify Susurro.app is free of malware"*. This is a one-time step.
+Open the DMG, drag `Susurro.app` to `/Applications`, then on first launch:
 
-Recommended — Terminal:
+- macOS will say the developer is unidentified. Open **System Settings → Privacy & Security** and click **Open Anyway**.
+- Or run: `xattr -dr com.apple.quarantine /Applications/Susurro.app`
+
+Verify checksum (optional):
 
 ```bash
-xattr -cr /Applications/Susurro.app
+shasum -a 256 -c Susurro-X.Y.Z.dmg.sha256
 ```
 
-Strips the quarantine flag, then launch normally.
-
-Alternative — System Settings (macOS 15 Sequoia and 26 Tahoe removed the right-click → Open bypass):
-
-1. Try to launch the app — it will be blocked.
-2. Open **System Settings → Privacy & Security**.
-3. Scroll to the bottom → click **Open Anyway** next to the Susurro message.
-4. Confirm with password / Touch ID.
+Replace `X.Y.Z` with the version. The `.sha256` file is attached to each release.
 
 **Upgrading from a prior release:** macOS caches Accessibility permission per binary signature. After replacing `Susurro.app` with a new version, reset the cached grant so the new binary is recognised, then relaunch and re-grant Accessibility when prompted:
 

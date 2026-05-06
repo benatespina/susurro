@@ -94,13 +94,24 @@ jobs:
             -format UDZO \
             "$RUNNER_TEMP/Susurro-${VERSION}.dmg"
 
+      - name: Compute SHA256 and create stable alias
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          cd "$RUNNER_TEMP"
+          shasum -a 256 "Susurro-${VERSION}.dmg" > "Susurro-${VERSION}.dmg.sha256"
+          cp "Susurro-${VERSION}.dmg" "Susurro.dmg"
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
+          sed "s/{{VERSION}}/${VERSION}/g" .github/release-notes-template.md > "$RUNNER_TEMP/release-notes.md"
           gh release create "v${VERSION}" \
             --title "Susurro v${VERSION}" \
-            --generate-notes \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
             --target main \
-            "$RUNNER_TEMP/Susurro-${VERSION}.dmg"
+            "$RUNNER_TEMP/Susurro-${VERSION}.dmg" \
+            "$RUNNER_TEMP/Susurro-${VERSION}.dmg.sha256" \
+            "$RUNNER_TEMP/Susurro.dmg"
