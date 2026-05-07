@@ -2,8 +2,15 @@
 
 [![Latest Release](https://img.shields.io/github/v/release/benatespina/susurro?style=flat-square)](https://github.com/benatespina/susurro/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![CI](https://github.com/benatespina/susurro/actions/workflows/ci.yml/badge.svg)](https://github.com/benatespina/susurro/actions/workflows/ci.yml)
 
 > **Read aloud anything you select on macOS.** Select text in any app — get instant text-to-speech with native voices.
+
+<!-- Screenshot or demo GIF goes here.
+     Suggested: Susurro pill appearing on text selection, then notification on update.
+     Save under docs/media/ and reference: ![demo](docs/media/demo.gif) -->
+
+> 📸 _Demo coming soon — meanwhile, see the [latest release](https://github.com/benatespina/susurro/releases/latest)_
 
 Susurro is a macOS menu bar app that reads selected text aloud. It detects your selection via the Accessibility API, shows a floating toolbar, and streams audio through Edge TTS (free, default) or Azure TTS. Built for anyone who wants ears-free reading without leaving their current app.
 
@@ -132,4 +139,4 @@ MIT — see [LICENSE](LICENSE). © 2026 Beñat Espiña.
 
 ## Contributing
 
-Contributions welcome. Open an issue or PR. For larger changes, please discuss in an issue first.
+Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions, and what's in/out of scope.
