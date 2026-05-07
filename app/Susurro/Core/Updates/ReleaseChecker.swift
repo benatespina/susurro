@@ -45,7 +45,10 @@ actor ReleaseChecker {
         guard comparison == .orderedAscending else { return }
 
         let center = UNUserNotificationCenter.current()
-        _ = try? await center.requestAuthorization(options: [.alert, .sound])
+        let notifSettings = await center.notificationSettings()
+        if notifSettings.authorizationStatus == .notDetermined {
+            _ = try? await center.requestAuthorization(options: [.alert, .sound])
+        }
 
         let content = UNMutableNotificationContent()
         content.title = "Susurro update available"
@@ -62,11 +65,10 @@ actor ReleaseChecker {
     }
 
     func userTriggeredCheck() async -> CheckOutcome {
-        var settings = UpdateSettings()
-        settings.lastCheckDate = Date()
-
         do {
             let info = try await checkLatest()
+            var settings = UpdateSettings()
+            settings.lastCheckDate = Date()
             let comparison = compareVersion(current: currentVersion, latest: info.normalizedVersion)
             if comparison == .orderedAscending {
                 return .updateAvailable(info)

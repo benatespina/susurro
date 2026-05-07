@@ -156,8 +156,6 @@ Susurro checks for new versions once per day in the background. When a new versi
 
 You can also trigger a check manually via the menu bar icon → **Check for Updates…**.
 
-If installed via Homebrew: `brew upgrade --cask susurro`.
-
 ---
 
 ## 🛠️ Development
