@@ -28,5 +28,7 @@
 	<string>Susurro needs Accessibility access to detect text selection in other apps so it can read the selected text aloud.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Beñat Espiña</string>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>Susurro notifies you when a new version is available.</string>
 </dict>
 </plist>

@@ -4,18 +4,22 @@ import Foundation
 @Suite("CLI argument parsing")
 struct CLIArgumentTests {
 
-	@Test("version string is semver shaped")
+	@Test("version string is non-empty")
+	func versionNonEmpty() {
+		#expect(!cliVersion.isEmpty)
+	}
+
+	@Test("version is semver-shaped or fallback")
 	func versionFormat() {
-		let parts = cliVersion.split(separator: ".")
+		// cliVersion is read from Bundle.main.infoDictionary at runtime.
+		// In test context the bundle is the test bundle, so the fallback "0.0.0-dev" applies.
+		// Accept either MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-suffix.
+		let core = cliVersion.split(separator: "-", maxSplits: 1).first.map(String.init) ?? cliVersion
+		let parts = core.split(separator: ".")
 		#expect(parts.count == 3)
 		for part in parts {
 			#expect(Int(part) != nil)
 		}
-	}
-
-	@Test("version is 0.1.0")
-	func versionValue() {
-		#expect(cliVersion == "0.1.0")
 	}
 }
 
