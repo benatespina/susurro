@@ -150,6 +150,16 @@ The bundled `susurro` CLI hooks into Claude Code's `stop` event to read response
 
 ---
 
+## 🔔 Updates
+
+Susurro checks for new versions once per day in the background. When a new version is available, you'll get a system notification — click it to open the release page on GitHub.
+
+You can also trigger a check manually via the menu bar icon → **Check for Updates…**.
+
+If installed via Homebrew: `brew upgrade --cask susurro`.
+
+---
+
 ## 🛠️ Development
 
 **Prerequisites:** macOS 26 Tahoe, Apple Silicon, Xcode 26 with Swift 6, `xcodegen` (`brew install xcodegen`)

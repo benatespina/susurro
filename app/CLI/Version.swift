@@ -1,1 +1,3 @@
-let cliVersion = "0.1.0"
+import Foundation
+
+let cliVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.0.0-dev"

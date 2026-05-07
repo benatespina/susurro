@@ -171,6 +171,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(readItem)
         menu.addItem(menuItem(title: "Show transcript…", action: #selector(handleShowTranscript)))
 
+        let checkUpdatesItem = NSMenuItem(
+            title: "Check for Updates…",
+            action: #selector(checkForUpdatesTriggered),
+            keyEquivalent: ""
+        )
+        checkUpdatesItem.target = self
+        menu.addItem(checkUpdatesItem)
+        menu.addItem(.separator())
+
         menu.addItem(buildTTSMenu())
         menu.addItem(buildClaudeIntegrationMenu())
         menu.addItem(.separator())
@@ -424,6 +433,40 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func handleOpenPronunciations() {
         PronunciationsWindowController.show(settings: settings)
+    }
+
+    @objc private func checkForUpdatesTriggered() {
+        Task { @MainActor in
+            let outcome = await ReleaseChecker.shared.userTriggeredCheck()
+            self.presentUpdateOutcome(outcome)
+        }
+    }
+
+    @MainActor
+    private func presentUpdateOutcome(_ outcome: ReleaseChecker.CheckOutcome) {
+        let alert = NSAlert()
+        switch outcome {
+        case .upToDate(let v):
+            alert.messageText = "You're up to date"
+            alert.informativeText = "Susurro \(v) is the latest version."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        case .updateAvailable(let info):
+            alert.messageText = "Update available: \(info.normalizedVersion)"
+            alert.informativeText = "A newer version is available on GitHub."
+            alert.addButton(withTitle: "Open Release Page")
+            alert.addButton(withTitle: "Later")
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                NSWorkspace.shared.open(info.htmlURL)
+            }
+        case .skipped(let reason), .failed(let reason):
+            alert.messageText = "Could not check for updates"
+            alert.informativeText = reason
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
     }
 
     func menuDidClose(_ menu: NSMenu) {

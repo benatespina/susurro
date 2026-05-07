@@ -1,6 +1,7 @@
 import Combine
 import Darwin
 import SwiftUI
+import UserNotifications
 
 @main struct SusurroApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -24,7 +25,7 @@ import SwiftUI
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     let appState = AppState()
     let ttsSettings = TTSSettings()
     var playbackCoordinator: PlaybackCoordinator?
@@ -105,6 +106,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         startSelectionSystemWhenPermitted()
         registerReadThisHotkey()
+
+        // Set notification delegate so taps open the release page.
+        UNUserNotificationCenter.current().delegate = self
+
+        // Kick off update check after a short delay so it doesn't compete with launch I/O.
+        Task.detached {
+            try? await Task.sleep(for: .seconds(5))
+            await ReleaseChecker.shared.checkIfDue()
+        }
     }
 
     private func installMenuBarController() {
@@ -283,6 +293,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AppLogger.app.info("SIGTERM received — initiating graceful shutdown")
             DispatchQueue.main.async { NSApplication.shared.terminate(nil) }
         }
+    }
+
+    // MARK: - UNUserNotificationCenterDelegate
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if let urlString = response.notification.request.content.userInfo["releaseURL"] as? String,
+           let url = URL(string: urlString) {
+            Task { @MainActor in NSWorkspace.shared.open(url) }
+        }
+        completionHandler()
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
