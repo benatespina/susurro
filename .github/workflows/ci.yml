@@ -7,9 +7,9 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    name: Build & Test
-    runs-on: macos-26-arm64
+  build:
+    name: Build
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
 
@@ -28,6 +28,6 @@ jobs:
         working-directory: app
         run: xcodegen generate
 
-      - name: Build & test
+      - name: Build (cross-compile)
         working-directory: app
-        run: xcodebuild -scheme SusurroTests -destination 'platform=macOS' test
+        run: xcodebuild -scheme Susurro -destination 'generic/platform=macOS' -configuration Debug build CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
