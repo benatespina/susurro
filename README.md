@@ -6,11 +6,9 @@
 
 > **Read aloud anything you select on macOS.** Select text in any app — get instant text-to-speech with native voices.
 
-<!-- Screenshot or demo GIF goes here.
-     Suggested: Susurro pill appearing on text selection, then notification on update.
-     Save under docs/media/ and reference: ![demo](docs/media/demo.gif) -->
+<video src="https://github.com/benatespina/susurro/raw/main/docs/media/demo.mp4" controls muted width="720"></video>
 
-> 📸 _Demo coming soon — meanwhile, see the [latest release](https://github.com/benatespina/susurro/releases/latest)_
+> _Tip: click the video controls to unmute and hear the TTS in action._
 
 Susurro is a macOS menu bar app that reads selected text aloud. It detects your selection via the Accessibility API, shows a floating toolbar, and streams audio through Edge TTS (free, default) or Azure TTS. Built for anyone who wants ears-free reading without leaving their current app.
 
