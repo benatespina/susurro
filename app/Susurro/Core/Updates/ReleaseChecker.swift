@@ -81,7 +81,7 @@ actor ReleaseChecker {
     }
 
     nonisolated func shouldCheckNow(now: Date, settings: UpdateSettings) -> Bool {
-        guard let last = settings.lastCheckDate else { return false }
+        guard let last = settings.lastCheckDate else { return true }
         return now.timeIntervalSince(last) >= 86400
     }
 
@@ -143,7 +143,10 @@ actor ReleaseChecker {
     private func checkLatest() async throws -> ReleaseInfo {
         var request = URLRequest(url: apiURL, timeoutInterval: 10)
         request.setValue("Susurro/\(currentVersion)", forHTTPHeaderField: "User-Agent")
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            throw URLError(.badServerResponse)
+        }
         return try parseReleaseInfo(from: data)
     }
 }

@@ -41,7 +41,7 @@ targets:
         LSUIElement: true
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
         NSAccessibilityUsageDescription: "Susurro needs Accessibility access to detect text selection in other apps so it can read the selected text aloud."
-        NSUserNotificationsUsageDescription: "Susurro notifies you when a new version is available."
+        NSUserNotificationUsageDescription: "Susurro notifies you when a new version is available."
         NSHumanReadableCopyright: "© 2026 Beñat Espiña"
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "1"

@@ -39,9 +39,9 @@ struct ReleaseCheckerTests {
 
     // MARK: - shouldCheckNow
 
-    @Test func shouldCheckNow_firstLaunch_returnsFalse() {
+    @Test func shouldCheckNow_firstLaunch_returnsTrue() {
         let settings = UpdateSettings(defaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!)
-        #expect(checker.shouldCheckNow(now: Date(), settings: settings) == false)
+        #expect(checker.shouldCheckNow(now: Date(), settings: settings) == true)
     }
 
     @Test func shouldCheckNow_lessThan24h_returnsFalse() {

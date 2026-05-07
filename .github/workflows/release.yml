@@ -20,6 +20,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       # macos-15 ships Xcode 16; Susurro targets macOS 26 (Tahoe) SDK.
       # Use the latest Xcode available on the runner until GitHub provides macos-26.
