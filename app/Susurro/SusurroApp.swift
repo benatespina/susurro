@@ -154,18 +154,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         controller.onStop = { [weak self] in
             Task { await self?.playbackCoordinator?.stop() }
         }
-        controller.onSpeedDown = { [weak self] in
-            guard let self else { return }
-            let current = self.appState.currentRate
-            let previous = PlaybackSpeed.previous(from: current)
-            Task { await self.playbackCoordinator?.setRate(previous) }
-        }
-        controller.onSpeedUp = { [weak self] in
-            guard let self else { return }
-            let current = self.appState.currentRate
-            let next = PlaybackSpeed.next(from: current)
-            Task { await self.playbackCoordinator?.setRate(next) }
-        }
+        controller.onSpeedDown = { [weak self] in self?.cycleSpeedDown() }
+        controller.onSpeedUp = { [weak self] in self?.cycleSpeedUp() }
         menuBarController = controller
     }
 
@@ -219,7 +209,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 initialWord: word
             )
         }
+        panelController?.onSpeedDown = { [weak self] in self?.cycleSpeedDown() }
+        panelController?.onSpeedUp = { [weak self] in self?.cycleSpeedUp() }
         AppLogger.selection.info("selection system activated")
+    }
+
+    private func cycleSpeedDown() {
+        let previous = PlaybackSpeed.previous(from: appState.currentRate)
+        Task { await self.playbackCoordinator?.setRate(previous) }
+    }
+
+    private func cycleSpeedUp() {
+        let next = PlaybackSpeed.next(from: appState.currentRate)
+        Task { await self.playbackCoordinator?.setRate(next) }
     }
 
     func readFromCurrentApp() {

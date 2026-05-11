@@ -14,6 +14,8 @@ final class PanelController {
     var onHide: (() -> Void)?
     var onTeachPronunciation: ((String) -> Void)?
     var onDismiss: (() -> Void)?
+    var onSpeedDown: (() -> Void)?
+    var onSpeedUp: (() -> Void)?
 
     private static let estimatedToolbarSize = CGSize(width: 60, height: 56)
 
@@ -99,6 +101,8 @@ final class PanelController {
                 self?.hide()
                 self?.onDismiss?()
             },
+            onSpeedDown: { [weak self] in self?.onSpeedDown?() },
+            onSpeedUp: { [weak self] in self?.onSpeedUp?() },
             onSizeChange: { [weak self] newSize in
                 self?.handleContentSizeChange(newSize)
             }
