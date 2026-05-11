@@ -105,6 +105,10 @@ actor PronunciationStore {
         }
     }
 
+    // Broad word-extraction regex: every token passes through edgeSafeReplacement
+    // (not just user-dict keys, unlike compilePattern which is keyed-only).
+    private static let wordPattern = try! NSRegularExpression(pattern: "(?<![\\w])([\\w]+)(?![\\w])", options: [])
+
     func applyEdgeSafe(text: String, language: String) async -> String {
         let userSection: [String: String]
         if let store = try? loadedData(), let section = store[language] {
@@ -113,18 +117,11 @@ actor PronunciationStore {
             userSection = [:]
         }
 
-        // Use a broad word-extraction regex rather than compilePattern() so every
-        // token (not just user-dict keys) passes through edgeSafeReplacement.
-        let wordPattern = try? NSRegularExpression(pattern: "(?<![\\w])([\\w]+)(?![\\w])", options: [])
-        guard let wordPat = wordPattern else {
-            return SSMLEscape.escape(text)
-        }
-
         let ciUserMap: [String: String] = Dictionary(
             uniqueKeysWithValues: userSection.map { (k, v) in (k.lowercased(), v) }
         )
 
-        return walkTokens(text: text, pattern: wordPat) { matched in
+        return walkTokens(text: text, pattern: Self.wordPattern) { matched in
             edgeSafeReplacement(word: matched, language: language, ciUserMap: ciUserMap)
         }
     }
@@ -136,29 +133,26 @@ actor PronunciationStore {
         language: String,
         ciUserMap: [String: String]
     ) -> String {
-        let escaped = SSMLEscape.escape(word)
-
-        // 1. Check user dict for a plain-text override (ignore SSML entries — legacy Azure compat)
         let lower = word.lowercased()
+
+        // Plain-text user override (ignore SSML entries — legacy Azure compat)
         if let userValue = ciUserMap[lower], !userValue.contains("<") {
             return SSMLEscape.escape(userValue)
         }
 
-        // 2. Acronym with optional plural suffix → letter-spaced plain text.
+        // Acronym with optional plural suffix → letter-spaced plain text.
         // Edge rejects <say-as>; emit letter-spaced plain text so it spells acronyms.
         if let (base, hasSuffix) = isAcronymWithPluralSuffix(word) {
             let spaced = base.map { String($0) }.joined(separator: " ")
             return hasSuffix ? spaced + " s" : spaced
         }
 
-        // 3. Spanish-specific: transliterate if the word (lowercased) is a known anglicism
+        // Spanish anglicism → transliterated plain text
         if language == "es", esDict[lower] != nil {
-            let translit = PronunciationRules.transliterateToEs(word)
-            return SSMLEscape.escape(translit)
+            return SSMLEscape.escape(PronunciationRules.transliterateToEs(word))
         }
 
-        // 4. Fall through: escape and emit as plain text
-        return escaped
+        return SSMLEscape.escape(word)
     }
 
     /// Walks `text` using `pattern`, escaping inter-match spans and calling `replace`
@@ -202,7 +196,6 @@ actor PronunciationStore {
 
         var out: [PronunciationCandidate] = []
 
-        // 1. Acronym → letter-spaced plain text
         if let (base, hasSuffix) = isAcronymWithPluralSuffix(trimmed) {
             let spaced = base.map { String($0) }.joined(separator: " ")
             let value = hasSuffix ? spaced + " s" : spaced
@@ -213,11 +206,10 @@ actor PronunciationStore {
             ))
         }
 
-        // 2. Known Spanish anglicism → transliteration (plain text)
         if language == "es" {
             let lower = trimmed.lowercased()
             if esDict[lower] != nil {
-                let translit = PronunciationRules.transliterateToEs(lower)
+                let translit = PronunciationRules.transliterateToEs(trimmed)
                 if translit != lower {
                     out.append(PronunciationCandidate(
                         kind: "translit-plain",
@@ -228,7 +220,6 @@ actor PronunciationStore {
             }
         }
 
-        // 3. Raw — always present
         out.append(PronunciationCandidate(
             kind: "raw",
             label: "Read as-is: \(trimmed)",
