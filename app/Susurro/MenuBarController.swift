@@ -97,8 +97,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         configure(
             speedDownButton,
-            symbol: "chevron.backward",
-            label: "Speed Down",
+            symbol: "tortoise.fill",
+            label: "Slow down",
             x: SusurroIcon.iconWidth + Self.slotSize * 2,
             action: #selector(speedDownClicked(_:))
         )
@@ -123,13 +123,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         configure(
             speedUpButton,
-            symbol: "chevron.forward",
-            label: "Speed Up",
+            symbol: "hare.fill",
+            label: "Speed up",
             x: SusurroIcon.iconWidth + Self.slotSize * 3 + Self.speedLabelWidth,
             action: #selector(speedUpClicked(_:))
         )
         speedUpButton.isHidden = true
         host.addSubview(speedUpButton)
+
+        centerSubviewsVertically()
     }
 
     private func configure(_ button: NSButton, symbol: String, label: String, x: CGFloat, action: Selector) {
@@ -142,6 +144,26 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         button.toolTip = label
         button.target = self
         button.action = action
+    }
+
+    /// Reframes every subview so its vertical center aligns with the host button's
+    /// actual midpoint. Called after all subviews have been added.
+    private func centerSubviewsVertically() {
+        guard let host = statusItem.button else { return }
+        let hostHeight = host.bounds.height > 0 ? host.bounds.height : Self.slotSize
+
+        func centered(_ view: NSView) {
+            var f = view.frame
+            f.origin.y = (hostHeight - f.height).rounded() / 2
+            view.frame = f
+        }
+
+        centered(speakerImageView)
+        centered(pauseButton)
+        centered(stopButton)
+        centered(speedDownButton)
+        centered(speedLabel)
+        centered(speedUpButton)
     }
 
     private func applyPlaybackVisibility(isPlaying: Bool, isPaused: Bool) {
