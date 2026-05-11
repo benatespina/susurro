@@ -29,6 +29,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private var registryCancellables = Set<AnyCancellable>()
 
     private static let slotSize: CGFloat = 22
+    private static let speedLabelWidth: CGFloat = 40
 
     init(appState: AppState, settings: TTSSettings, ipcServer: IPCServer) {
         self.appState = appState
@@ -107,7 +108,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         speedLabel.frame = NSRect(
             x: SusurroIcon.iconWidth + Self.slotSize * 3,
             y: 0,
-            width: 36,
+            width: Self.speedLabelWidth,
             height: Self.slotSize
         )
         speedLabel.stringValue = PlaybackSpeed.formatted(PlaybackSpeed.default)
@@ -124,7 +125,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             speedUpButton,
             symbol: "chevron.forward",
             label: "Speed Up",
-            x: SusurroIcon.iconWidth + Self.slotSize * 3 + 36,
+            x: SusurroIcon.iconWidth + Self.slotSize * 3 + Self.speedLabelWidth,
             action: #selector(speedUpClicked(_:))
         )
         speedUpButton.isHidden = true
@@ -154,9 +155,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let label = isPaused ? "Resume" : "Pause"
         pauseButton.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
         pauseButton.toolTip = label
-        // icon + pause + stop + speedDown + speedLabel(36) + speedUp
         statusItem.length = active
-            ? SusurroIcon.iconWidth + Self.slotSize * 2 + Self.slotSize + 36 + Self.slotSize
+            ? SusurroIcon.iconWidth + Self.slotSize * 4 + Self.speedLabelWidth
             : SusurroIcon.iconWidth
         applySpeakerState(isPlaying: isPlaying, isPaused: isPaused)
     }

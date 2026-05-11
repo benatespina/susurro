@@ -21,15 +21,6 @@ enum PlaybackSpeed {
     }
 
     private static func nearestIndex(to value: Float) -> Int {
-        var bestIndex = 0
-        var bestDistance = abs(steps[0] - value)
-        for (i, step) in steps.enumerated() {
-            let distance = abs(step - value)
-            if distance < bestDistance {
-                bestDistance = distance
-                bestIndex = i
-            }
-        }
-        return bestIndex
+        steps.indices.min(by: { abs(steps[$0] - value) < abs(steps[$1] - value) }) ?? 0
     }
 }

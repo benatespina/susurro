@@ -48,7 +48,6 @@ struct SelectionToolbar: View {
                 ToolbarButton(systemImage: "chevron.backward", action: onSpeedDown)
                 Text(PlaybackSpeed.formatted(appState.currentRate))
                     .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(Color.primary)
                     .frame(width: 40)
                 ToolbarButton(systemImage: "chevron.forward", action: onSpeedUp)
             }
