@@ -138,4 +138,68 @@ struct PlaybackCoordinatorTests {
 
         #expect(mock.translateCallCount == 0)
     }
+
+    // MARK: - Rate control tests
+
+    @Test func setRateUpdatesCurrentRate() async {
+        let coordinator = PlaybackCoordinator(
+            translator: MockTranslator(),
+            isTranslateToSpanishEnabled: { false }
+        )
+
+        await coordinator.setRate(1.5)
+
+        let snapshot = await coordinator.currentSnapshot()
+        #expect(snapshot.currentRate == 1.5)
+    }
+
+    @Test func readResetsCurrentRate() async {
+        let coordinator = PlaybackCoordinator(
+            translator: MockTranslator(),
+            isTranslateToSpanishEnabled: { false }
+        )
+
+        await coordinator.setRate(1.5)
+        _ = await coordinator.read(text: "hello")
+
+        let snapshot = await coordinator.currentSnapshot()
+        #expect(snapshot.currentRate == 1.0)
+    }
+
+    @Test func resumePreservesCurrentRate() async {
+        let coordinator = PlaybackCoordinator(
+            translator: MockTranslator(),
+            isTranslateToSpanishEnabled: { false }
+        )
+
+        // Without a live AVPlayer, verify that currentRate is preserved in the
+        // snapshot across setRate → pause → resume so the coordinator's own state
+        // machine never drops the rate back to 1.0.
+        await coordinator.setRate(1.5)
+        await coordinator.pause()
+        await coordinator.resume()
+
+        let snapshot = await coordinator.currentSnapshot()
+        #expect(snapshot.currentRate == 1.5)
+    }
+
+    @Test func setRateEmitsSnapshot() async {
+        let coordinator = PlaybackCoordinator(
+            translator: MockTranslator(),
+            isTranslateToSpanishEnabled: { false }
+        )
+
+        let stream = await coordinator.snapshots()
+        await coordinator.setRate(1.75)
+
+        var received: PlaybackSnapshot?
+        for await snap in stream {
+            if snap.currentRate == 1.75 {
+                received = snap
+                break
+            }
+        }
+
+        #expect(received?.currentRate == 1.75)
+    }
 }

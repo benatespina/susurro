@@ -9,6 +9,7 @@ struct PlaybackSnapshot: Sendable, Equatable {
     var currentChunkIndex: Int
     var isPlaying: Bool
     var isPaused: Bool
+    var currentRate: Float = 1.0
 
     static let empty = PlaybackSnapshot(sourceText: "", chunks: [], currentChunkIndex: 0, isPlaying: false, isPaused: false)
 }
@@ -28,6 +29,7 @@ actor PlaybackCoordinator {
     private var chunks: [String] = []
     private var snapshot: PlaybackSnapshot = .empty
 
+    private var currentRate: Float = 1.0
     private var streamStartChunk: Int = 0
     private var itemsPlayedInStream: Int = 0
     private var observedItems: Set<ObjectIdentifier> = []
@@ -61,10 +63,11 @@ actor PlaybackCoordinator {
             }
         }
 
+        currentRate = PlaybackSpeed.default
         sourceText = effectiveText
         sourceLanguage = effectiveLang
         snapshot = PlaybackSnapshot(
-            sourceText: effectiveText, chunks: [], currentChunkIndex: 0, isPlaying: false, isPaused: false
+            sourceText: effectiveText, chunks: [], currentChunkIndex: 0, isPlaying: false, isPaused: false, currentRate: currentRate
         )
 
         let health = await client.health()
@@ -77,7 +80,7 @@ actor PlaybackCoordinator {
         chunks = result.chunks
 
         snapshot = PlaybackSnapshot(
-            sourceText: effectiveText, chunks: chunks, currentChunkIndex: 0, isPlaying: false, isPaused: false
+            sourceText: effectiveText, chunks: chunks, currentChunkIndex: 0, isPlaying: false, isPaused: false, currentRate: currentRate
         )
         emitSnapshot()
         persistSnapshot()
@@ -100,7 +103,8 @@ actor PlaybackCoordinator {
             chunks: session.chunks,
             currentChunkIndex: min(session.currentChunkIndex, max(0, session.chunks.count - 1)),
             isPlaying: false,
-            isPaused: false
+            isPaused: false,
+            currentRate: currentRate
         )
         emitSnapshot()
     }
@@ -132,7 +136,12 @@ actor PlaybackCoordinator {
 
     func resume() async {
         guard let player = currentPlayer else { return }
-        await MainActor.run { player.play() }
+        let rateToApply = currentRate
+        await MainActor.run {
+            player.play()
+            // Apply after play() because play() resets rate to 1.0 internally.
+            player.rate = rateToApply
+        }
         snapshot.isPaused = false
         snapshot.isPlaying = true
         emitSnapshot()
@@ -195,6 +204,15 @@ actor PlaybackCoordinator {
 
     func currentSnapshot() -> PlaybackSnapshot { snapshot }
 
+    func setRate(_ rate: Float) async {
+        currentRate = rate
+        snapshot.currentRate = rate
+        await MainActor.run { [currentPlayer] in
+            currentPlayer?.rate = rate
+        }
+        emitSnapshot()
+    }
+
     private func startStream(fromChunk index: Int) {
         streamStartChunk = index
         itemsPlayedInStream = 0
@@ -244,10 +262,13 @@ actor PlaybackCoordinator {
 
                 let item = AVPlayerItem(url: url)
                 observedItems.insert(ObjectIdentifier(item))
+                let rateToApply = currentRate
                 await MainActor.run {
                     player.insert(item, after: nil)
                     if !startedPlaying {
                         player.play()
+                        // Apply after play() because play() resets rate to 1.0 internally.
+                        player.rate = rateToApply
                     }
                 }
                 if !startedPlaying {
