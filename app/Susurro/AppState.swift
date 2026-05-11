@@ -10,5 +10,6 @@ final class AppState {
     var accessibilityStatus: AccessibilityStatus = .unknown
     var isPlaying: Bool = false
     var isPaused: Bool = false
+    var currentRate: Float = 1.0
     var hasResumableSession: Bool = false
 }

@@ -8,6 +8,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     var onReadThis: () -> Void = {}
     var onTogglePause: () -> Void = {}
     var onStop: () -> Void = {}
+    var onSpeedDown: (() -> Void)?
+    var onSpeedUp: (() -> Void)?
 
     private let appState: AppState
     private let settings: TTSSettings
@@ -19,6 +21,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let speakerImageView: NSImageView
     private let pauseButton: NSButton
     private let stopButton: NSButton
+    private let speedDownButton: NSButton
+    private let speedLabel: NSTextField
+    private let speedUpButton: NSButton
     private let menu = NSMenu()
 
     private var registryCancellables = Set<AnyCancellable>()
@@ -33,6 +38,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         speakerImageView = NSImageView()
         pauseButton = NSButton()
         stopButton = NSButton()
+        speedDownButton = NSButton()
+        speedLabel = NSTextField()
+        speedUpButton = NSButton()
         super.init()
 
         configureSubButtons()
@@ -85,6 +93,42 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         )
         stopButton.isHidden = true
         host.addSubview(stopButton)
+
+        configure(
+            speedDownButton,
+            symbol: "chevron.backward",
+            label: "Speed Down",
+            x: SusurroIcon.iconWidth + Self.slotSize * 2,
+            action: #selector(speedDownClicked(_:))
+        )
+        speedDownButton.isHidden = true
+        host.addSubview(speedDownButton)
+
+        speedLabel.frame = NSRect(
+            x: SusurroIcon.iconWidth + Self.slotSize * 3,
+            y: 0,
+            width: 36,
+            height: Self.slotSize
+        )
+        speedLabel.stringValue = PlaybackSpeed.formatted(PlaybackSpeed.default)
+        speedLabel.isEditable = false
+        speedLabel.isSelectable = false
+        speedLabel.isBordered = false
+        speedLabel.drawsBackground = false
+        speedLabel.alignment = .center
+        speedLabel.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        speedLabel.isHidden = true
+        host.addSubview(speedLabel)
+
+        configure(
+            speedUpButton,
+            symbol: "chevron.forward",
+            label: "Speed Up",
+            x: SusurroIcon.iconWidth + Self.slotSize * 3 + 36,
+            action: #selector(speedUpClicked(_:))
+        )
+        speedUpButton.isHidden = true
+        host.addSubview(speedUpButton)
     }
 
     private func configure(_ button: NSButton, symbol: String, label: String, x: CGFloat, action: Selector) {
@@ -103,11 +147,17 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let active = isPlaying || isPaused
         pauseButton.isHidden = !active
         stopButton.isHidden = !active
+        speedDownButton.isHidden = !active
+        speedLabel.isHidden = !active
+        speedUpButton.isHidden = !active
         let symbol = isPaused ? "play.fill" : "pause.fill"
         let label = isPaused ? "Resume" : "Pause"
         pauseButton.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
         pauseButton.toolTip = label
-        statusItem.length = active ? SusurroIcon.iconWidth + Self.slotSize * 2 : SusurroIcon.iconWidth
+        // icon + pause + stop + speedDown + speedLabel(36) + speedUp
+        statusItem.length = active
+            ? SusurroIcon.iconWidth + Self.slotSize * 2 + Self.slotSize + 36 + Self.slotSize
+            : SusurroIcon.iconWidth
         applySpeakerState(isPlaying: isPlaying, isPaused: isPaused)
     }
 
@@ -154,6 +204,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func stopClicked(_ sender: Any?) {
         onStop()
+    }
+
+    @objc private func speedDownClicked(_ sender: Any?) {
+        onSpeedDown?()
+    }
+
+    @objc private func speedUpClicked(_ sender: Any?) {
+        onSpeedUp?()
+    }
+
+    func updateRate(_ rate: Float) {
+        speedLabel.stringValue = PlaybackSpeed.formatted(rate)
     }
 
     private func rebuildMenu() {

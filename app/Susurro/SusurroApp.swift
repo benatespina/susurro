@@ -87,9 +87,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 await MainActor.run {
                     self.appState.hasResumableSession = !snap.chunks.isEmpty
                     self.appState.isPaused = snap.isPaused
+                    self.appState.currentRate = snap.currentRate
                     self.menuBarController?.updatePlayback(
                         isPlaying: snap.isPlaying, isPaused: snap.isPaused
                     )
+                    self.menuBarController?.updateRate(snap.currentRate)
                 }
             }
         }
@@ -151,6 +153,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
         controller.onStop = { [weak self] in
             Task { await self?.playbackCoordinator?.stop() }
+        }
+        controller.onSpeedDown = { [weak self] in
+            guard let self else { return }
+            let current = self.appState.currentRate
+            let previous = PlaybackSpeed.previous(from: current)
+            Task { await self.playbackCoordinator?.setRate(previous) }
+        }
+        controller.onSpeedUp = { [weak self] in
+            guard let self else { return }
+            let current = self.appState.currentRate
+            let next = PlaybackSpeed.next(from: current)
+            Task { await self.playbackCoordinator?.setRate(next) }
         }
         menuBarController = controller
     }
