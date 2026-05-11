@@ -112,4 +112,30 @@ struct SwiftSoupExtractorTests {
         let result = SwiftSoupExtractor.extract(html: navFooterOnlyHTML, url: "https://example.com/empty")
         #expect(result == nil)
     }
+
+    @Test("blockquote with nested paragraphs does not duplicate text")
+    func nestedBlockquoteDoesNotDuplicate() throws {
+        let html = """
+        <!DOCTYPE html>
+        <html>
+        <head><title>Quote Test</title></head>
+        <body>
+        <article>
+            <p>An introduction sentence appears before the quoted section so the article has some context.</p>
+            <blockquote>
+                <p>First quoted paragraph that should appear exactly once in the extracted text output.</p>
+                <p>Second quoted paragraph that should also appear exactly once in the extracted text output.</p>
+            </blockquote>
+            <p>A closing paragraph wraps up the article after the quoted section ends.</p>
+        </article>
+        </body>
+        </html>
+        """
+        let result = SwiftSoupExtractor.extract(html: html, url: "https://example.com/quote")
+        let unwrapped = try #require(result)
+        let occurrences = unwrapped.text.components(separatedBy: "First quoted paragraph").count - 1
+        #expect(occurrences == 1)
+        let occurrencesSecond = unwrapped.text.components(separatedBy: "Second quoted paragraph").count - 1
+        #expect(occurrencesSecond == 1)
+    }
 }

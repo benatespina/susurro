@@ -46,6 +46,13 @@ enum SwiftSoupExtractor {
         let nodes = (try? container.select(textSelectors)) ?? Elements()
         var parts: [String] = []
         for node in nodes {
+            // Skip elements that contain other text-bearing descendants — those
+            // descendants will be emitted individually, so including the wrapper
+            // here would duplicate their text. Common case: <blockquote> with
+            // nested <p>, or <li> with nested block elements.
+            if hasMatchingDescendant(node) {
+                continue
+            }
             let piece = (try? node.text())?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !piece.isEmpty {
                 parts.append(piece)
@@ -56,6 +63,22 @@ enum SwiftSoupExtractor {
         guard !text.isEmpty else { return nil }
 
         return (text, title)
+    }
+
+    private static let textSelectorTags: Set<String> = [
+        "p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote",
+    ]
+
+    private static func hasMatchingDescendant(_ element: Element) -> Bool {
+        for child in element.children() {
+            if textSelectorTags.contains(child.tagName().lowercased()) {
+                return true
+            }
+            if hasMatchingDescendant(child) {
+                return true
+            }
+        }
+        return false
     }
 
     private static func removeComments(from node: Node) {
