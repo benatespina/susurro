@@ -97,34 +97,36 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         configure(
             speedDownButton,
-            symbol: "tortoise.fill",
-            label: "Slow down",
+            symbol: "chevron.backward",
+            label: "Speed Down",
             x: SusurroIcon.iconWidth + Self.slotSize * 2,
             action: #selector(speedDownClicked(_:))
         )
         speedDownButton.isHidden = true
         host.addSubview(speedDownButton)
 
+        speedLabel.cell = VerticallyCenteredTextFieldCell(textCell: "")
+        speedLabel.stringValue = PlaybackSpeed.formatted(PlaybackSpeed.default)
+        speedLabel.isEditable = false
+        speedLabel.isSelectable = false
+        speedLabel.isBezeled = false
+        speedLabel.isBordered = false
+        speedLabel.drawsBackground = false
+        speedLabel.alignment = .center
+        speedLabel.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         speedLabel.frame = NSRect(
             x: SusurroIcon.iconWidth + Self.slotSize * 3,
             y: 0,
             width: Self.speedLabelWidth,
             height: Self.slotSize
         )
-        speedLabel.stringValue = PlaybackSpeed.formatted(PlaybackSpeed.default)
-        speedLabel.isEditable = false
-        speedLabel.isSelectable = false
-        speedLabel.isBordered = false
-        speedLabel.drawsBackground = false
-        speedLabel.alignment = .center
-        speedLabel.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         speedLabel.isHidden = true
         host.addSubview(speedLabel)
 
         configure(
             speedUpButton,
-            symbol: "hare.fill",
-            label: "Speed up",
+            symbol: "chevron.forward",
+            label: "Speed Up",
             x: SusurroIcon.iconWidth + Self.slotSize * 3 + Self.speedLabelWidth,
             action: #selector(speedUpClicked(_:))
         )

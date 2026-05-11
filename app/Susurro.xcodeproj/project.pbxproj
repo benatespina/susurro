@@ -85,6 +85,7 @@
 		A2CECAAD8160A3A9288BFC8A /* IPCClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE2ABE38F56C078AB499FFE /* IPCClient.swift */; };
 		A846CE8A9F2CA8A3EC007DDF /* PlaybackSpeedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F7E0311D8DD8F9611BCE0B /* PlaybackSpeedTests.swift */; };
 		A89BB65952356555023788BC /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE5A75572F74F2C780FCB553 /* MenuBarController.swift */; };
+		0BEBBD9E7B6042178551F4CA /* VerticallyCenteredTextFieldCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FBE3536223B440083D98CE5 /* VerticallyCenteredTextFieldCell.swift */; };
 		A9EBCF8C2D96711497228BA6 /* EdgeTTSProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7275DA9445AE988C5B81CB7 /* EdgeTTSProviderTests.swift */; };
 		ABDCFDD308CCB6029BA2715A /* Version.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E8BCF491EA72D01D73901DF /* Version.swift */; };
 		ADABB192C905EEC05CD5BDCB /* TTSProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BD5E83AC86B248D4F6638D6 /* TTSProvider.swift */; };
@@ -271,6 +272,7 @@
 		F8F7E0311D8DD8F9611BCE0B /* PlaybackSpeedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSpeedTests.swift; sourceTree = "<group>"; };
 		FBB27368493473E40D3E933E /* Readability.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = Readability.js; sourceTree = "<group>"; };
 		FE5A75572F74F2C780FCB553 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		6FBE3536223B440083D98CE5 /* VerticallyCenteredTextFieldCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerticallyCenteredTextFieldCell.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -556,6 +558,7 @@
 				19180225883D9D48C4DB3822 /* Susurro.entitlements */,
 				BA2C69786A97D2FD135087F5 /* SusurroApp.swift */,
 				7477EB703C31F81ACE82546C /* SusurroIcon.swift */,
+				6FBE3536223B440083D98CE5 /* VerticallyCenteredTextFieldCell.swift */,
 				AA5405596110305D0D271723 /* Accessibility */,
 				F54D8E8F112490D2AA81E87C /* Core */,
 				9056F391BA56546795521D37 /* Hotkey */,
@@ -841,6 +844,7 @@
 				9D1BE0196E466DA3231B5DA5 /* SourceResolver.swift in Sources */,
 				68B16A789DE1E93D0CFBB9F1 /* SusurroApp.swift in Sources */,
 				7E2A530CC69E7049E44E15F7 /* SusurroIcon.swift in Sources */,
+				0BEBBD9E7B6042178551F4CA /* VerticallyCenteredTextFieldCell.swift in Sources */,
 				EBF5EC2E7D68618501AA93C3 /* SwiftSoupExtractor.swift in Sources */,
 				D22923CAA562AB0BFFF83587 /* TTSConfigWindow.swift in Sources */,
 				FB3B1A7A9A4C56CAF91B9128 /* TTSConstants.swift in Sources */,

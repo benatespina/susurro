@@ -45,11 +45,11 @@ struct SelectionToolbar: View {
                 action: { onTeachPronunciation(selectedText) }
             )
             if appState.isPlaying {
-                ToolbarButton(systemImage: "tortoise.fill", action: onSpeedDown)
+                ToolbarButton(systemImage: "chevron.backward", action: onSpeedDown)
                 Text(PlaybackSpeed.formatted(appState.currentRate))
                     .font(.system(size: 13, weight: .semibold).monospacedDigit())
                     .frame(width: 40)
-                ToolbarButton(systemImage: "hare.fill", action: onSpeedUp)
+                ToolbarButton(systemImage: "chevron.forward", action: onSpeedUp)
             }
             ToolbarButton(
                 systemImage: "xmark",
