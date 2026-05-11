@@ -12,25 +12,26 @@ enum EdgeSSMLBuilder {
 
     /// Builds a complete SSML document for Edge TTS synthesis.
     ///
-    /// Steps:
-    /// 1. Applies pronunciation substitutions via `PronunciationStore.shared.apply`.
-    ///    (No `BreakInjector` — Edge does not receive break injection.)
-    /// 2. Wraps the escaped body in the Edge SSML envelope.
+    /// The supplied `pronunciationsApply` closure is the SOLE source of body
+    /// content emitted to the WebSocket. It MUST return an Edge-safe string:
+    /// XML-escaped plain text (no SSML sub-elements — Edge rejects them with
+    /// close code 1007). The builder does not escape — re-escaping would
+    /// double-encode `&amp;`. Trust-but-verify lives in EdgeSSMLBuilderTests.
     ///
     /// - Parameters:
     ///   - body: Raw plain text to synthesize.
     ///   - language: Short language code (`"es"` or `"en"`).
     ///   - voice: Full voice name (e.g. `"es-ES-AlvaroNeural"`).
+    ///   - pronunciationsApply: Closure that returns an Edge-safe, XML-escaped string.
     /// - Returns: A complete SSML document string.
-    static func build(body: String, language: String, voice: String) async -> String {
-        // Microsoft's Edge "readaloud" WebSocket endpoint rejects SSML
-        // sub-elements (`<phoneme>`, `<sub>`, `<emphasis>`, ...) inside the
-        // `<prosody>` wrapper with close code 1007 "SSML is invalid".
-        // Only XML-escaped plain text is accepted in this transport.
-        // Pronunciation overrides are applied by Azure provider only.
-        _ = language
-        let escapedBody = SSMLEscape.escape(body)
-        return wrap(body: escapedBody, voice: voice)
+    static func build(
+        body: String,
+        language: String,
+        voice: String,
+        pronunciationsApply: @Sendable (String, String) async -> String
+    ) async -> String {
+        let safeBody = await pronunciationsApply(body, language)
+        return wrap(body: safeBody, voice: voice)
     }
 
     // MARK: - Internal

@@ -251,6 +251,52 @@ struct EdgeTTSProviderTests {
                 "URL missing ConnectionId param: \(urlStr)")
     }
 
+    // MARK: - Pronunciation closure wiring
+
+    @Test("synthesize wires pronunciation closure output into SSML WebSocket payload")
+    func synthesizeWiresPronunciationClosureToSSMLPayload() async throws {
+        let audioPayload = Data(repeating: 0xDD, count: 64)
+
+        // Capture the raw ssml frame text sent by the client.
+        final class Box: @unchecked Sendable { var value: String = "" }
+        let captured = Box()
+
+        let server = try MockWSServer { connection in
+            // Frame 1: speech.config — consume and discard
+            _ = try? await receiveMessage(on: connection)
+            // Frame 2: ssml — capture before discarding
+            if let (_, data) = try? await receiveMessage(on: connection) {
+                captured.value = String(data: data, encoding: .utf8) ?? ""
+            }
+            // Standard happy-path reply sequence
+            try? await sendTextMessage("Path:turn.start\r\n\r\n{}", on: connection)
+            let audioFrame = makeBinaryAudioFrame(audioBytes: audioPayload)
+            try? await sendBinaryMessage(audioFrame, on: connection)
+            try? await sendTextMessage("Path:turn.end\r\n\r\n", on: connection)
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            connection.cancel()
+        }
+        let port = await server.resolvedPort()
+        defer { server.cancel() }
+
+        // Sentinel closure returns letter-spaced text so we can assert it reached the wire.
+        let provider = EdgeTTSProvider(
+            urlSession: .shared,
+            signer: SystemEdgeSigningClock(),
+            pronunciationsApply: { _, _ in "X Y Z" },
+            urlBuilder: { _ in URL(string: "ws://127.0.0.1:\(port)/")! }
+        )
+
+        _ = try await provider.synthesize(text: "XYZ", language: "es")
+
+        // The raw frame is the full WS text message sent as "Path:ssml\r\n\r\n<ssml>".
+        // Use EdgeFrameParser to extract just the SSML body.
+        let parsed = EdgeFrameParser.parseTextFrame(captured.value)
+        #expect(parsed.path == "ssml", "expected Path:ssml frame, got '\(parsed.path)'")
+        #expect(parsed.body.contains("X Y Z"),
+                "closure output 'X Y Z' must appear in SSML payload, got: \(parsed.body)")
+    }
+
     // MARK: - Cancellation
 
     @Test("cancelled task throws generationCancelled")
