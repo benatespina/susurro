@@ -144,12 +144,11 @@ actor PronunciationStore {
             return SSMLEscape.escape(userValue)
         }
 
-        // 2. Acronym with optional plural suffix → <say-as interpret-as="characters">
-        if isAcronymWithPluralSuffix(word) != nil {
-            // TODO: Empirical verification needed for plural acronyms (e.g. "APIs").
-            // Edge may spell the trailing 's' letter-by-letter undesirably.
-            // If so, switch in Phase 2 to: <say-as ...>API</say-as>s
-            return "<say-as interpret-as=\"characters\">\(escaped)</say-as>"
+        // 2. Acronym with optional plural suffix → letter-spaced plain text.
+        // Edge rejects <say-as>; emit letter-spaced plain text so it spells acronyms.
+        if let (base, hasSuffix) = isAcronymWithPluralSuffix(word) {
+            let spaced = base.map { String($0) }.joined(separator: " ")
+            return hasSuffix ? spaced + " s" : spaced
         }
 
         // 3. Spanish-specific: transliterate if the word (lowercased) is a known anglicism
