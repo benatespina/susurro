@@ -8,6 +8,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     var onReadThis: () -> Void = {}
     var onTogglePause: () -> Void = {}
     var onStop: () -> Void = {}
+    var onSpeedDown: (() -> Void)?
+    var onSpeedUp: (() -> Void)?
 
     private let appState: AppState
     private let settings: TTSSettings
@@ -19,11 +21,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let speakerImageView: NSImageView
     private let pauseButton: NSButton
     private let stopButton: NSButton
+    private let speedDownButton: NSButton
+    private let speedLabel: NSTextField
+    private let speedUpButton: NSButton
     private let menu = NSMenu()
 
     private var registryCancellables = Set<AnyCancellable>()
 
     private static let slotSize: CGFloat = 22
+    private static let speedLabelWidth: CGFloat = 40
 
     init(appState: AppState, settings: TTSSettings, ipcServer: IPCServer) {
         self.appState = appState
@@ -33,6 +39,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         speakerImageView = NSImageView()
         pauseButton = NSButton()
         stopButton = NSButton()
+        speedDownButton = NSButton()
+        speedLabel = NSTextField()
+        speedUpButton = NSButton()
         super.init()
 
         configureSubButtons()
@@ -85,6 +94,46 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         )
         stopButton.isHidden = true
         host.addSubview(stopButton)
+
+        configure(
+            speedDownButton,
+            symbol: "chevron.backward",
+            label: "Speed Down",
+            x: SusurroIcon.iconWidth + Self.slotSize * 2,
+            action: #selector(speedDownClicked(_:))
+        )
+        speedDownButton.isHidden = true
+        host.addSubview(speedDownButton)
+
+        speedLabel.cell = VerticallyCenteredTextFieldCell(textCell: "")
+        speedLabel.stringValue = PlaybackSpeed.formatted(PlaybackSpeed.default)
+        speedLabel.isEditable = false
+        speedLabel.isSelectable = false
+        speedLabel.isBezeled = false
+        speedLabel.isBordered = false
+        speedLabel.drawsBackground = false
+        speedLabel.alignment = .center
+        speedLabel.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        speedLabel.frame = NSRect(
+            x: SusurroIcon.iconWidth + Self.slotSize * 3,
+            y: 0,
+            width: Self.speedLabelWidth,
+            height: Self.slotSize
+        )
+        speedLabel.isHidden = true
+        host.addSubview(speedLabel)
+
+        configure(
+            speedUpButton,
+            symbol: "chevron.forward",
+            label: "Speed Up",
+            x: SusurroIcon.iconWidth + Self.slotSize * 3 + Self.speedLabelWidth,
+            action: #selector(speedUpClicked(_:))
+        )
+        speedUpButton.isHidden = true
+        host.addSubview(speedUpButton)
+
+        centerSubviewsVertically()
     }
 
     private func configure(_ button: NSButton, symbol: String, label: String, x: CGFloat, action: Selector) {
@@ -99,15 +148,40 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         button.action = action
     }
 
+    /// Reframes every subview so its vertical center aligns with the host button's
+    /// actual midpoint. Called after all subviews have been added.
+    private func centerSubviewsVertically() {
+        guard let host = statusItem.button else { return }
+        let hostHeight = host.bounds.height > 0 ? host.bounds.height : Self.slotSize
+
+        func centered(_ view: NSView) {
+            var f = view.frame
+            f.origin.y = (hostHeight - f.height).rounded() / 2
+            view.frame = f
+        }
+
+        centered(speakerImageView)
+        centered(pauseButton)
+        centered(stopButton)
+        centered(speedDownButton)
+        centered(speedLabel)
+        centered(speedUpButton)
+    }
+
     private func applyPlaybackVisibility(isPlaying: Bool, isPaused: Bool) {
         let active = isPlaying || isPaused
         pauseButton.isHidden = !active
         stopButton.isHidden = !active
+        speedDownButton.isHidden = !active
+        speedLabel.isHidden = !active
+        speedUpButton.isHidden = !active
         let symbol = isPaused ? "play.fill" : "pause.fill"
         let label = isPaused ? "Resume" : "Pause"
         pauseButton.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
         pauseButton.toolTip = label
-        statusItem.length = active ? SusurroIcon.iconWidth + Self.slotSize * 2 : SusurroIcon.iconWidth
+        statusItem.length = active
+            ? SusurroIcon.iconWidth + Self.slotSize * 4 + Self.speedLabelWidth
+            : SusurroIcon.iconWidth
         applySpeakerState(isPlaying: isPlaying, isPaused: isPaused)
     }
 
@@ -154,6 +228,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func stopClicked(_ sender: Any?) {
         onStop()
+    }
+
+    @objc private func speedDownClicked(_ sender: Any?) {
+        onSpeedDown?()
+    }
+
+    @objc private func speedUpClicked(_ sender: Any?) {
+        onSpeedUp?()
+    }
+
+    func updateRate(_ rate: Float) {
+        speedLabel.stringValue = PlaybackSpeed.formatted(rate)
     }
 
     private func rebuildMenu() {

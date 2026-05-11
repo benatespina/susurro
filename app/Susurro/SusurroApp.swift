@@ -87,9 +87,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 await MainActor.run {
                     self.appState.hasResumableSession = !snap.chunks.isEmpty
                     self.appState.isPaused = snap.isPaused
+                    self.appState.currentRate = snap.currentRate
                     self.menuBarController?.updatePlayback(
                         isPlaying: snap.isPlaying, isPaused: snap.isPaused
                     )
+                    self.menuBarController?.updateRate(snap.currentRate)
                 }
             }
         }
@@ -152,6 +154,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         controller.onStop = { [weak self] in
             Task { await self?.playbackCoordinator?.stop() }
         }
+        controller.onSpeedDown = { [weak self] in self?.cycleSpeedDown() }
+        controller.onSpeedUp = { [weak self] in self?.cycleSpeedUp() }
         menuBarController = controller
     }
 
@@ -206,6 +210,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             )
         }
         AppLogger.selection.info("selection system activated")
+    }
+
+    private func cycleSpeedDown() {
+        let previous = PlaybackSpeed.previous(from: appState.currentRate)
+        // Update optimistically so rapid successive clicks read the new value,
+        // not the stale pre-Task value (the snapshot loop will confirm it shortly).
+        appState.currentRate = previous
+        Task { await self.playbackCoordinator?.setRate(previous) }
+    }
+
+    private func cycleSpeedUp() {
+        let next = PlaybackSpeed.next(from: appState.currentRate)
+        // Update optimistically so rapid successive clicks read the new value,
+        // not the stale pre-Task value (the snapshot loop will confirm it shortly).
+        appState.currentRate = next
+        Task { await self.playbackCoordinator?.setRate(next) }
     }
 
     func readFromCurrentApp() {
