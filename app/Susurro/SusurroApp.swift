@@ -202,13 +202,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         panelController?.onStop = { [weak self] in
             Task { await self?.playbackCoordinator?.stop() }
         }
-        panelController?.onTeachPronunciation = { [weak self] word in
-            guard let self else { return }
-            PronunciationsWindowController.show(
-                settings: self.ttsSettings,
-                initialWord: word
-            )
-        }
         AppLogger.selection.info("selection system activated")
     }
 
