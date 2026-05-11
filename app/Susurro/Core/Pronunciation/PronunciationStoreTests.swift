@@ -267,6 +267,62 @@ import Foundation
         #expect(!result.contains("<"))
     }
 
+    // MARK: - candidatesEdgeSafe
+
+    @Test func candidatesEdgeSafeForAcronymReturnsLetterSpaced() async {
+        let store = makeStore()
+        let cands = await store.candidatesEdgeSafe(word: "API", language: "es")
+        let letterSpaced = cands.first { $0.kind == "letter-spaced" }
+        #expect(letterSpaced != nil)
+        #expect(letterSpaced?.ssml == "A P I")
+        let raw = cands.first { $0.kind == "raw" }
+        #expect(raw != nil)
+        // No SSML tags anywhere
+        for c in cands {
+            #expect(!c.ssml.contains("<"))
+        }
+    }
+
+    @Test func candidatesEdgeSafeForKnownAnglicismReturnsTranslit() async {
+        let store = makeStore()
+        let cands = await store.candidatesEdgeSafe(word: "framework", language: "es")
+        let translit = cands.first { $0.kind == "translit-plain" }
+        #expect(translit != nil)
+        let expectedValue = PronunciationRules.transliterateToEs("framework")
+        #expect(translit?.ssml == expectedValue)
+        // No SSML tags
+        for c in cands {
+            #expect(!c.ssml.contains("<"))
+        }
+    }
+
+    @Test func candidatesEdgeSafeUnknownSpanishWordReturnsRawOnly() async {
+        let store = makeStore()
+        let cands = await store.candidatesEdgeSafe(word: "perro", language: "es")
+        #expect(cands.count == 1)
+        #expect(cands.first?.kind == "raw")
+        #expect(cands.first?.ssml == "perro")
+    }
+
+    @Test func candidatesEdgeSafeNeverContainsSSMLTags() async {
+        let store = makeStore()
+        let words = ["API", "URL", "JSON", "framework", "backend", "cache", "deploy", "hello", "perro"]
+        for word in words {
+            let cands = await store.candidatesEdgeSafe(word: word, language: "es")
+            for c in cands {
+                #expect(!c.ssml.contains("<"), "candidate '\(c.ssml)' for word '\(word)' contains '<'")
+            }
+        }
+    }
+
+    @Test func candidatesEdgeSafeAcronymPluralIncludesSuffix() async {
+        let store = makeStore()
+        let cands = await store.candidatesEdgeSafe(word: "APIs", language: "es")
+        let letterSpaced = cands.first { $0.kind == "letter-spaced" }
+        #expect(letterSpaced != nil)
+        #expect(letterSpaced?.ssml == "A P I s")
+    }
+
     // MARK: - Persistence
 
     @Test func persistenceRoundTrip() async throws {

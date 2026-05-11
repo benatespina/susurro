@@ -185,6 +185,61 @@ actor PronunciationStore {
         return parts.joined()
     }
 
+    // MARK: - Edge-safe candidates
+
+    /// Returns pronunciation candidates safe for Edge TTS (no SSML sub-elements).
+    ///
+    /// Kind strings used here:
+    ///   - "letter-spaced"  — acronym expanded to space-separated letters (plain text)
+    ///   - "translit-plain" — known anglicism transliterated to Spanish phonetics (plain text)
+    ///   - "raw"            — keep the word as-is
+    ///
+    /// These are string-valued kinds (matching the PronunciationCandidate.kind field)
+    /// rather than a new enum so that the existing Codable/JSON pipeline is unchanged.
+    func candidatesEdgeSafe(word: String, language: String) async -> [PronunciationCandidate] {
+        let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        var out: [PronunciationCandidate] = []
+
+        // 1. Acronym → letter-spaced plain text
+        if let (base, hasSuffix) = isAcronymWithPluralSuffix(trimmed) {
+            let spaced = base.map { String($0) }.joined(separator: " ")
+            let value = hasSuffix ? spaced + " s" : spaced
+            out.append(PronunciationCandidate(
+                kind: "letter-spaced",
+                label: "Spell letter by letter: \(value)",
+                ssml: value
+            ))
+        }
+
+        // 2. Known Spanish anglicism → transliteration (plain text)
+        if language == "es" {
+            let lower = trimmed.lowercased()
+            if esDict[lower] != nil {
+                let translit = PronunciationRules.transliterateToEs(lower)
+                if translit != lower {
+                    out.append(PronunciationCandidate(
+                        kind: "translit-plain",
+                        label: "Read as \u{201C}\(translit)\u{201D}",
+                        ssml: translit
+                    ))
+                }
+            }
+        }
+
+        // 3. Raw — always present
+        out.append(PronunciationCandidate(
+            kind: "raw",
+            label: "Read as-is: \(trimmed)",
+            ssml: trimmed
+        ))
+
+        // Deduplicate by stored value (ssml field), preserving order
+        var seen: Set<String> = []
+        return out.filter { seen.insert($0.ssml).inserted }
+    }
+
     func candidates(word: String, language: String) async -> [PronunciationCandidate] {
         let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }

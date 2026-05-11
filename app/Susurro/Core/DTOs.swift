@@ -20,6 +20,7 @@ enum HealthStatus: Equatable, Sendable { case ready, loading }
 enum BackendError: Error, Sendable {
     case backendNotReady
     case azureNotConfigured
+    case invalidProvider(String)
     case extractFailed(String)
     case generationCancelled
 }
