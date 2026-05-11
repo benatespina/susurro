@@ -6,11 +6,17 @@ struct SelectionToolbar: View {
     let onStop: () -> Void
 
     var body: some View {
-        ToolbarButton(
-            systemImage: appState.isPlaying ? "stop.fill" : "waveform",
-            isPrimary: true,
-            action: invokeAction
-        )
+        ToolbarButton(isPrimary: true, action: invokeAction) {
+            if appState.isPlaying {
+                Image(systemName: "stop.fill")
+                    .font(.system(size: 13, weight: .semibold))
+            } else {
+                Image(nsImage: SusurroIcon.template())
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 18, height: 18)
+            }
+        }
         .padding(4)
         .background(
             VisualEffectBackground(material: .hudWindow, blendingMode: .behindWindow)
