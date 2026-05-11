@@ -207,6 +207,13 @@ actor PlaybackCoordinator {
     func setRate(_ rate: Float) async {
         currentRate = rate
         snapshot.currentRate = rate
+        // Only push the rate to AVQueuePlayer while it is actively playing.
+        // Setting AVPlayer.rate to a non-zero value when the player is paused
+        // causes it to resume playback — an unintended side-effect.
+        guard !snapshot.isPaused else {
+            emitSnapshot()
+            return
+        }
         await MainActor.run { [currentPlayer] in
             currentPlayer?.rate = rate
         }

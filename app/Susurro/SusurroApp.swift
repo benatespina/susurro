@@ -216,11 +216,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     private func cycleSpeedDown() {
         let previous = PlaybackSpeed.previous(from: appState.currentRate)
+        // Update optimistically so rapid successive clicks read the new value,
+        // not the stale pre-Task value (the snapshot loop will confirm it shortly).
+        appState.currentRate = previous
         Task { await self.playbackCoordinator?.setRate(previous) }
     }
 
     private func cycleSpeedUp() {
         let next = PlaybackSpeed.next(from: appState.currentRate)
+        // Update optimistically so rapid successive clicks read the new value,
+        // not the stale pre-Task value (the snapshot loop will confirm it shortly).
+        appState.currentRate = next
         Task { await self.playbackCoordinator?.setRate(next) }
     }
 
