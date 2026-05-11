@@ -97,3 +97,24 @@ func isAcronym(_ word: String) -> Bool {
     if acronyms.contains(word) { return true }
     return (2...6).contains(word.count) && word.allSatisfy { $0.isASCII && $0.isLetter && $0.isUppercase }
 }
+
+/// Matches a word that is an acronym optionally followed by a plural 's'.
+/// Pattern: ^[A-Z]{2,6}s?$
+/// Returns `(base, hasSuffix)` if matched, nil otherwise.
+/// Does NOT modify the existing `isAcronym` function.
+func isAcronymWithPluralSuffix(_ word: String) -> (base: String, hasSuffix: Bool)? {
+    let chars = Array(word)
+    guard chars.count >= 2 else { return nil }
+
+    // Determine if the last character is a plural 's'
+    let hasSuffix = chars.last == "s" && chars.count >= 3
+    let base = hasSuffix ? String(chars.dropLast()) : word
+
+    // Base must be 2...6 uppercase ASCII letters
+    guard (2...6).contains(base.count),
+          base.allSatisfy({ $0.isASCII && $0.isLetter && $0.isUppercase }) else {
+        return nil
+    }
+
+    return (base: base, hasSuffix: hasSuffix)
+}

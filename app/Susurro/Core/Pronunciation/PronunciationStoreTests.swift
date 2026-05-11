@@ -164,6 +164,95 @@ import Foundation
         try? FileManager.default.removeItem(at: url)
     }
 
+    // MARK: - applyEdgeSafe
+
+    @Test func applyEdgeSafeEscapesPlainText() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "hello & <world>", language: "es")
+        #expect(result.contains("&amp;"))
+        #expect(result.contains("&lt;"))
+        #expect(result.contains("&gt;"))
+        #expect(!result.contains("<say-as"))
+    }
+
+    @Test func applyEdgeSafeAcronymEmitsSayAs() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "Use the API today", language: "es")
+        #expect(result.contains("<say-as interpret-as=\"characters\">API</say-as>"))
+        #expect(!result.contains("<phoneme"))
+    }
+
+    @Test func applyEdgeSafeAcronymPluralEmitsSayAs() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "The APIs are slow", language: "es")
+        #expect(result.contains("<say-as interpret-as=\"characters\">APIs</say-as>"))
+    }
+
+    @Test func applyEdgeSafeKnownWordEmitsTransliteration() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "We use framework daily", language: "es")
+        let expectedTranslit = PronunciationRules.transliterateToEs("framework")
+        #expect(result.contains(expectedTranslit))
+        #expect(!result.contains("<say-as"))
+        #expect(!result.contains("<phoneme"))
+    }
+
+    @Test func applyEdgeSafeUnknownLowercaseWordEscapesOnly() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "hola mundo", language: "es")
+        // "hola" and "mundo" are not in esDict, so they pass through as-is (no SSML)
+        #expect(result.contains("hola"))
+        #expect(result.contains("mundo"))
+        #expect(!result.contains("<say-as"))
+    }
+
+    @Test func applyEdgeSafeEnglishOnlyHandlesAcronyms() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "hello JSON world", language: "en")
+        #expect(result.contains("<say-as interpret-as=\"characters\">JSON</say-as>"))
+        // "hello" is not in esDict and we are in English — no transliteration
+        #expect(result.contains("hello"))
+        #expect(!result.contains("<phoneme"))
+    }
+
+    @Test func applyEdgeSafeIgnoresLegacyFullSSMLUserEntries() async {
+        // The default seed has: "es" -> { "dónde": "<emphasis level=\"moderate\">dónde</emphasis>" }
+        // This contains '<', so applyEdgeSafe must ignore it and fall through to plain escape.
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "dónde estás", language: "es")
+        #expect(!result.contains("<emphasis"))
+        // "dónde" should appear escaped as plain text (no special XML chars in "dónde" itself)
+        #expect(result.contains("dónde"))
+    }
+
+    @Test func applyEdgeSafeUserDictWithPlainValueIsHonored() async throws {
+        let store = makeStore()
+        try await store.upsert(language: "es", word: "framework", replacement: "myspecial")
+        let result = await store.applyEdgeSafe(text: "We use framework daily", language: "es")
+        #expect(result.contains("myspecial"))
+        // Should not use the algorithmic transliteration
+        let algorithmicTranslit = PronunciationRules.transliterateToEs("framework")
+        #expect(!result.contains(algorithmicTranslit))
+    }
+
+    @Test func applyEdgeSafeRespectsWordBoundaries() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "frameworkers build things", language: "es")
+        // "frameworkers" is not in esDict and is not an acronym — passes through unchanged
+        #expect(result.contains("frameworkers"))
+        let frameworkTranslit = PronunciationRules.transliterateToEs("framework")
+        #expect(!result.contains(frameworkTranslit))
+        #expect(!result.contains("<say-as"))
+    }
+
+    @Test func applyEdgeSafeMultipleAcronymsAndEscaping() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "API & URL", language: "es")
+        #expect(result.contains("<say-as interpret-as=\"characters\">API</say-as>"))
+        #expect(result.contains("<say-as interpret-as=\"characters\">URL</say-as>"))
+        #expect(result.contains("&amp;"))
+    }
+
     // MARK: - Persistence
 
     @Test func persistenceRoundTrip() async throws {

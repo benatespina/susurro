@@ -97,6 +97,78 @@ actor PronunciationStore {
             uniqueKeysWithValues: section.map { (k, v) in (k.lowercased(), v) }
         )
 
+        return walkTokens(text: text, pattern: pattern) { matched in
+            if let replacement = ciMap[matched.lowercased()] {
+                return replacement
+            }
+            return SSMLEscape.escape(matched)
+        }
+    }
+
+    func applyEdgeSafe(text: String, language: String) async -> String {
+        let userSection: [String: String]
+        if let store = try? loadedData(), let section = store[language] {
+            userSection = section
+        } else {
+            userSection = [:]
+        }
+
+        // Use a broad word-extraction regex rather than compilePattern() so every
+        // token (not just user-dict keys) passes through edgeSafeReplacement.
+        let wordPattern = try? NSRegularExpression(pattern: "(?<![\\w])([\\w]+)(?![\\w])", options: [])
+        guard let wordPat = wordPattern else {
+            return SSMLEscape.escape(text)
+        }
+
+        let ciUserMap: [String: String] = Dictionary(
+            uniqueKeysWithValues: userSection.map { (k, v) in (k.lowercased(), v) }
+        )
+
+        return walkTokens(text: text, pattern: wordPat) { matched in
+            edgeSafeReplacement(word: matched, language: language, ciUserMap: ciUserMap)
+        }
+    }
+
+    // MARK: - Private helpers
+
+    private func edgeSafeReplacement(
+        word: String,
+        language: String,
+        ciUserMap: [String: String]
+    ) -> String {
+        let escaped = SSMLEscape.escape(word)
+
+        // 1. Check user dict for a plain-text override (ignore SSML entries — legacy Azure compat)
+        let lower = word.lowercased()
+        if let userValue = ciUserMap[lower], !userValue.contains("<") {
+            return SSMLEscape.escape(userValue)
+        }
+
+        // 2. Acronym with optional plural suffix → <say-as interpret-as="characters">
+        if isAcronymWithPluralSuffix(word) != nil {
+            // TODO: Empirical verification needed for plural acronyms (e.g. "APIs").
+            // Edge may spell the trailing 's' letter-by-letter undesirably.
+            // If so, switch in Phase 2 to: <say-as ...>API</say-as>s
+            return "<say-as interpret-as=\"characters\">\(escaped)</say-as>"
+        }
+
+        // 3. Spanish-specific: transliterate if the word (lowercased) is a known anglicism
+        if language == "es", esDict[lower] != nil {
+            let translit = PronunciationRules.transliterateToEs(word)
+            return SSMLEscape.escape(translit)
+        }
+
+        // 4. Fall through: escape and emit as plain text
+        return escaped
+    }
+
+    /// Walks `text` using `pattern`, escaping inter-match spans and calling `replace`
+    /// for each matched token. Returns the assembled result string.
+    private func walkTokens(
+        text: String,
+        pattern: NSRegularExpression,
+        replace: (String) -> String
+    ) -> String {
         var parts: [String] = []
         var lastEnd = text.startIndex
         let nsText = text as NSString
@@ -107,11 +179,7 @@ actor PronunciationStore {
                   let group1Range = Range(match.range(at: 1), in: text) else { continue }
             parts.append(SSMLEscape.escape(String(text[lastEnd ..< matchRange.lowerBound])))
             let matched = String(text[group1Range])
-            if let replacement = ciMap[matched.lowercased()] {
-                parts.append(replacement)
-            } else {
-                parts.append(SSMLEscape.escape(matched))
-            }
+            parts.append(replace(matched))
             lastEnd = matchRange.upperBound
         }
         parts.append(SSMLEscape.escape(String(text[lastEnd...])))
