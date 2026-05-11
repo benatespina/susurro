@@ -267,16 +267,41 @@ import Foundation
         #expect(!result.contains("<"))
     }
 
+    @Test func applyEdgeSafeEmptyStringReturnsEmpty() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "", language: "es")
+        #expect(result == "")
+    }
+
+    @Test func applyEdgeSafeSingleCharacterPassesThrough() async {
+        let store = makeStore()
+        // A single letter is not an acronym (count < 2) and not in esDict — must pass through
+        let result = await store.applyEdgeSafe(text: "A", language: "es")
+        #expect(result == "A")
+        #expect(!result.contains("<"))
+    }
+
+    @Test func applyEdgeSafeVeryLongAllCapsWordIsNotLetterSpaced() async {
+        let store = makeStore()
+        // 7-char all-caps token exceeds the 2–6 bound for acronyms → must pass through unchanged
+        let result = await store.applyEdgeSafe(text: "ABCDEFG", language: "es")
+        #expect(result.contains("ABCDEFG"))
+        #expect(!result.contains("A B C D E F G"))
+    }
+
     // MARK: - candidatesEdgeSafe
 
-    @Test func candidatesEdgeSafeForAcronymReturnsLetterSpaced() async {
+    @Test func candidatesEdgeSafeForAcronymReturnsLetterSpacedOnly() async {
+        // Acronyms must NOT include a "raw" candidate: Edge always letter-spaces them at
+        // synthesis time, so "Read as-is: API" would be misleading — the audio spells it out
+        // regardless. Only "letter-spaced" (and translit-plain when applicable) should appear.
         let store = makeStore()
         let cands = await store.candidatesEdgeSafe(word: "API", language: "es")
         let letterSpaced = cands.first { $0.kind == "letter-spaced" }
         #expect(letterSpaced != nil)
         #expect(letterSpaced?.ssml == "A P I")
         let raw = cands.first { $0.kind == "raw" }
-        #expect(raw != nil)
+        #expect(raw == nil, "raw candidate must be absent for acronyms — Edge always letter-spaces them")
         // No SSML tags anywhere
         for c in cands {
             #expect(!c.ssml.contains("<"))
@@ -321,6 +346,8 @@ import Foundation
         let letterSpaced = cands.first { $0.kind == "letter-spaced" }
         #expect(letterSpaced != nil)
         #expect(letterSpaced?.ssml == "A P I s")
+        // No raw candidate for acronyms
+        #expect(cands.first { $0.kind == "raw" } == nil)
     }
 
     // MARK: - Persistence

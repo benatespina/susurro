@@ -110,7 +110,9 @@ actor BackendClient {
 
     // MARK: - Plain-text preview (Edge only)
 
-    /// Synthesizes a short plain-text sentence using the given word via Edge TTS.
+    /// Synthesizes `word` (a raw replacement string from a candidate) via Edge TTS.
+    /// The text passes through `applyEdgeSafe` inside the provider, so acronyms and
+    /// known anglicisms are transformed automatically.
     /// Throws `BackendError.invalidProvider` when the active provider is not Edge.
     func previewEdgeSafe(word: String, language: String) async throws -> Data {
         let provider = await MainActor.run { TTSProviderRegistry.shared.current }

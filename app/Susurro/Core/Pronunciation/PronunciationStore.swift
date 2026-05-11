@@ -220,11 +220,18 @@ actor PronunciationStore {
             }
         }
 
-        out.append(PronunciationCandidate(
-            kind: "raw",
-            label: "Read as-is: \(trimmed)",
-            ssml: trimmed
-        ))
+        // Only add a "raw" candidate when the word would NOT be transformed at synthesis time.
+        // For acronyms, Edge always letter-spaces them; offering "raw" would imply the user
+        // can suppress that — they cannot. Omitting it avoids the misleading label
+        // "Read as-is: API" when the audio would in fact spell out "A P I".
+        let isAcronymLike = isAcronymWithPluralSuffix(trimmed) != nil
+        if !isAcronymLike {
+            out.append(PronunciationCandidate(
+                kind: "raw",
+                label: "Read as-is: \(trimmed)",
+                ssml: trimmed
+            ))
+        }
 
         // Deduplicate by stored value (ssml field), preserving order
         var seen: Set<String> = []
