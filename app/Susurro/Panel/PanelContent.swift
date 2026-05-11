@@ -8,8 +8,6 @@ struct PanelContent: View {
     let onStop: () -> Void
     let onTeachPronunciation: (String) -> Void
     let onDismiss: () -> Void
-    let onSpeedDown: () -> Void
-    let onSpeedUp: () -> Void
     var onSizeChange: (CGSize) -> Void = { _ in }
 
     var body: some View {
@@ -20,8 +18,6 @@ struct PanelContent: View {
             onStop: onStop,
             onTeachPronunciation: onTeachPronunciation,
             onDismiss: onDismiss,
-            onSpeedDown: onSpeedDown,
-            onSpeedUp: onSpeedUp,
             onSizeChange: onSizeChange
         )
     }

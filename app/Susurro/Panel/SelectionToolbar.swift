@@ -14,8 +14,6 @@ struct SelectionToolbar: View {
     let onStop: () -> Void
     let onTeachPronunciation: (String) -> Void
     let onDismiss: () -> Void
-    let onSpeedDown: () -> Void
-    let onSpeedUp: () -> Void
     var onSizeChange: (CGSize) -> Void = { _ in }
 
     var body: some View {
@@ -44,13 +42,6 @@ struct SelectionToolbar: View {
                 systemImage: "character.book.closed",
                 action: { onTeachPronunciation(selectedText) }
             )
-            if appState.isPlaying {
-                ToolbarButton(systemImage: "chevron.backward", action: onSpeedDown)
-                Text(PlaybackSpeed.formatted(appState.currentRate))
-                    .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                    .frame(width: 40)
-                ToolbarButton(systemImage: "chevron.forward", action: onSpeedUp)
-            }
             ToolbarButton(
                 systemImage: "xmark",
                 action: onDismiss

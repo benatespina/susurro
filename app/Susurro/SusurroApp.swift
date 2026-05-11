@@ -209,8 +209,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 initialWord: word
             )
         }
-        panelController?.onSpeedDown = { [weak self] in self?.cycleSpeedDown() }
-        panelController?.onSpeedUp = { [weak self] in self?.cycleSpeedUp() }
         AppLogger.selection.info("selection system activated")
     }
 
