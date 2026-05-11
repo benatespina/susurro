@@ -12,10 +12,9 @@ final class PanelController {
     var onRead: ((String) -> Void)?
     var onStop: (() -> Void)?
     var onHide: (() -> Void)?
-    var onTeachPronunciation: ((String) -> Void)?
-    var onDismiss: (() -> Void)?
 
-    private static let estimatedToolbarSize = CGSize(width: 60, height: 56)
+    // 32 (button) + 4*2 (inner padding) + 8*2 (outer padding) = 56 each axis
+    private static let toolbarSize = CGSize(width: 56, height: 56)
 
     init(observer: SelectionObserver, appState: AppState) {
         self.observer = observer
@@ -67,7 +66,7 @@ final class PanelController {
         lastSelectionText = selection.text
         lastSelectionRect = selection.bounds
 
-        let initialSize = Self.estimatedToolbarSize
+        let initialSize = Self.toolbarSize
         let screen = screenForSelection(bounds: selection.bounds)
         let position: CGPoint
         if let bounds = selection.bounds {
@@ -86,24 +85,15 @@ final class PanelController {
     }
 
     private func showPanel(at point: CGPoint, size: CGSize) {
-        let content = PanelContent(
+        let content = SelectionToolbar(
             appState: appState,
-            selectedText: lastSelectionText ?? "",
             onRead: { [weak self] in
                 guard let text = self?.lastSelectionText ?? SelectionReader.current()?.text else { return }
                 self?.onRead?(text)
             },
-            onStop: { [weak self] in self?.onStop?() },
-            onTeachPronunciation: { [weak self] word in self?.onTeachPronunciation?(word) },
-            onDismiss: { [weak self] in
-                self?.hide()
-                self?.onDismiss?()
-            },
-            onSizeChange: { [weak self] newSize in
-                self?.handleContentSizeChange(newSize)
-            }
+            onStop: { [weak self] in self?.onStop?() }
         )
-        if let panel, let host = panel.contentView as? NSHostingView<PanelContent> {
+        if let panel, let host = panel.contentView as? NSHostingView<SelectionToolbar> {
             host.rootView = content
         } else {
             let host = NSHostingView(rootView: content)
@@ -114,19 +104,6 @@ final class PanelController {
         panel?.setContentSize(size)
         panel?.setFrameOrigin(point)
         panel?.orderFrontRegardless()
-    }
-
-    private func handleContentSizeChange(_ newSize: CGSize) {
-        guard let panel else { return }
-        let screen = screenForSelection(bounds: lastSelectionRect)
-        let position: CGPoint
-        if let rect = lastSelectionRect {
-            position = PanelPositioner.position(for: rect, panelSize: newSize, on: screen)
-        } else {
-            position = PanelPositioner.positionNearMouse(panelSize: newSize, on: screen)
-        }
-        panel.setContentSize(newSize)
-        panel.setFrameOrigin(position)
     }
 
     private func hide() {
