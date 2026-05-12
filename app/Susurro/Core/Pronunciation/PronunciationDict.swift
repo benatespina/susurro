@@ -164,7 +164,10 @@ enum AcronymSpellingsLoader {
     private static func decodeDictionary(at url: URL) -> [String: String]? {
         do {
             let data = try Data(contentsOf: url)
-            return try JSONDecoder().decode([String: String].self, from: data)
+            let raw = try JSONDecoder().decode([String: String].self, from: data)
+            // Normalise keys to uppercase so lookups are always case-insensitive,
+            // regardless of how the user writes keys in their overlay file.
+            return Dictionary(uniqueKeysWithValues: raw.map { ($0.key.uppercased(), $0.value) })
         } catch {
             print("[AcronymSpellings] Failed to decode \(url.lastPathComponent): \(error)")
             return nil
