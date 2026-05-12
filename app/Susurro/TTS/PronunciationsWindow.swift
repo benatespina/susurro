@@ -297,8 +297,10 @@ struct AddPronunciationSheet: View {
     @State private var language: String = "es"
     @State private var candidates: [PronunciationCandidate] = []
     @State private var selected: PronunciationCandidate?
+    @State private var customReplacement: String = ""
     @State private var loadingCandidates: Bool = false
     @State private var saving: Bool = false
+    @State private var previewingCustom: Bool = false
     @State private var errorMessage: String?
     @State private var previewing: PronunciationCandidate?
     @State private var didInitialize: Bool = false
@@ -359,6 +361,8 @@ struct AddPronunciationSheet: View {
                 candidatesList
             }
 
+            customReplacementField
+
             Spacer(minLength: 0)
 
             HStack {
@@ -368,7 +372,7 @@ struct AddPronunciationSheet: View {
                     Task { await save() }
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(selected == nil || saving)
+                .disabled(effectiveReplacement == nil || saving)
             }
         }
         .padding(20)
@@ -389,6 +393,7 @@ struct AddPronunciationSheet: View {
                     )
                     candidates = [current]
                     selected = current
+                    customReplacement = current.ssml
                     Task { await loadCandidates(preserveCurrent: current) }
                 }
             }
@@ -419,13 +424,49 @@ struct AddPronunciationSheet: View {
                         isSelected: selected?.id == candidate.id,
                         isPlaying: previewing?.id == candidate.id,
                         canPreview: canPreviewCandidate(candidate),
-                        onSelect: { selected = candidate },
+                        onSelect: {
+                            selected = candidate
+                            customReplacement = candidate.ssml
+                        },
                         onPreview: { Task { await preview(candidate) } }
                     )
                 }
             }
         }
-        .frame(maxHeight: 220)
+        .frame(maxHeight: 180)
+    }
+
+    @ViewBuilder
+    private var customReplacementField: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                let placeholder = settings.provider == .azure
+                    ? "e.g. <phoneme alphabet=\"ipa\" ph=\"ˈfɾejmwoɾk\">framework</phoneme>"
+                    : "e.g. fréimworc"
+                TextField(placeholder, text: $customReplacement)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+
+                Button {
+                    Task { await previewCustom() }
+                } label: {
+                    if previewingCustom {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "play.fill")
+                    }
+                }
+                .buttonStyle(.borderless)
+                .disabled(customReplacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || previewingCustom)
+                .help("Preview custom replacement")
+            }
+
+            if settings.provider == .edge && customReplacement.contains("<") {
+                Text("Edge ignores SSML markup — Azure-style tags won't work.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
     }
 
     private func canPreviewCandidate(_ candidate: PronunciationCandidate) -> Bool {
@@ -458,9 +499,17 @@ struct AddPronunciationSheet: View {
             let dedup = generated.filter { $0.ssml != current.ssml }
             candidates = [current] + dedup
             selected = current
+            // Only auto-fill if the user hasn't typed anything custom yet
+            if customReplacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                customReplacement = current.ssml
+            }
         } else {
             candidates = generated
             selected = generated.first
+            if customReplacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let first = generated.first {
+                customReplacement = first.ssml
+            }
         }
     }
 
@@ -484,8 +533,16 @@ struct AddPronunciationSheet: View {
         }
     }
 
+    /// Returns the replacement value that will be saved: custom field if non-empty, else selected candidate's ssml.
+    /// Returns nil when both are empty (Save should be disabled).
+    private var effectiveReplacement: String? {
+        let custom = customReplacement.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !custom.isEmpty { return custom }
+        return selected?.ssml
+    }
+
     private func save() async {
-        guard let selected else { return }
+        guard let replacement = effectiveReplacement else { return }
         let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         saving = true
@@ -493,11 +550,24 @@ struct AddPronunciationSheet: View {
         errorMessage = nil
         do {
             try await BackendClient.shared.upsertPronunciation(
-                language: language, word: trimmed, replacement: selected.ssml
+                language: language, word: trimmed, replacement: replacement
             )
             onSaved()
         } catch {
             errorMessage = "Save failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func previewCustom() async {
+        let text = customReplacement.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        previewingCustom = true
+        defer { previewingCustom = false }
+        do {
+            let mp3 = try await BackendClient.shared.tts(text: text, language: language)
+            await audio.play(mp3: mp3)
+        } catch {
+            errorMessage = "Preview failed: \(error.localizedDescription)"
         }
     }
 }
