@@ -147,8 +147,12 @@ actor IPCServer {
 			await sendOnce(await handlePronDelete(body: body), on: connection)
 		case "pron-candidates":
 			await sendOnce(await handlePronCandidates(body: body), on: connection)
+		case "pron-candidates-edge":
+			await sendOnce(await handlePronCandidatesEdge(body: body), on: connection)
 		case "pron-preview":
 			await sendOnce(await handlePronPreview(body: body), on: connection)
+		case "pron-preview-edge":
+			await sendOnce(await handlePronPreviewEdge(body: body), on: connection)
 		case "stop":
 			await sendOnce(await handleStop(), on: connection)
 		default:
@@ -320,6 +324,41 @@ actor IPCServer {
 			return okResponse(data: ["audioBase64": base64, "mimeType": "audio/mpeg"])
 		} catch BackendError.azureNotConfigured {
 			return errorResponse("azure not configured")
+		} catch {
+			return errorResponse(error.localizedDescription)
+		}
+	}
+
+	private func handlePronCandidatesEdge(body: [String: Any]) async -> Data {
+		guard let word = body["word"] as? String,
+			  let language = body["language"] as? String
+		else {
+			return errorResponse("missing word or language")
+		}
+		let candidates = await client.pronunciationCandidatesEdgeSafe(word: word, language: language)
+		do {
+			let encoded = try JSONEncoder().encode(candidates)
+			guard let arr = try JSONSerialization.jsonObject(with: encoded) as? [[String: Any]] else {
+				return errorResponse("encoding error")
+			}
+			return okResponse(data: ["candidates": arr])
+		} catch {
+			return errorResponse(error.localizedDescription)
+		}
+	}
+
+	private func handlePronPreviewEdge(body: [String: Any]) async -> Data {
+		guard let word = body["word"] as? String,
+			  let language = body["language"] as? String
+		else {
+			return errorResponse("missing word or language")
+		}
+		do {
+			let audioData = try await client.previewEdgeSafe(word: word, language: language)
+			let base64 = audioData.base64EncodedString()
+			return okResponse(data: ["audioBase64": base64, "mimeType": "audio/mpeg"])
+		} catch BackendError.invalidProvider(let msg) {
+			return errorResponse(msg)
 		} catch {
 			return errorResponse(error.localizedDescription)
 		}

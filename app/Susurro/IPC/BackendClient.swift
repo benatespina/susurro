@@ -94,6 +94,10 @@ actor BackendClient {
         await pronunciations.candidates(word: word, language: language)
     }
 
+    func pronunciationCandidatesEdgeSafe(word: String, language: String) async -> [PronunciationCandidate] {
+        await pronunciations.candidatesEdgeSafe(word: word, language: language)
+    }
+
     // MARK: - SSML preview (Azure only)
 
     func previewSSML(ssml: String, language: String) async throws -> Data {
@@ -102,6 +106,20 @@ actor BackendClient {
             throw BackendError.azureNotConfigured
         }
         return try await provider.synthesizePreview(ssml: ssml, language: language)
+    }
+
+    // MARK: - Plain-text preview (Edge only)
+
+    /// Synthesizes `word` (a raw replacement string from a candidate) via Edge TTS.
+    /// The text passes through `applyEdgeSafe` inside the provider, so acronyms and
+    /// known anglicisms are transformed automatically.
+    /// Throws `BackendError.invalidProvider` when the active provider is not Edge.
+    func previewEdgeSafe(word: String, language: String) async throws -> Data {
+        let provider = await MainActor.run { TTSProviderRegistry.shared.current }
+        guard provider is EdgeTTSProvider else {
+            throw BackendError.invalidProvider("Edge required for edge-safe preview")
+        }
+        return try await provider.synthesize(text: word, language: language)
     }
 
     // MARK: - Extract

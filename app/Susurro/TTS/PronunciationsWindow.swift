@@ -100,8 +100,8 @@ private struct PronunciationsView: View {
                         }
                     }
                     .buttonStyle(.borderless)
-                    .disabled(settings.provider != .azure || previewingId != nil)
-                    .help(settings.provider == .azure ? "Preview" : "Azure required")
+                    .disabled(!canPreviewEntry(entry) || previewingId != nil)
+                    .help(canPreviewEntry(entry) ? "Preview" : "Preview not available for this entry and provider")
                 }
                 .width(34)
                 TableColumn("") { entry in
@@ -165,17 +165,30 @@ private struct PronunciationsView: View {
         }
     }
 
-    private func preview(_ entry: PronunciationsEntry) async {
-        guard settings.provider == .azure else {
-            errorMessage = "Switch to the Azure provider to preview."
-            return
+    private func canPreviewEntry(_ entry: PronunciationsEntry) -> Bool {
+        switch settings.provider {
+        case .azure:
+            return true
+        case .edge:
+            // Plain-text entries (no XML tags) are safe to preview via Edge
+            return !entry.replacement.contains("<")
         }
+    }
+
+    private func preview(_ entry: PronunciationsEntry) async {
         previewingId = entry.id
         defer { previewingId = nil }
         do {
-            let mp3 = try await BackendClient.shared.previewSSML(
-                ssml: entry.replacement, language: entry.language
-            )
+            let mp3: Data
+            if settings.provider == .azure {
+                mp3 = try await BackendClient.shared.previewSSML(
+                    ssml: entry.replacement, language: entry.language
+                )
+            } else {
+                mp3 = try await BackendClient.shared.previewEdgeSafe(
+                    word: entry.replacement, language: entry.language
+                )
+            }
             await rowAudio.play(mp3: mp3)
         } catch {
             errorMessage = "Preview failed: \(error.localizedDescription)"
@@ -188,7 +201,9 @@ private struct PronunciationsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Pronunciations")
                     .font(.headline)
-                Text("Custom replacements applied during Azure TTS synthesis.")
+                Text(settings.provider == .azure
+                    ? "Custom replacements applied during Azure TTS synthesis."
+                    : "Custom replacements: acronyms letter-spaced, anglicisms transliterated.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -202,9 +217,11 @@ private struct PronunciationsView: View {
         let isAzure = settings.provider == .azure
         HStack(spacing: 4) {
             Circle()
-                .fill(isAzure ? .green : .orange)
+                .fill(isAzure ? .green : .blue)
                 .frame(width: 8, height: 8)
-            Text(isAzure ? "Azure active" : "Azure required for preview & runtime")
+            Text(isAzure
+                ? "Azure active"
+                : "Edge active — pronunciations: acronyms letter-spaced, anglicisms transliterated. No phoneme/SSML overrides.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -280,8 +297,11 @@ struct AddPronunciationSheet: View {
     @State private var language: String = "es"
     @State private var candidates: [PronunciationCandidate] = []
     @State private var selected: PronunciationCandidate?
+    @State private var customReplacement: String = ""
+    @State private var ipaHint: String = ""
     @State private var loadingCandidates: Bool = false
     @State private var saving: Bool = false
+    @State private var previewingCustom: Bool = false
     @State private var errorMessage: String?
     @State private var previewing: PronunciationCandidate?
     @State private var didInitialize: Bool = false
@@ -324,10 +344,10 @@ struct AddPronunciationSheet: View {
                 .keyboardShortcut(.return, modifiers: [])
             }
 
-            if settings.provider != .azure {
-                Text("Switch to Azure to preview candidates. Entries still get saved and will activate when Azure is enabled.")
+            if settings.provider == .edge {
+                Text("Edge mode: candidates are plain-text only (letter-spaced acronyms, transliterated anglicisms). Phoneme/SSML overrides require Azure.")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.secondary)
             }
 
             if let errorMessage {
@@ -342,6 +362,8 @@ struct AddPronunciationSheet: View {
                 candidatesList
             }
 
+            customReplacementField
+
             Spacer(minLength: 0)
 
             HStack {
@@ -351,11 +373,11 @@ struct AddPronunciationSheet: View {
                     Task { await save() }
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(selected == nil || saving)
+                .disabled(effectiveReplacement == nil || saving)
             }
         }
         .padding(20)
-        .frame(width: 520, height: 440)
+        .frame(width: 520, height: 490)
         .onAppear {
             guard !didInitialize else { return }
             didInitialize = true
@@ -372,6 +394,7 @@ struct AddPronunciationSheet: View {
                     )
                     candidates = [current]
                     selected = current
+                    customReplacement = current.ssml
                     Task { await loadCandidates(preserveCurrent: current) }
                 }
             }
@@ -401,14 +424,103 @@ struct AddPronunciationSheet: View {
                         candidate: candidate,
                         isSelected: selected?.id == candidate.id,
                         isPlaying: previewing?.id == candidate.id,
-                        canPreview: settings.provider == .azure,
-                        onSelect: { selected = candidate },
+                        canPreview: canPreviewCandidate(candidate),
+                        onSelect: {
+                            selected = candidate
+                            customReplacement = candidate.ssml
+                        },
                         onPreview: { Task { await preview(candidate) } }
                     )
                 }
             }
         }
-        .frame(maxHeight: 220)
+        .frame(maxHeight: 180)
+    }
+
+    @ViewBuilder
+    private var customReplacementField: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                let placeholder = settings.provider == .azure
+                    ? "e.g. <phoneme alphabet=\"ipa\" ph=\"ˈfɾejmwoɾk\">framework</phoneme>"
+                    : "e.g. fréimworc"
+                TextField(placeholder, text: $customReplacement)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+
+                Button {
+                    Task { await previewCustom() }
+                } label: {
+                    if previewingCustom {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "play.fill")
+                    }
+                }
+                .buttonStyle(.borderless)
+                .disabled(customReplacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || previewingCustom)
+                .help("Preview custom replacement")
+            }
+
+            if settings.provider == .edge && customReplacement.contains("<") {
+                Text("Edge ignores SSML markup — Azure-style tags won't work.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            if settings.provider == .edge {
+                ipaHintField
+            }
+        }
+    }
+
+    private var ipaConverterOutput: String {
+        PronunciationRules.ipaToSpanishOrthography(ipaHint)
+    }
+
+    private var ipaApplyDisabled: Bool {
+        let trimmed = ipaHint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        let output = PronunciationRules.ipaToSpanishOrthography(trimmed)
+        return output == trimmed
+    }
+
+    @ViewBuilder
+    private var ipaHintField: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            TextField("IPA hint (optional) — e.g. ˈfɾejmwoɾk", text: $ipaHint)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+
+            let trimmedHint = ipaHint.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedHint.isEmpty {
+                HStack(spacing: 8) {
+                    Text(ipaConverterOutput)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button("Apply") {
+                        customReplacement = PronunciationRules.ipaToSpanishOrthography(
+                            ipaHint.trimmingCharacters(in: .whitespacesAndNewlines)
+                        )
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(ipaApplyDisabled)
+                    .font(.caption)
+                }
+            }
+        }
+    }
+
+    private func canPreviewCandidate(_ candidate: PronunciationCandidate) -> Bool {
+        switch settings.provider {
+        case .azure:
+            return true
+        case .edge:
+            let edgeSafeKinds: Set<String> = ["letter-spaced", "translit-plain", "raw"]
+            return edgeSafeKinds.contains(candidate.kind)
+        }
     }
 
     private func loadCandidates(preserveCurrent: PronunciationCandidate? = nil) async {
@@ -417,38 +529,64 @@ struct AddPronunciationSheet: View {
         loadingCandidates = true
         defer { loadingCandidates = false }
         errorMessage = nil
-        let generated = await BackendClient.shared.pronunciationCandidates(
-            word: trimmed, language: language
-        )
+        let generated: [PronunciationCandidate]
+        if settings.provider == .edge {
+            generated = await BackendClient.shared.pronunciationCandidatesEdgeSafe(
+                word: trimmed, language: language
+            )
+        } else {
+            generated = await BackendClient.shared.pronunciationCandidates(
+                word: trimmed, language: language
+            )
+        }
         if let current = preserveCurrent {
             let dedup = generated.filter { $0.ssml != current.ssml }
             candidates = [current] + dedup
             selected = current
+            // Only auto-fill if the user hasn't typed anything custom yet
+            if customReplacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                customReplacement = current.ssml
+            }
         } else {
             candidates = generated
             selected = generated.first
+            if customReplacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let first = generated.first {
+                customReplacement = first.ssml
+            }
         }
     }
 
     private func preview(_ candidate: PronunciationCandidate) async {
-        guard settings.provider == .azure else {
-            errorMessage = "Switch to the Azure provider to preview."
-            return
-        }
         previewing = candidate
         defer { previewing = nil }
         do {
-            let mp3 = try await BackendClient.shared.previewSSML(
-                ssml: candidate.ssml, language: language
-            )
+            let mp3: Data
+            if settings.provider == .edge {
+                mp3 = try await BackendClient.shared.previewEdgeSafe(
+                    word: candidate.ssml, language: language
+                )
+            } else {
+                mp3 = try await BackendClient.shared.previewSSML(
+                    ssml: candidate.ssml, language: language
+                )
+            }
             await audio.play(mp3: mp3)
         } catch {
             errorMessage = "Preview failed: \(error.localizedDescription)"
         }
     }
 
+    /// Returns the replacement value that will be saved: custom field if non-empty, else selected candidate's ssml.
+    /// Returns nil when both are empty (Save should be disabled).
+    private var effectiveReplacement: String? {
+        let custom = customReplacement.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !custom.isEmpty { return custom }
+        return selected?.ssml
+    }
+
     private func save() async {
-        guard let selected else { return }
+        guard let replacement = effectiveReplacement else { return }
         let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         saving = true
@@ -456,11 +594,24 @@ struct AddPronunciationSheet: View {
         errorMessage = nil
         do {
             try await BackendClient.shared.upsertPronunciation(
-                language: language, word: trimmed, replacement: selected.ssml
+                language: language, word: trimmed, replacement: replacement
             )
             onSaved()
         } catch {
             errorMessage = "Save failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func previewCustom() async {
+        let text = customReplacement.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        previewingCustom = true
+        defer { previewingCustom = false }
+        do {
+            let mp3 = try await BackendClient.shared.tts(text: text, language: language)
+            await audio.play(mp3: mp3)
+        } catch {
+            errorMessage = "Preview failed: \(error.localizedDescription)"
         }
     }
 }
@@ -501,7 +652,7 @@ private struct CandidateRow: View {
             }
             .buttonStyle(.borderless)
             .disabled(!canPreview || isPlaying)
-            .help(canPreview ? "Preview with Azure voice" : "Azure provider required")
+            .help(canPreview ? "Preview" : "Not available for this candidate and provider")
         }
         .padding(8)
         .background(

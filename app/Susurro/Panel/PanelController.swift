@@ -85,7 +85,7 @@ final class PanelController {
     }
 
     private func showPanel(at point: CGPoint, size: CGSize) {
-        let content = SelectionToolbar(
+        let content = PanelContent(
             appState: appState,
             onRead: { [weak self] in
                 guard let text = self?.lastSelectionText ?? SelectionReader.current()?.text else { return }
@@ -93,7 +93,7 @@ final class PanelController {
             },
             onStop: { [weak self] in self?.onStop?() }
         )
-        if let panel, let host = panel.contentView as? NSHostingView<SelectionToolbar> {
+        if let panel, let host = panel.contentView as? NSHostingView<PanelContent> {
             host.rootView = content
         } else {
             let host = NSHostingView(rootView: content)

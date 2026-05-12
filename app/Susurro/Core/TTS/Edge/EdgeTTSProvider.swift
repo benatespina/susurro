@@ -67,7 +67,7 @@ actor EdgeTTSProvider: TTSProvider {
         urlSession: URLSession? = nil,
         signer: EdgeSigningClock = SystemEdgeSigningClock(),
         pronunciationsApply: @escaping @Sendable (String, String) async -> String = { text, lang in
-            await PronunciationStore.shared.apply(text: text, language: lang)
+            await PronunciationStore.shared.applyEdgeSafe(text: text, language: lang)
         },
         urlBuilder: (@Sendable (String) -> URL)? = nil
     ) {
@@ -161,7 +161,13 @@ actor EdgeTTSProvider: TTSProvider {
         let wsURL = urlBuilder(connectionId)
 
         // Build the SSML payload (uses actor-isolated pronunciationsApply)
-        let ssmlEnvelope = await EdgeSSMLBuilder.build(body: text, language: language, voice: voice)
+        let pronunciationsApply = self.pronunciationsApply
+        let ssmlEnvelope = await EdgeSSMLBuilder.build(
+            body: text,
+            language: language,
+            voice: voice,
+            pronunciationsApply: pronunciationsApply
+        )
 
         // Use Network framework's NWConnection + NWProtocolWebSocket directly.
         // URLSessionWebSocketTask negotiates HTTP/2 ALPN and the Microsoft Edge

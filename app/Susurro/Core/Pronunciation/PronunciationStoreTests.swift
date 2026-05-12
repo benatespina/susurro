@@ -164,6 +164,192 @@ import Foundation
         try? FileManager.default.removeItem(at: url)
     }
 
+    // MARK: - applyEdgeSafe
+
+    @Test func applyEdgeSafeEscapesPlainText() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "hello & <world>", language: "es")
+        #expect(result.contains("&amp;"))
+        #expect(result.contains("&lt;"))
+        #expect(result.contains("&gt;"))
+        #expect(!result.contains("<say-as"))
+    }
+
+    @Test func applyEdgeSafeAcronymEmitsLetterSpaced() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "Use the API today", language: "es")
+        #expect(result.contains("A P I"))
+        #expect(!result.contains("<say-as"))
+        #expect(!result.contains("<phoneme"))
+    }
+
+    @Test func applyEdgeSafeAcronymPluralEmitsLetterSpaced() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "The APIs are slow", language: "es")
+        #expect(result.contains("A P I s"))
+        #expect(!result.contains("<say-as"))
+    }
+
+    @Test func applyEdgeSafeKnownWordEmitsTransliteration() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "We use framework daily", language: "es")
+        let expectedTranslit = PronunciationRules.ipaToSpanishOrthography(esDict["framework"]!)
+        #expect(result.contains(expectedTranslit))
+        #expect(!result.contains("<say-as"))
+        #expect(!result.contains("<phoneme"))
+    }
+
+    @Test func applyEdgeSafeUnknownLowercaseWordEscapesOnly() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "hola mundo", language: "es")
+        // "hola" and "mundo" are not in esDict, so they pass through as-is (no SSML)
+        #expect(result.contains("hola"))
+        #expect(result.contains("mundo"))
+        #expect(!result.contains("<say-as"))
+    }
+
+    @Test func applyEdgeSafeEnglishOnlyHandlesAcronyms() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "hello JSON world", language: "en")
+        #expect(result.contains("J S O N"))
+        #expect(!result.contains("<say-as"))
+        // "hello" is not in esDict and we are in English — no transliteration
+        #expect(result.contains("hello"))
+        #expect(!result.contains("<phoneme"))
+    }
+
+    @Test func applyEdgeSafeIgnoresLegacyFullSSMLUserEntries() async {
+        // The default seed has: "es" -> { "dónde": "<emphasis level=\"moderate\">dónde</emphasis>" }
+        // This contains '<', so applyEdgeSafe must ignore it and fall through to plain escape.
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "dónde estás", language: "es")
+        #expect(!result.contains("<emphasis"))
+        // "dónde" should appear escaped as plain text (no special XML chars in "dónde" itself)
+        #expect(result.contains("dónde"))
+    }
+
+    @Test func applyEdgeSafeUserDictWithPlainValueIsHonored() async throws {
+        let store = makeStore()
+        try await store.upsert(language: "es", word: "framework", replacement: "myspecial")
+        let result = await store.applyEdgeSafe(text: "We use framework daily", language: "es")
+        #expect(result.contains("myspecial"))
+        // Should not use the IPA-based transliteration when a user override exists
+        let ipaTranslit = PronunciationRules.ipaToSpanishOrthography(esDict["framework"]!)
+        #expect(!result.contains(ipaTranslit))
+    }
+
+    @Test func applyEdgeSafeRespectsWordBoundaries() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "frameworkers build things", language: "es")
+        // "frameworkers" is not in esDict and is not an acronym — passes through unchanged
+        #expect(result.contains("frameworkers"))
+        let frameworkTranslit = PronunciationRules.ipaToSpanishOrthography(esDict["framework"]!)
+        #expect(!result.contains(frameworkTranslit))
+        #expect(!result.contains("<say-as"))
+    }
+
+    @Test func applyEdgeSafeMultipleAcronymsAndEscaping() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "API & URL", language: "es")
+        #expect(result.contains("A P I"))
+        #expect(result.contains("U R L"))
+        #expect(result.contains("&amp;"))
+        #expect(!result.contains("<say-as"))
+    }
+
+    @Test func applyEdgeSafeNeverEmitsAnySSMLTags() async {
+        let store = makeStore()
+        // Several acronyms plus a known anglicism — output must be pure plain text (no XML tags).
+        let result = await store.applyEdgeSafe(
+            text: "The API and URL plus JSON and framework",
+            language: "es"
+        )
+        #expect(!result.contains("<"))
+    }
+
+    @Test func applyEdgeSafeEmptyStringReturnsEmpty() async {
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "", language: "es")
+        #expect(result == "")
+    }
+
+    @Test func applyEdgeSafeSingleCharacterPassesThrough() async {
+        let store = makeStore()
+        // A single letter is not an acronym (count < 2) and not in esDict — must pass through
+        let result = await store.applyEdgeSafe(text: "A", language: "es")
+        #expect(result == "A")
+        #expect(!result.contains("<"))
+    }
+
+    @Test func applyEdgeSafeVeryLongAllCapsWordIsNotLetterSpaced() async {
+        let store = makeStore()
+        // 7-char all-caps token exceeds the 2–6 bound for acronyms → must pass through unchanged
+        let result = await store.applyEdgeSafe(text: "ABCDEFG", language: "es")
+        #expect(result.contains("ABCDEFG"))
+        #expect(!result.contains("A B C D E F G"))
+    }
+
+    // MARK: - candidatesEdgeSafe
+
+    @Test func candidatesEdgeSafeForAcronymReturnsLetterSpacedOnly() async {
+        // Acronyms must NOT include a "raw" candidate: Edge always letter-spaces them at
+        // synthesis time, so "Read as-is: API" would be misleading — the audio spells it out
+        // regardless. Only "letter-spaced" (and translit-plain when applicable) should appear.
+        let store = makeStore()
+        let cands = await store.candidatesEdgeSafe(word: "API", language: "es")
+        let letterSpaced = cands.first { $0.kind == "letter-spaced" }
+        #expect(letterSpaced != nil)
+        #expect(letterSpaced?.ssml == "A P I")
+        let raw = cands.first { $0.kind == "raw" }
+        #expect(raw == nil, "raw candidate must be absent for acronyms — Edge always letter-spaces them")
+        // No SSML tags anywhere
+        for c in cands {
+            #expect(!c.ssml.contains("<"))
+        }
+    }
+
+    @Test func candidatesEdgeSafeForKnownAnglicismReturnsTranslit() async {
+        let store = makeStore()
+        let cands = await store.candidatesEdgeSafe(word: "framework", language: "es")
+        let translit = cands.first { $0.kind == "translit-plain" }
+        #expect(translit != nil)
+        let expectedValue = PronunciationRules.ipaToSpanishOrthography(esDict["framework"]!)
+        #expect(translit?.ssml == expectedValue)
+        // No SSML tags
+        for c in cands {
+            #expect(!c.ssml.contains("<"))
+        }
+    }
+
+    @Test func candidatesEdgeSafeUnknownSpanishWordReturnsRawOnly() async {
+        let store = makeStore()
+        let cands = await store.candidatesEdgeSafe(word: "perro", language: "es")
+        #expect(cands.count == 1)
+        #expect(cands.first?.kind == "raw")
+        #expect(cands.first?.ssml == "perro")
+    }
+
+    @Test func candidatesEdgeSafeNeverContainsSSMLTags() async {
+        let store = makeStore()
+        let words = ["API", "URL", "JSON", "framework", "backend", "cache", "deploy", "hello", "perro"]
+        for word in words {
+            let cands = await store.candidatesEdgeSafe(word: word, language: "es")
+            for c in cands {
+                #expect(!c.ssml.contains("<"), "candidate '\(c.ssml)' for word '\(word)' contains '<'")
+            }
+        }
+    }
+
+    @Test func candidatesEdgeSafeAcronymPluralIncludesSuffix() async {
+        let store = makeStore()
+        let cands = await store.candidatesEdgeSafe(word: "APIs", language: "es")
+        let letterSpaced = cands.first { $0.kind == "letter-spaced" }
+        #expect(letterSpaced != nil)
+        #expect(letterSpaced?.ssml == "A P I s")
+        // No raw candidate for acronyms
+        #expect(cands.first { $0.kind == "raw" } == nil)
+    }
+
     // MARK: - Persistence
 
     @Test func persistenceRoundTrip() async throws {

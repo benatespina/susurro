@@ -97,6 +97,71 @@ actor PronunciationStore {
             uniqueKeysWithValues: section.map { (k, v) in (k.lowercased(), v) }
         )
 
+        return walkTokens(text: text, pattern: pattern) { matched in
+            if let replacement = ciMap[matched.lowercased()] {
+                return replacement
+            }
+            return SSMLEscape.escape(matched)
+        }
+    }
+
+    // Broad word-extraction regex: every token passes through edgeSafeReplacement
+    // (not just user-dict keys, unlike compilePattern which is keyed-only).
+    private static let wordPattern = try! NSRegularExpression(pattern: "(?<![\\w])([\\w]+)(?![\\w])", options: [])
+
+    func applyEdgeSafe(text: String, language: String) async -> String {
+        let userSection: [String: String]
+        if let store = try? loadedData(), let section = store[language] {
+            userSection = section
+        } else {
+            userSection = [:]
+        }
+
+        let ciUserMap: [String: String] = Dictionary(
+            uniqueKeysWithValues: userSection.map { (k, v) in (k.lowercased(), v) }
+        )
+
+        return walkTokens(text: text, pattern: Self.wordPattern) { matched in
+            edgeSafeReplacement(word: matched, language: language, ciUserMap: ciUserMap)
+        }
+    }
+
+    // MARK: - Private helpers
+
+    private func edgeSafeReplacement(
+        word: String,
+        language: String,
+        ciUserMap: [String: String]
+    ) -> String {
+        let lower = word.lowercased()
+
+        // Plain-text user override (ignore SSML entries — legacy Azure compat)
+        if let userValue = ciUserMap[lower], !userValue.contains("<") {
+            return SSMLEscape.escape(userValue)
+        }
+
+        // Acronym with optional plural suffix → letter-spaced plain text.
+        // Edge rejects <say-as>; emit letter-spaced plain text so it spells acronyms.
+        if let (base, hasSuffix) = isAcronymWithPluralSuffix(word) {
+            let spaced = base.map { String($0) }.joined(separator: " ")
+            return hasSuffix ? spaced + " s" : spaced
+        }
+
+        // Spanish anglicism → IPA-based orthography (curated dict) or plain escape fallback
+        if language == "es", let ipa = esDict[lower] {
+            return SSMLEscape.escape(PronunciationRules.ipaToSpanishOrthography(ipa))
+        }
+
+        return SSMLEscape.escape(word)
+    }
+
+    /// Walks `text` using `pattern`, escaping inter-match spans and calling `replace`
+    /// for each matched token. Returns the assembled result string.
+    private func walkTokens(
+        text: String,
+        pattern: NSRegularExpression,
+        replace: (String) -> String
+    ) -> String {
         var parts: [String] = []
         var lastEnd = text.startIndex
         let nsText = text as NSString
@@ -107,15 +172,70 @@ actor PronunciationStore {
                   let group1Range = Range(match.range(at: 1), in: text) else { continue }
             parts.append(SSMLEscape.escape(String(text[lastEnd ..< matchRange.lowerBound])))
             let matched = String(text[group1Range])
-            if let replacement = ciMap[matched.lowercased()] {
-                parts.append(replacement)
-            } else {
-                parts.append(SSMLEscape.escape(matched))
-            }
+            parts.append(replace(matched))
             lastEnd = matchRange.upperBound
         }
         parts.append(SSMLEscape.escape(String(text[lastEnd...])))
         return parts.joined()
+    }
+
+    // MARK: - Edge-safe candidates
+
+    /// Returns pronunciation candidates safe for Edge TTS (no SSML sub-elements).
+    ///
+    /// Kind strings used here:
+    ///   - "letter-spaced"  — acronym expanded to space-separated letters (plain text)
+    ///   - "translit-plain" — known anglicism transliterated to Spanish phonetics (plain text)
+    ///   - "raw"            — keep the word as-is
+    ///
+    /// These are string-valued kinds (matching the PronunciationCandidate.kind field)
+    /// rather than a new enum so that the existing Codable/JSON pipeline is unchanged.
+    func candidatesEdgeSafe(word: String, language: String) async -> [PronunciationCandidate] {
+        let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        var out: [PronunciationCandidate] = []
+
+        if let (base, hasSuffix) = isAcronymWithPluralSuffix(trimmed) {
+            let spaced = base.map { String($0) }.joined(separator: " ")
+            let value = hasSuffix ? spaced + " s" : spaced
+            out.append(PronunciationCandidate(
+                kind: "letter-spaced",
+                label: "Spell letter by letter: \(value)",
+                ssml: value
+            ))
+        }
+
+        if language == "es" {
+            let lower = trimmed.lowercased()
+            if let ipa = esDict[lower] {
+                let translit = PronunciationRules.ipaToSpanishOrthography(ipa)
+                if translit != lower {
+                    out.append(PronunciationCandidate(
+                        kind: "translit-plain",
+                        label: "Read as \u{201C}\(translit)\u{201D}",
+                        ssml: translit
+                    ))
+                }
+            }
+        }
+
+        // Only add a "raw" candidate when the word would NOT be transformed at synthesis time.
+        // For acronyms, Edge always letter-spaces them; offering "raw" would imply the user
+        // can suppress that — they cannot. Omitting it avoids the misleading label
+        // "Read as-is: API" when the audio would in fact spell out "A P I".
+        let isAcronymLike = isAcronymWithPluralSuffix(trimmed) != nil
+        if !isAcronymLike {
+            out.append(PronunciationCandidate(
+                kind: "raw",
+                label: "Read as-is: \(trimmed)",
+                ssml: trimmed
+            ))
+        }
+
+        // Deduplicate by stored value (ssml field), preserving order
+        var seen: Set<String> = []
+        return out.filter { seen.insert($0.ssml).inserted }
     }
 
     func candidates(word: String, language: String) async -> [PronunciationCandidate] {
