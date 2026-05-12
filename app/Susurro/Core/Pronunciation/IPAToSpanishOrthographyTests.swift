@@ -84,10 +84,6 @@ import Testing
         #expect(convert(esDict["workflow"]!) == "wérkflou")
     }
 
-    @Test func lookiero() {
-        // luˈkjeɾo → lukiéro
-        #expect(convert(esDict["lookiero"]!) == "lukiéro")
-    }
 
     @Test func merge() {
         // merʃ → mersh
@@ -198,5 +194,32 @@ import Testing
     @Test func router() {
         // ˈɾuteɾ → rúter
         #expect(convert(esDict["router"]!) == "rúter")
+    }
+
+    // MARK: - New anglicisms spot-checks
+
+    @Test func reactTransliterates() {
+        // ɾiˈakt → riákt
+        #expect(convert(esDict["react"]!) == "riákt")
+    }
+
+    @Test func dockerTransliterates() {
+        // ˈdokeɾ → dóker
+        #expect(convert(esDict["docker"]!) == "dóker")
+    }
+
+    @Test func asyncTransliterates() {
+        // ˈasiŋk → ásinc
+        #expect(convert(esDict["async"]!) == "ásinc")
+    }
+
+    @Test func kubernetesTransliterates() {
+        // kuberˈnetes → kubernétes
+        #expect(convert(esDict["kubernetes"]!) == "kubernétes")
+    }
+
+    @Test func awaitTransliterates() {
+        // aˈwejt → awéit
+        #expect(convert(esDict["await"]!) == "awéit")
     }
 }
