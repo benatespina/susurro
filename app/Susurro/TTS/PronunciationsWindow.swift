@@ -298,6 +298,7 @@ struct AddPronunciationSheet: View {
     @State private var candidates: [PronunciationCandidate] = []
     @State private var selected: PronunciationCandidate?
     @State private var customReplacement: String = ""
+    @State private var ipaHint: String = ""
     @State private var loadingCandidates: Bool = false
     @State private var saving: Bool = false
     @State private var previewingCustom: Bool = false
@@ -376,7 +377,7 @@ struct AddPronunciationSheet: View {
             }
         }
         .padding(20)
-        .frame(width: 520, height: 440)
+        .frame(width: 520, height: 490)
         .onAppear {
             guard !didInitialize else { return }
             didInitialize = true
@@ -465,6 +466,49 @@ struct AddPronunciationSheet: View {
                 Text("Edge ignores SSML markup — Azure-style tags won't work.")
                     .font(.caption)
                     .foregroundStyle(.orange)
+            }
+
+            if settings.provider == .edge {
+                ipaHintField
+            }
+        }
+    }
+
+    private var ipaConverterOutput: String {
+        PronunciationRules.ipaToSpanishOrthography(ipaHint)
+    }
+
+    private var ipaApplyDisabled: Bool {
+        let trimmed = ipaHint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        let output = PronunciationRules.ipaToSpanishOrthography(trimmed)
+        return output == trimmed
+    }
+
+    @ViewBuilder
+    private var ipaHintField: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            TextField("IPA hint (optional) — e.g. ˈfɾejmwoɾk", text: $ipaHint)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+
+            let trimmedHint = ipaHint.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedHint.isEmpty {
+                HStack(spacing: 8) {
+                    Text(ipaConverterOutput)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button("Apply") {
+                        customReplacement = PronunciationRules.ipaToSpanishOrthography(
+                            ipaHint.trimmingCharacters(in: .whitespacesAndNewlines)
+                        )
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(ipaApplyDisabled)
+                    .font(.caption)
+                }
             }
         }
     }
