@@ -95,6 +95,98 @@ enum PronunciationDictLoader {
 // Used only to locate the correct Bundle in framework/SPM scenarios.
 private final class _BundleToken {}
 
+// MARK: - acronymSpellings
+
+/// Per-acronym spelling dictionary for Edge TTS.
+/// Loaded once at process start from the bundled `acronym-spellings-es.json` resource.
+/// An optional user overlay at `~/Library/Application Support/Susurro/acronym-spellings-es.json`
+/// is merged on top — user-provided values win for matching keys, new keys are added.
+/// Editing the overlay requires an app restart (static let caches the result).
+let acronymSpellings: [String: String] = AcronymSpellingsLoader.load()
+
+/// Look up the Spanish-orthography spelling for a given acronym.
+/// The lookup is case-insensitive (the key is always stored uppercased).
+/// Returns `nil` when the acronym is not in the dictionary.
+func lookupAcronymSpelling(_ acronym: String) -> String? {
+    acronymSpellings[acronym.uppercased()]
+}
+
+// MARK: - AcronymSpellingsLoader
+
+enum AcronymSpellingsLoader {
+
+    // MARK: Public
+
+    static func load() -> [String: String] {
+        let bundle = loadBundle()
+        guard let bundle else {
+            print("[AcronymSpellings] WARNING: acronym-spellings-es.json not found in bundle — using embedded fallback")
+            return fallback
+        }
+        let overlay = loadOverlay()
+        return AcronymSpellingsLoader.merge(base: bundle, overlay: overlay)
+    }
+
+    /// Merge `overlay` entries on top of `base`.
+    /// Exposed as a static helper so tests can verify merge semantics independently.
+    static func merge(base: [String: String], overlay: [String: String]) -> [String: String] {
+        var result = base
+        for (key, value) in overlay {
+            result[key] = value
+        }
+        return result
+    }
+
+    // MARK: Private
+
+    private static func loadBundle() -> [String: String]? {
+        let candidates: [Bundle] = [.main, Bundle(for: _AcronymBundleToken.self)]
+        for bundle in candidates {
+            if let url = bundle.url(forResource: "acronym-spellings-es", withExtension: "json"),
+               let dict = decodeDictionary(at: url) {
+                return dict
+            }
+        }
+        return nil
+    }
+
+    private static func loadOverlay() -> [String: String] {
+        guard let appSupport = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first else { return [:] }
+        let overlayURL = appSupport
+            .appendingPathComponent("Susurro")
+            .appendingPathComponent("acronym-spellings-es.json")
+        guard FileManager.default.fileExists(atPath: overlayURL.path) else { return [:] }
+        return decodeDictionary(at: overlayURL) ?? [:]
+    }
+
+    private static func decodeDictionary(at url: URL) -> [String: String]? {
+        do {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode([String: String].self, from: data)
+        } catch {
+            print("[AcronymSpellings] Failed to decode \(url.lastPathComponent): \(error)")
+            return nil
+        }
+    }
+
+    // MARK: - Safety-net fallback (≤10 entries, not the primary path)
+
+    /// Minimal inline fallback used only when bundle loading fails.
+    /// Keep in sync with the most critical entries from acronym-spellings-es.json.
+    static let fallback: [String: String] = [
+        "API": "éi pi ái",
+        "URL": "yu erre éle",
+        "HTML": "éich ti emé éle",
+        "JSON": "yéison",
+        "HTTP": "éich ti ti pi",
+    ]
+}
+
+// Used only to locate the correct Bundle for the acronym spellings resource.
+private final class _AcronymBundleToken {}
+
 // MARK: - acronyms
 
 let acronyms: Set<String> = [
