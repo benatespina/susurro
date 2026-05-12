@@ -1,82 +1,101 @@
 import Foundation
 
-let esDict: [String: String] = [
-    "api": "ˈapi",
-    "framework": "ˈfɾejmwoɾk",
-    "frameworks": "ˈfɾejmwoɾks",
-    "feedback": "ˈfidbak",
-    "backend": "bakˈend",
-    "frontend": "fɾonˈtend",
-    "endpoint": "ˈendpojnt",
-    "endpoints": "ˈendpojnts",
-    "stack": "estak",
-    "queue": "kju",
-    "cache": "kaʃ",
-    "branch": "bɾantʃ",
-    "merge": "merʃ",
-    "commit": "koˈmit",
-    "commits": "koˈmits",
-    "release": "ɾiˈlis",
-    "releases": "ɾiˈlises",
-    "feature": "ˈfitʃeɾ",
-    "features": "ˈfitʃeɾs",
-    "build": "bild",
-    "builds": "bilds",
-    "router": "ˈɾuteɾ",
-    "buffer": "ˈbafeɾ",
-    "log": "loɡ",
-    "logs": "loɡs",
-    "thread": "tɾed",
-    "threads": "tɾeds",
-    "string": "estɾiŋ",
-    "strings": "estɾiŋs",
-    "scope": "eskop",
-    "container": "konˈtejneɾ",
-    "containers": "konˈtejneɾs",
-    "developer": "deˈbeloper",
-    "developers": "deˈbelopers",
-    "testing": "ˈtestin",
-    "wrapper": "ˈɾapeɾ",
-    "engine": "ˈenʃin",
-    "request": "ɾiˈkwest",
-    "requests": "ɾiˈkwests",
-    "patch": "patʃ",
-    "linter": "ˈlinteɾ",
-    "lint": "lint",
-    "review": "ɾiˈbju",
-    "reviews": "ɾiˈbjus",
-    "pull": "pul",
-    "push": "puʃ",
-    "issue": "ˈiʃu",
-    "issues": "ˈiʃus",
-    "tag": "taɡ",
-    "tags": "taɡs",
-    "lookup": "ˈlukap",
-    "fallback": "ˈfolbak",
-    "rollback": "ˈɾolbak",
-    "deploy": "deˈploj",
-    "callback": "ˈkolbak",
-    "callbacks": "ˈkolbaks",
-    "workflow": "ˈweɾkflow",
-    "workflows": "ˈweɾkflows",
-    "pipeline": "ˈpajplajn",
-    "pipelines": "ˈpajplajns",
-    "dashboard": "ˈdaʃboɾd",
-    "dashboards": "ˈdaʃboɾds",
-    "frontends": "fɾonˈtends",
-    "backends": "bakˈends",
-    "scrum": "eskɾum",
-    "sprint": "espɾint",
-    "sprints": "espɾints",
-    "stand-up": "ˈstandap",
-    "standup": "ˈstandap",
-    "kickoff": "ˈkikof",
-    "rollout": "ɾoˈlawt",
-    "kanban": "ˈkanban",
-    "lookiero": "luˈkjeɾo",
-    "deployment": "deˈplojment",
-    "deployments": "deˈplojments",
-]
+// MARK: - esDict
+
+/// Spanish anglicism IPA dictionary.
+/// Loaded once at process start from the bundled `anglicisms-es.json` resource.
+/// An optional user overlay at `~/Library/Application Support/Susurro/anglicisms-es.json`
+/// is merged on top — user-provided values win for matching keys, new keys are added.
+/// Editing the overlay requires an app restart (static let caches the result).
+let esDict: [String: String] = PronunciationDictLoader.load()
+
+// MARK: - Loader
+
+enum PronunciationDictLoader {
+
+    // MARK: Public
+
+    static func load() -> [String: String] {
+        let bundle = loadBundle()
+        guard let bundle else {
+            // Safety net: bundle resource not found (shouldn't happen in production;
+            // could occur in isolated unit-test runs without proper bundle setup).
+            // Fall back to a small inline subset so the app is still partially functional.
+            print("[PronunciationDict] WARNING: anglicisms-es.json not found in bundle — using embedded fallback")
+            return fallback
+        }
+        let overlay = loadOverlay()
+        return merge(base: bundle, overlay: overlay)
+    }
+
+    /// Merge `overlay` entries on top of `base`.
+    /// Exposed as a static helper so tests can verify merge semantics independently.
+    static func merge(base: [String: String], overlay: [String: String]) -> [String: String] {
+        var result = base
+        for (key, value) in overlay {
+            result[key] = value
+        }
+        return result
+    }
+
+    // MARK: Private
+
+    private static func loadBundle() -> [String: String]? {
+        // Prefer the main bundle (works for app + hosted test targets).
+        // Fall back to the bundle that contains this Swift file (framework/SPM scenarios).
+        let candidates: [Bundle] = [.main, Bundle(for: _BundleToken.self)]
+        for bundle in candidates {
+            if let url = bundle.url(forResource: "anglicisms-es", withExtension: "json"),
+               let dict = decodeDictionary(at: url) {
+                return dict
+            }
+        }
+        return nil
+    }
+
+    private static func loadOverlay() -> [String: String] {
+        guard let appSupport = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first else { return [:] }
+        let overlayURL = appSupport
+            .appendingPathComponent("Susurro")
+            .appendingPathComponent("anglicisms-es.json")
+        guard FileManager.default.fileExists(atPath: overlayURL.path) else { return [:] }
+        return decodeDictionary(at: overlayURL) ?? [:]
+    }
+
+    private static func decodeDictionary(at url: URL) -> [String: String]? {
+        do {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode([String: String].self, from: data)
+        } catch {
+            print("[PronunciationDict] Failed to decode \(url.lastPathComponent): \(error)")
+            return nil
+        }
+    }
+
+    // MARK: - Safety-net fallback (≤10 entries, not the primary path)
+
+    /// Minimal inline fallback used only when bundle loading fails.
+    /// Keep in sync with the most critical entries from anglicisms-es.json.
+    static let fallback: [String: String] = [
+        "api": "ˈapi",
+        "framework": "ˈfɾejmwoɾk",
+        "backend": "bakˈend",
+        "frontend": "fɾonˈtend",
+        "cache": "kaʃ",
+        "deploy": "deˈploj",
+        "release": "ɾiˈlis",
+        "commit": "koˈmit",
+        "sprint": "espɾint",
+        "pipeline": "ˈpajplajn",
+    ]
+}
+
+// Used only to locate the correct Bundle in framework/SPM scenarios.
+private final class _BundleToken {}
+
+// MARK: - acronyms
 
 let acronyms: Set<String> = [
     "API", "URL", "URI", "HTTP", "HTTPS", "JSON", "XML", "CSS", "HTML", "SQL",
