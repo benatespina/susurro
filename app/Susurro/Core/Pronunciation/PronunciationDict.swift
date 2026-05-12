@@ -124,7 +124,7 @@ enum AcronymSpellingsLoader {
             return fallback
         }
         let overlay = loadOverlay()
-        return AcronymSpellingsLoader.merge(base: bundle, overlay: overlay)
+        return merge(base: bundle, overlay: overlay)
     }
 
     /// Merge `overlay` entries on top of `base`.
