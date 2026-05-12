@@ -12,7 +12,7 @@ import Testing
     // MARK: - lookupAcronymSpelling
 
     @Test func lookupAPIReturnsExpectedSpelling() {
-        #expect(lookupAcronymSpelling("API") == "éi pi ái")
+        #expect(lookupAcronymSpelling("API") == "ei pi ay")
     }
 
     @Test func lookupIsLowercaseCaseInsensitive() {
@@ -31,35 +31,35 @@ import Testing
 
     @Test func fallbackContainsCriticalEntries() {
         let fb = AcronymSpellingsLoader.fallback
-        #expect(fb["API"] == "éi pi ái")
-        #expect(fb["URL"] == "yu erre éle")
-        #expect(fb["HTML"] == "éich ti emé éle")
-        #expect(fb["JSON"] == "yéison")
-        #expect(fb["HTTP"] == "éich ti ti pi")
+        #expect(fb["API"] == "ei pi ay")
+        #expect(fb["URL"] == "yu ar el")
+        #expect(fb["HTML"] == "eich ti em el")
+        #expect(fb["JSON"] == "yeison")
+        #expect(fb["HTTP"] == "eich ti ti pi")
         #expect(fb.count >= 3)
     }
 
     // MARK: - Merge helper
 
     @Test func mergeOverlayWinsForExistingKey() {
-        let base = ["API": "éi pi ái", "URL": "yu erre éle"]
+        let base = ["API": "ei pi ay", "URL": "yu ar el"]
         let overlay = ["API": "a pe i"]
         let result = AcronymSpellingsLoader.merge(base: base, overlay: overlay)
         #expect(result["API"] == "a pe i")
-        #expect(result["URL"] == "yu erre éle")
+        #expect(result["URL"] == "yu ar el")
     }
 
     @Test func mergeOverlayAddsNewKeys() {
-        let base = ["API": "éi pi ái"]
+        let base = ["API": "ei pi ay"]
         let overlay = ["NEWACR": "nu ak ro nim"]
         let result = AcronymSpellingsLoader.merge(base: base, overlay: overlay)
         #expect(result["NEWACR"] == "nu ak ro nim")
-        #expect(result["API"] == "éi pi ái")
+        #expect(result["API"] == "ei pi ay")
         #expect(result.count == 2)
     }
 
     @Test func mergeEmptyOverlayPreservesBase() {
-        let base = ["API": "éi pi ái", "URL": "yu erre éle"]
+        let base = ["API": "ei pi ay", "URL": "yu ar el"]
         let result = AcronymSpellingsLoader.merge(base: base, overlay: [:])
         #expect(result == base)
     }

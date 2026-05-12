@@ -179,17 +179,17 @@ import Foundation
         // API is in the curated acronym-spellings-es.json — expect Spanish spelling, not raw letter-spacing.
         let store = makeStore()
         let result = await store.applyEdgeSafe(text: "Use the API today", language: "es")
-        #expect(result.contains("éi pi ái"))
+        #expect(result.contains("ei pi ay"))
         #expect(!result.contains("A P I"))
         #expect(!result.contains("<say-as"))
         #expect(!result.contains("<phoneme"))
     }
 
     @Test func applyEdgeSafeAcronymPluralEmitsSpelling() async {
-        // APIs → spelling "éi pi ái" + " s"
+        // APIs → spelling "ei pi ay" + " s"
         let store = makeStore()
         let result = await store.applyEdgeSafe(text: "The APIs are slow", language: "es")
-        #expect(result.contains("éi pi ái s"))
+        #expect(result.contains("ei pi ay s"))
         #expect(!result.contains("A P I s"))
         #expect(!result.contains("<say-as"))
     }
@@ -256,8 +256,8 @@ import Foundation
         // Both API and URL are in the curated spelling dict — expect Spanish spellings.
         let store = makeStore()
         let result = await store.applyEdgeSafe(text: "API & URL", language: "es")
-        #expect(result.contains("éi pi ái"))
-        #expect(result.contains("yu erre éle"))
+        #expect(result.contains("ei pi ay"))
+        #expect(result.contains("yu ar el"))
         #expect(result.contains("&amp;"))
         #expect(!result.contains("<say-as"))
     }
@@ -304,7 +304,7 @@ import Foundation
         let cands = await store.candidatesEdgeSafe(word: "API", language: "es")
         let letterSpacedCands = cands.filter { $0.kind == "letter-spaced" }
         #expect(letterSpacedCands.count == 2)
-        #expect(letterSpacedCands[0].ssml == "éi pi ái", "curated spelling must come first")
+        #expect(letterSpacedCands[0].ssml == "ei pi ay", "curated spelling must come first")
         #expect(letterSpacedCands[1].ssml == "A P I", "raw letter-spacing kept as fallback")
         let raw = cands.first { $0.kind == "raw" }
         #expect(raw == nil, "raw candidate must be absent for acronyms — Edge always letter-spaces them")
@@ -347,12 +347,12 @@ import Foundation
     }
 
     @Test func candidatesEdgeSafeAcronymPluralIncludesSuffix() async {
-        // APIs → spelling candidate first ("éi pi ái s"), letter-spaced fallback second ("A P I s").
+        // APIs → spelling candidate first ("ei pi ay s"), letter-spaced fallback second ("A P I s").
         let store = makeStore()
         let cands = await store.candidatesEdgeSafe(word: "APIs", language: "es")
         let letterSpacedCands = cands.filter { $0.kind == "letter-spaced" }
         #expect(letterSpacedCands.count == 2)
-        #expect(letterSpacedCands[0].ssml == "éi pi ái s", "curated spelling with plural suffix must come first")
+        #expect(letterSpacedCands[0].ssml == "ei pi ay s", "curated spelling with plural suffix must come first")
         #expect(letterSpacedCands[1].ssml == "A P I s", "raw letter-spaced plural kept as fallback")
         // No raw candidate for acronyms
         #expect(cands.first { $0.kind == "raw" } == nil)
@@ -364,7 +364,7 @@ import Foundation
         // "API" is in acronym-spellings-es.json → must emit the curated Spanish spelling.
         let store = makeStore()
         let result = await store.applyEdgeSafe(text: "Hola API", language: "es")
-        #expect(result.contains("éi pi ái"))
+        #expect(result.contains("ei pi ay"))
         #expect(!result.contains("A P I"))
         #expect(!result.contains("<"))
     }
@@ -373,7 +373,7 @@ import Foundation
         // "APIs" → base "API" in dict → spelling + " s".
         let store = makeStore()
         let result = await store.applyEdgeSafe(text: "Hola APIs", language: "es")
-        #expect(result.contains("éi pi ái s"))
+        #expect(result.contains("ei pi ay s"))
         #expect(!result.contains("A P I s"))
         #expect(!result.contains("<"))
     }
@@ -392,7 +392,7 @@ import Foundation
         try await store.upsert(language: "es", word: "API", replacement: "user-custom")
         let result = await store.applyEdgeSafe(text: "Hola API hoy", language: "es")
         #expect(result.contains("user-custom"))
-        #expect(!result.contains("éi pi ái"))
+        #expect(!result.contains("ei pi ay"))
         #expect(!result.contains("A P I"))
     }
 

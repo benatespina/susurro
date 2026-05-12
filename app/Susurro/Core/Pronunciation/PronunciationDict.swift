@@ -179,11 +179,11 @@ enum AcronymSpellingsLoader {
     /// Minimal inline fallback used only when bundle loading fails.
     /// Keep in sync with the most critical entries from acronym-spellings-es.json.
     static let fallback: [String: String] = [
-        "API": "éi pi ái",
-        "URL": "yu erre éle",
-        "HTML": "éich ti emé éle",
-        "JSON": "yéison",
-        "HTTP": "éich ti ti pi",
+        "API": "ei pi ay",
+        "URL": "yu ar el",
+        "HTML": "eich ti em el",
+        "JSON": "yeison",
+        "HTTP": "eich ti ti pi",
     ]
 }
 
