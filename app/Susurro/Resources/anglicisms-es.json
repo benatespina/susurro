@@ -135,5 +135,22 @@
   "output": "ˈawtput",
   "outputs": "ˈawtputs",
   "input": "ˈimput",
-  "inputs": "ˈimputs"
+  "inputs": "ˈimputs",
+  "ranking": "ˈɾaŋkin",
+  "learning": "ˈleɾnin",
+  "clustering": "ˈklasteɾin",
+  "embedding": "emˈbedin",
+  "embeddings": "emˈbedins",
+  "baseline": "ˈbejslajn",
+  "offline": "ofˈlajn",
+  "storage": "ˈstoɾeitʃ",
+  "benchmark": "ˈbentʃmaɾk",
+  "overfitting": "ˈoveɾfitin",
+  "training": "ˈtɾejnin",
+  "guardrail": "ˈɡaɾdɾejl",
+  "recall": "ɾiˈkol",
+  "precision": "pɾiˈsiʃon",
+  "bitsets": "ˈbitsets",
+  "playbook": "ˈplejbuk",
+  "tech": "tek"
 }
