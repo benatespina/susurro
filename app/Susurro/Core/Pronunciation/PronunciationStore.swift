@@ -140,9 +140,13 @@ actor PronunciationStore {
             return SSMLEscape.escape(userValue)
         }
 
-        // Acronym with optional plural suffix → letter-spaced plain text.
-        // Edge rejects <say-as>; emit letter-spaced plain text so it spells acronyms.
+        // Acronym with optional plural suffix → look up curated spelling first (Spanish only),
+        // fall back to letter-spaced plain text for unknown acronyms or non-Spanish languages.
+        // Edge rejects <say-as>; emit plain text so it spells acronyms correctly.
         if let (base, hasSuffix) = isAcronymWithPluralSuffix(word) {
+            if language == "es", let spelling = lookupAcronymSpelling(base) {
+                return hasSuffix ? spelling + " s" : spelling
+            }
             let spaced = base.map { String($0) }.joined(separator: " ")
             return hasSuffix ? spaced + " s" : spaced
         }
@@ -197,6 +201,16 @@ actor PronunciationStore {
         var out: [PronunciationCandidate] = []
 
         if let (base, hasSuffix) = isAcronymWithPluralSuffix(trimmed) {
+            // Curated spelling wins when available (Spanish only) — prepend as highest-priority candidate.
+            if language == "es", let spelling = lookupAcronymSpelling(base) {
+                let spellingValue = hasSuffix ? spelling + " s" : spelling
+                out.append(PronunciationCandidate(
+                    kind: "letter-spaced",
+                    label: "Spell letter by letter: \(spellingValue)",
+                    ssml: spellingValue
+                ))
+            }
+            // Raw letter-spacing kept as fallback (or sole candidate for unknown acronyms / non-Spanish).
             let spaced = base.map { String($0) }.joined(separator: " ")
             let value = hasSuffix ? spaced + " s" : spaced
             out.append(PronunciationCandidate(

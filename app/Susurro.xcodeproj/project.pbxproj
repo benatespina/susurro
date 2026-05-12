@@ -10,6 +10,9 @@
 		006C1258C6C0D372323CF171 /* PronunciationsWindowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68C4B418C92661B40750AB0E /* PronunciationsWindowTests.swift */; };
 		C958769F9C95492DB4E808D8 /* anglicisms-es.json in Resources */ = {isa = PBXBuildFile; fileRef = D40249BF60F04F0DBAA0D44A /* anglicisms-es.json */; };
 		75C0832C0F2649E989439F49 /* anglicisms-es.json in Resources */ = {isa = PBXBuildFile; fileRef = D40249BF60F04F0DBAA0D44A /* anglicisms-es.json */; };
+		416C3D4D04D345A8B326D615 /* acronym-spellings-es.json in Resources */ = {isa = PBXBuildFile; fileRef = 82D4F894759140CC89DD1B00 /* acronym-spellings-es.json */; };
+		7213AD85C09247EA93B03E66 /* acronym-spellings-es.json in Resources */ = {isa = PBXBuildFile; fileRef = 82D4F894759140CC89DD1B00 /* acronym-spellings-es.json */; };
+		818AA3AFDBAC4ACC8008367D /* AcronymSpellingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD49A3801EF84C6AA3D8E4E6 /* AcronymSpellingsTests.swift */; };
 		160DD2F424E04F6D9EE98F15 /* PronunciationDictLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9CCF747DAE48D798753EF8 /* PronunciationDictLoaderTests.swift */; };
 		01FA428D2AA6B96CAC4F1BA3 /* Pronunciations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 428C5C9C5DACCB7557F0E784 /* Pronunciations.swift */; };
 		02FD6A551A23E52BEE4DB4B8 /* UpdateSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A9912FD4E6B48217641EF0 /* UpdateSettings.swift */; };
@@ -271,6 +274,8 @@
 		E1DD401E8ECC683293028F4F /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
 		E67771FB4B0E3F5EF3DF5CE8 /* PronunciationDictTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PronunciationDictTests.swift; sourceTree = "<group>"; };
 		D40249BF60F04F0DBAA0D44A /* anglicisms-es.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "anglicisms-es.json"; sourceTree = "<group>"; };
+		82D4F894759140CC89DD1B00 /* acronym-spellings-es.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "acronym-spellings-es.json"; sourceTree = "<group>"; };
+		CD49A3801EF84C6AA3D8E4E6 /* AcronymSpellingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcronymSpellingsTests.swift; sourceTree = "<group>"; };
 		FA9CCF747DAE48D798753EF8 /* PronunciationDictLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PronunciationDictLoaderTests.swift; sourceTree = "<group>"; };
 		E681B43A25CB006D9799F607 /* URLBarFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLBarFilterTests.swift; sourceTree = "<group>"; };
 		EA708D257931C6C1F08C928E /* BreakInjectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakInjectorTests.swift; sourceTree = "<group>"; };
@@ -466,6 +471,7 @@
 				63BFED6C302099DD6723698C /* hooks */,
 				68D1E4AC2A693AE4537EE74F /* test-fixtures */,
 				D40249BF60F04F0DBAA0D44A /* anglicisms-es.json */,
+				82D4F894759140CC89DD1B00 /* acronym-spellings-es.json */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -635,6 +641,7 @@
 				F6290840592647DE4399F44B /* PronunciationDict.swift */,
 				E67771FB4B0E3F5EF3DF5CE8 /* PronunciationDictTests.swift */,
 				FA9CCF747DAE48D798753EF8 /* PronunciationDictLoaderTests.swift */,
+				CD49A3801EF84C6AA3D8E4E6 /* AcronymSpellingsTests.swift */,
 				22D98869C0B98899AC1BCF61 /* PronunciationRules.swift */,
 				BC22679CF83A34DF0BA3E243 /* PronunciationRulesTests.swift */,
 				049BECB8047B0F4A78A7E6E8 /* PronunciationStore.swift */,
@@ -765,6 +772,7 @@
 				426A55BEAA3DE5BC562A9343 /* stop.sh in Resources */,
 				FF2AA33E4F359DEB8D5DBEE3 /* tool-only-transcript.jsonl in Resources */,
 				C958769F9C95492DB4E808D8 /* anglicisms-es.json in Resources */,
+				416C3D4D04D345A8B326D615 /* acronym-spellings-es.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -780,6 +788,7 @@
 				BD487B2967D8A9DEA4E7D006 /* stop.sh in Resources */,
 				C79F1CF5C062ED771890BA72 /* tool-only-transcript.jsonl in Resources */,
 				75C0832C0F2649E989439F49 /* anglicisms-es.json in Resources */,
+				7213AD85C09247EA93B03E66 /* acronym-spellings-es.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -922,6 +931,7 @@
 				A1B2C3D4E5F601234567890C /* IPAToSpanishOrthographyTests.swift in Sources */,
 				EE82DFC693B3C8B11B6B27A6 /* PronunciationDictTests.swift in Sources */,
 				160DD2F424E04F6D9EE98F15 /* PronunciationDictLoaderTests.swift in Sources */,
+				818AA3AFDBAC4ACC8008367D /* AcronymSpellingsTests.swift in Sources */,
 				227CD29310FBF44B14CF4136 /* PronunciationRulesTests.swift in Sources */,
 				E897634A42CE0FD5663E7F47 /* PronunciationStoreTests.swift in Sources */,
 				006C1258C6C0D372323CF171 /* PronunciationsWindowTests.swift in Sources */,
