@@ -25,6 +25,8 @@
 		1EB44A8AD3EB7B9561ACAD8E /* ClaudeTextFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9415AAE9601A85D0B78DE741 /* ClaudeTextFilterTests.swift */; };
 		1F35D3F49F98CDBFE5A6360F /* BrowserURLSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FFBF7D39015A71D0566F006 /* BrowserURLSource.swift */; };
 		227CD29310FBF44B14CF4136 /* PronunciationRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC22679CF83A34DF0BA3E243 /* PronunciationRulesTests.swift */; };
+		A1B2C3D4E5F601234567890A /* IPAConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F601234567890B /* IPAConverter.swift */; };
+		A1B2C3D4E5F601234567890C /* IPAToSpanishOrthographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F601234567890D /* IPAToSpanishOrthographyTests.swift */; };
 		2538F367A45F67F8FD88BF51 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = 1212F9B8BB58DB9C6A7A4A95 /* SwiftSoup */; };
 		2776840ED119E04A7365FE6A /* IPCServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AEA5588762919A007FC2BF7 /* IPCServer.swift */; };
 		281EA51ABC606C15DCDAAF93 /* PlaybackCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D275F65A78100F5AEC139ED /* PlaybackCoordinatorTests.swift */; };
@@ -171,6 +173,8 @@
 		1A5C3773F2C9FD2EF6AEC5B9 /* EdgeAuthSignerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeAuthSignerTests.swift; sourceTree = "<group>"; };
 		2165F46A52E7CD61886B2CC0 /* LangDetect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LangDetect.swift; sourceTree = "<group>"; };
 		22D98869C0B98899AC1BCF61 /* PronunciationRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PronunciationRules.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F601234567890B /* IPAConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPAConverter.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F601234567890D /* IPAToSpanishOrthographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPAToSpanishOrthographyTests.swift; sourceTree = "<group>"; };
 		231B243B6DF5B6D310D7F80D /* SelectionObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionObserver.swift; sourceTree = "<group>"; };
 		23560E679E1BCEE96C6197B3 /* PermissionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionCoordinator.swift; sourceTree = "<group>"; };
 		2378692DBAFFEAD9BF2FFC82 /* LangDetectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LangDetectTests.swift; sourceTree = "<group>"; };
@@ -620,6 +624,8 @@
 		F584EA8BDE04C0B936254DEA /* Pronunciation */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D4E5F601234567890B /* IPAConverter.swift */,
+				A1B2C3D4E5F601234567890D /* IPAToSpanishOrthographyTests.swift */,
 				F6290840592647DE4399F44B /* PronunciationDict.swift */,
 				E67771FB4B0E3F5EF3DF5CE8 /* PronunciationDictTests.swift */,
 				22D98869C0B98899AC1BCF61 /* PronunciationRules.swift */,
@@ -830,6 +836,7 @@
 				8E1C8BF6F218A301D0AC304C /* PermissionWindow.swift in Sources */,
 				B02BF00A400FE627995DA36E /* PlaybackCoordinator.swift in Sources */,
 				7FD1FF96AB3A5B8F072A5BD2 /* PlaybackSpeed.swift in Sources */,
+				A1B2C3D4E5F601234567890A /* IPAConverter.swift in Sources */,
 				EBD552BABEDF9098FFEB6C67 /* PronunciationDict.swift in Sources */,
 				F22CC2C2F514D2EF10221EAD /* PronunciationRules.swift in Sources */,
 				7358E40DD07CEDA518EC1037 /* PronunciationStore.swift in Sources */,
@@ -903,6 +910,7 @@
 				83D89D5EA7447E21FC8FC04A /* ParityHarnessTests.swift in Sources */,
 				281EA51ABC606C15DCDAAF93 /* PlaybackCoordinatorTests.swift in Sources */,
 				A846CE8A9F2CA8A3EC007DDF /* PlaybackSpeedTests.swift in Sources */,
+				A1B2C3D4E5F601234567890C /* IPAToSpanishOrthographyTests.swift in Sources */,
 				EE82DFC693B3C8B11B6B27A6 /* PronunciationDictTests.swift in Sources */,
 				227CD29310FBF44B14CF4136 /* PronunciationRulesTests.swift in Sources */,
 				E897634A42CE0FD5663E7F47 /* PronunciationStoreTests.swift in Sources */,

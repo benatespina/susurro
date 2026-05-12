@@ -193,7 +193,7 @@ import Foundation
     @Test func applyEdgeSafeKnownWordEmitsTransliteration() async {
         let store = makeStore()
         let result = await store.applyEdgeSafe(text: "We use framework daily", language: "es")
-        let expectedTranslit = PronunciationRules.transliterateToEs("framework")
+        let expectedTranslit = PronunciationRules.ipaToSpanishOrthography(esDict["framework"]!)
         #expect(result.contains(expectedTranslit))
         #expect(!result.contains("<say-as"))
         #expect(!result.contains("<phoneme"))
@@ -233,9 +233,9 @@ import Foundation
         try await store.upsert(language: "es", word: "framework", replacement: "myspecial")
         let result = await store.applyEdgeSafe(text: "We use framework daily", language: "es")
         #expect(result.contains("myspecial"))
-        // Should not use the algorithmic transliteration
-        let algorithmicTranslit = PronunciationRules.transliterateToEs("framework")
-        #expect(!result.contains(algorithmicTranslit))
+        // Should not use the IPA-based transliteration when a user override exists
+        let ipaTranslit = PronunciationRules.ipaToSpanishOrthography(esDict["framework"]!)
+        #expect(!result.contains(ipaTranslit))
     }
 
     @Test func applyEdgeSafeRespectsWordBoundaries() async {
@@ -243,7 +243,7 @@ import Foundation
         let result = await store.applyEdgeSafe(text: "frameworkers build things", language: "es")
         // "frameworkers" is not in esDict and is not an acronym — passes through unchanged
         #expect(result.contains("frameworkers"))
-        let frameworkTranslit = PronunciationRules.transliterateToEs("framework")
+        let frameworkTranslit = PronunciationRules.ipaToSpanishOrthography(esDict["framework"]!)
         #expect(!result.contains(frameworkTranslit))
         #expect(!result.contains("<say-as"))
     }
@@ -313,7 +313,7 @@ import Foundation
         let cands = await store.candidatesEdgeSafe(word: "framework", language: "es")
         let translit = cands.first { $0.kind == "translit-plain" }
         #expect(translit != nil)
-        let expectedValue = PronunciationRules.transliterateToEs("framework")
+        let expectedValue = PronunciationRules.ipaToSpanishOrthography(esDict["framework"]!)
         #expect(translit?.ssml == expectedValue)
         // No SSML tags
         for c in cands {

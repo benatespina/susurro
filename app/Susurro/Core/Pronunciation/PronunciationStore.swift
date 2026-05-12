@@ -147,9 +147,9 @@ actor PronunciationStore {
             return hasSuffix ? spaced + " s" : spaced
         }
 
-        // Spanish anglicism → transliterated plain text
-        if language == "es", esDict[lower] != nil {
-            return SSMLEscape.escape(PronunciationRules.transliterateToEs(word))
+        // Spanish anglicism → IPA-based orthography (curated dict) or plain escape fallback
+        if language == "es", let ipa = esDict[lower] {
+            return SSMLEscape.escape(PronunciationRules.ipaToSpanishOrthography(ipa))
         }
 
         return SSMLEscape.escape(word)
@@ -208,8 +208,8 @@ actor PronunciationStore {
 
         if language == "es" {
             let lower = trimmed.lowercased()
-            if esDict[lower] != nil {
-                let translit = PronunciationRules.transliterateToEs(trimmed)
+            if let ipa = esDict[lower] {
+                let translit = PronunciationRules.ipaToSpanishOrthography(ipa)
                 if translit != lower {
                     out.append(PronunciationCandidate(
                         kind: "translit-plain",
