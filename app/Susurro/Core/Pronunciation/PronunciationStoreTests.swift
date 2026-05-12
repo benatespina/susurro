@@ -175,18 +175,22 @@ import Foundation
         #expect(!result.contains("<say-as"))
     }
 
-    @Test func applyEdgeSafeAcronymEmitsLetterSpaced() async {
+    @Test func applyEdgeSafeAcronymEmitsSpelling() async {
+        // API is in the curated acronym-spellings-es.json — expect Spanish spelling, not raw letter-spacing.
         let store = makeStore()
         let result = await store.applyEdgeSafe(text: "Use the API today", language: "es")
-        #expect(result.contains("A P I"))
+        #expect(result.contains("éi pi ái"))
+        #expect(!result.contains("A P I"))
         #expect(!result.contains("<say-as"))
         #expect(!result.contains("<phoneme"))
     }
 
-    @Test func applyEdgeSafeAcronymPluralEmitsLetterSpaced() async {
+    @Test func applyEdgeSafeAcronymPluralEmitsSpelling() async {
+        // APIs → spelling "éi pi ái" + " s"
         let store = makeStore()
         let result = await store.applyEdgeSafe(text: "The APIs are slow", language: "es")
-        #expect(result.contains("A P I s"))
+        #expect(result.contains("éi pi ái s"))
+        #expect(!result.contains("A P I s"))
         #expect(!result.contains("<say-as"))
     }
 
@@ -249,10 +253,11 @@ import Foundation
     }
 
     @Test func applyEdgeSafeMultipleAcronymsAndEscaping() async {
+        // Both API and URL are in the curated spelling dict — expect Spanish spellings.
         let store = makeStore()
         let result = await store.applyEdgeSafe(text: "API & URL", language: "es")
-        #expect(result.contains("A P I"))
-        #expect(result.contains("U R L"))
+        #expect(result.contains("éi pi ái"))
+        #expect(result.contains("yu erre éle"))
         #expect(result.contains("&amp;"))
         #expect(!result.contains("<say-as"))
     }
@@ -291,15 +296,16 @@ import Foundation
 
     // MARK: - candidatesEdgeSafe
 
-    @Test func candidatesEdgeSafeForAcronymReturnsLetterSpacedOnly() async {
-        // Acronyms must NOT include a "raw" candidate: Edge always letter-spaces them at
-        // synthesis time, so "Read as-is: API" would be misleading — the audio spells it out
-        // regardless. Only "letter-spaced" (and translit-plain when applicable) should appear.
+    @Test func candidatesEdgeSafeForAcronymReturnsSpellingFirst() async {
+        // API is in the curated spelling dict — the first letter-spaced candidate must be the
+        // Spanish spelling, with the raw letter-spacing kept as a fallback candidate.
+        // No "raw" candidate for acronyms — Edge always letter-spaces them at synthesis time.
         let store = makeStore()
         let cands = await store.candidatesEdgeSafe(word: "API", language: "es")
-        let letterSpaced = cands.first { $0.kind == "letter-spaced" }
-        #expect(letterSpaced != nil)
-        #expect(letterSpaced?.ssml == "A P I")
+        let letterSpacedCands = cands.filter { $0.kind == "letter-spaced" }
+        #expect(letterSpacedCands.count == 2)
+        #expect(letterSpacedCands[0].ssml == "éi pi ái", "curated spelling must come first")
+        #expect(letterSpacedCands[1].ssml == "A P I", "raw letter-spacing kept as fallback")
         let raw = cands.first { $0.kind == "raw" }
         #expect(raw == nil, "raw candidate must be absent for acronyms — Edge always letter-spaces them")
         // No SSML tags anywhere
@@ -341,13 +347,53 @@ import Foundation
     }
 
     @Test func candidatesEdgeSafeAcronymPluralIncludesSuffix() async {
+        // APIs → spelling candidate first ("éi pi ái s"), letter-spaced fallback second ("A P I s").
         let store = makeStore()
         let cands = await store.candidatesEdgeSafe(word: "APIs", language: "es")
-        let letterSpaced = cands.first { $0.kind == "letter-spaced" }
-        #expect(letterSpaced != nil)
-        #expect(letterSpaced?.ssml == "A P I s")
+        let letterSpacedCands = cands.filter { $0.kind == "letter-spaced" }
+        #expect(letterSpacedCands.count == 2)
+        #expect(letterSpacedCands[0].ssml == "éi pi ái s", "curated spelling with plural suffix must come first")
+        #expect(letterSpacedCands[1].ssml == "A P I s", "raw letter-spaced plural kept as fallback")
         // No raw candidate for acronyms
         #expect(cands.first { $0.kind == "raw" } == nil)
+    }
+
+    // MARK: - acronym spelling dictionary (Phase 2)
+
+    @Test func applyEdgeSafeAPISpellingInSpanish() async {
+        // "API" is in acronym-spellings-es.json → must emit the curated Spanish spelling.
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "Hola API", language: "es")
+        #expect(result.contains("éi pi ái"))
+        #expect(!result.contains("A P I"))
+        #expect(!result.contains("<"))
+    }
+
+    @Test func applyEdgeSafeAPIsPluralSpellingInSpanish() async {
+        // "APIs" → base "API" in dict → spelling + " s".
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "Hola APIs", language: "es")
+        #expect(result.contains("éi pi ái s"))
+        #expect(!result.contains("A P I s"))
+        #expect(!result.contains("<"))
+    }
+
+    @Test func applyEdgeSafeUnknownAcronymFallsBackToLetterSpacing() async {
+        // "XYZ" is not in the spelling dict → must fall back to raw letter-spacing.
+        let store = makeStore()
+        let result = await store.applyEdgeSafe(text: "Use XYZ today", language: "es")
+        #expect(result.contains("X Y Z"))
+        #expect(!result.contains("<"))
+    }
+
+    @Test func applyEdgeSafeUserUpsertWinsOverSpellingDict() async throws {
+        // User dict entry must win over the curated spelling lookup.
+        let store = makeStore()
+        try await store.upsert(language: "es", word: "API", replacement: "user-custom")
+        let result = await store.applyEdgeSafe(text: "Hola API hoy", language: "es")
+        #expect(result.contains("user-custom"))
+        #expect(!result.contains("éi pi ái"))
+        #expect(!result.contains("A P I"))
     }
 
     // MARK: - Persistence
