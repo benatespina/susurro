@@ -4,13 +4,14 @@ import Testing
 @Suite("SelectionToolbar")
 @MainActor
 struct SelectionToolbarTests {
-    @Test("can be instantiated with only onRead and onStop callbacks")
+    @Test("can be instantiated with onRead, onStop and onSave callbacks")
     func instantiation() {
         let appState = AppState()
         let toolbar = SelectionToolbar(
             appState: appState,
             onRead: {},
-            onStop: {}
+            onStop: {},
+            onSave: {}
         )
         // Construction succeeds — just verify the view exists without crashing.
         _ = toolbar
@@ -27,7 +28,8 @@ struct SelectionToolbarTests {
         let toolbar = SelectionToolbar(
             appState: appState,
             onRead: { readCalled = true },
-            onStop: { stopCalled = true }
+            onStop: { stopCalled = true },
+            onSave: {}
         )
 
         toolbar.invokeAction()
@@ -47,7 +49,8 @@ struct SelectionToolbarTests {
         let toolbar = SelectionToolbar(
             appState: appState,
             onRead: { readCalled = true },
-            onStop: { stopCalled = true }
+            onStop: { stopCalled = true },
+            onSave: {}
         )
 
         toolbar.invokeAction()

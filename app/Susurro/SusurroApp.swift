@@ -31,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let libraryStore = LibraryStore()
     let librarySynthesisState = LibrarySynthesisState()
     var librarySynthesizer: LibrarySynthesizer?
+    var saveCoordinator: SaveCoordinator?
     var playbackCoordinator: PlaybackCoordinator?
     private var permissionCoordinator: PermissionCoordinator?
     private var selectionObserver: SelectionObserver?
@@ -58,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             synthesisState: librarySynthesisState
         )
         librarySynthesizer = synthesizer
+        saveCoordinator = SaveCoordinator(store: libraryStore, synthesizer: synthesizer)
 
         permissionCoordinator = PermissionCoordinator(appState: appState)
         let settings = ttsSettings
@@ -127,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
         }
         startSelectionSystemWhenPermitted()
-        registerReadThisHotkey()
+        registerHotkeys()
 
         // Set notification delegate so taps open the release page.
         UNUserNotificationCenter.current().delegate = self
@@ -191,14 +193,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         menuBarController = controller
     }
 
-    private func registerReadThisHotkey() {
-        GlobalHotkeyManager.shared.register(
-            keyCode: HotkeyDefaults.readThisKeyCode,
-            modifiers: HotkeyDefaults.readThisModifiers
+    private func registerHotkeys() {
+        HotkeyRegistry.shared.register(
+            id: HotkeyDefaults.readSelectionID,
+            keyCode: HotkeyDefaults.readSelectionKeyCode,
+            modifiers: HotkeyDefaults.readSelectionModifiers
         ) { [weak self] in
             self?.readFromCurrentApp()
         }
-        AppLogger.app.info("global hotkey Cmd+Option+R registered for Read this")
+        HotkeyRegistry.shared.register(
+            id: HotkeyDefaults.saveURLID,
+            keyCode: HotkeyDefaults.saveURLKeyCode,
+            modifiers: HotkeyDefaults.saveURLModifiers
+        ) { [weak self] in
+            Task { @MainActor [weak self] in
+                await self?.saveCoordinator?.saveFromFrontmost()
+            }
+        }
+        AppLogger.app.info("global hotkeys registered: Cmd+Option+R (read), Cmd+Option+S (save)")
     }
 
     private func startSelectionSystemWhenPermitted() {
@@ -234,6 +246,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         panelController?.onStop = { [weak self] in
             Task { await self?.playbackCoordinator?.stop() }
         }
+        panelController?.onSave = { [weak self] in
+            Task { @MainActor [weak self] in
+                await self?.saveCoordinator?.saveFromFrontmost()
+            }
+        }
         AppLogger.selection.info("selection system activated")
     }
 
@@ -255,7 +272,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func readFromCurrentApp() {
         let resolved = SourceResolver.resolve()
-        let fallback: String? = resolved == nil ? Self.urlFromClipboard() : nil
+        let fallback: String? = resolved == nil ? SourceResolver.urlFromClipboard() : nil
         if resolved == nil && fallback == nil {
             AppLogger.app.info("no readable source in frontmost app or clipboard")
             NSSound.beep()
@@ -313,19 +330,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private static func urlLooksLikePDF(_ raw: String) -> Bool {
         guard let parsed = URL(string: raw) else { return false }
         return parsed.path.lowercased().hasSuffix(".pdf")
-    }
-
-    private static func urlFromClipboard() -> String? {
-        let pb = NSPasteboard.general
-        let raw = pb.string(forType: .string)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !raw.isEmpty,
-              let parsed = URL(string: raw),
-              let scheme = parsed.scheme?.lowercased(),
-              scheme == "http" || scheme == "https",
-              parsed.host?.isEmpty == false
-        else { return nil }
-        return parsed.absoluteString
     }
 
     private func installSigtermHandler() {
