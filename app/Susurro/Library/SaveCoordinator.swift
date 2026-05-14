@@ -144,7 +144,8 @@ final class SaveCoordinator {
             durationSeconds: nil,
             byteSize: nil,
             lastError: nil,
-            playedAt: nil
+            playedAt: nil,
+            driveFileID: nil
         )
     }
 
@@ -161,7 +162,8 @@ final class SaveCoordinator {
             durationSeconds: nil,
             byteSize: nil,
             lastError: nil,
-            playedAt: nil
+            playedAt: nil,
+            driveFileID: nil
         )
     }
 }

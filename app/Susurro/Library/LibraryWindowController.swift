@@ -5,7 +5,12 @@ import SwiftUI
 enum LibraryWindowController {
     private static var windowController: NSWindowController?
 
-    static func show(store: LibraryStore, synthesizer: LibrarySynthesizer, state: LibrarySynthesisState) {
+    static func show(
+        store: LibraryStore,
+        synthesizer: LibrarySynthesizer,
+        state: LibrarySynthesisState,
+        publisher: (any LibraryPublishing)? = nil
+    ) {
         if let existing = windowController {
             existing.window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -16,6 +21,7 @@ enum LibraryWindowController {
             store: store,
             synthesizer: synthesizer,
             synthesisState: state,
+            publisher: publisher,
             onSynthesize: { itemID in
                 Task { await synthesizer.enqueue(itemID: itemID) }
             }

@@ -136,7 +136,8 @@ private func makeURLItem(url: String = "https://example.com/article") -> Library
         durationSeconds: nil,
         byteSize: nil,
         lastError: nil,
-        playedAt: nil
+        playedAt: nil,
+        driveFileID: nil
     )
 }
 
@@ -153,7 +154,8 @@ private func makeTextItem(text: String = "Hello world. This is sample text for s
         durationSeconds: nil,
         byteSize: nil,
         lastError: nil,
-        playedAt: nil
+        playedAt: nil,
+        driveFileID: nil
     )
 }
 

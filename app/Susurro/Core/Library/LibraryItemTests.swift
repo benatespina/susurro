@@ -77,7 +77,8 @@ struct LibraryItemTests {
             durationSeconds: nil,
             byteSize: nil,
             lastError: nil,
-            playedAt: nil
+            playedAt: nil,
+            driveFileID: nil
         )
         let decoded = try roundTrip(item)
         #expect(decoded.sourceKind == .url)
@@ -98,7 +99,8 @@ struct LibraryItemTests {
             durationSeconds: nil,
             byteSize: nil,
             lastError: nil,
-            playedAt: nil
+            playedAt: nil,
+            driveFileID: nil
         )
         let decoded = try roundTrip(item)
         #expect(decoded.sourceKind == .text)
@@ -144,8 +146,36 @@ struct LibraryItemTests {
             durationSeconds: nil,
             byteSize: nil,
             lastError: nil,
-            playedAt: nil
+            playedAt: nil,
+            driveFileID: nil
         )
+    }
+
+    @Test func driveFileIDRoundTrips() throws {
+        var item = makeItem(status: .ready)
+        item = LibraryItem(
+            id: item.id,
+            createdAt: item.createdAt,
+            title: item.title,
+            sourceURL: item.sourceURL,
+            sourceKind: item.sourceKind,
+            rawText: item.rawText,
+            status: item.status,
+            audioFilename: item.audioFilename,
+            durationSeconds: item.durationSeconds,
+            byteSize: item.byteSize,
+            lastError: item.lastError,
+            playedAt: item.playedAt,
+            driveFileID: "drive-file-abc"
+        )
+        let decoded = try roundTrip(item)
+        #expect(decoded.driveFileID == "drive-file-abc")
+    }
+
+    @Test func driveFileIDNilRoundTrips() throws {
+        let item = makeItem(status: .ready)
+        let decoded = try roundTrip(item)
+        #expect(decoded.driveFileID == nil)
     }
 
     private func roundTrip(_ item: LibraryItem) throws -> LibraryItem {

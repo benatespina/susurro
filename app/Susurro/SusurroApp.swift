@@ -33,6 +33,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     var librarySynthesizer: LibrarySynthesizer?
     var saveCoordinator: SaveCoordinator?
     var playbackCoordinator: PlaybackCoordinator?
+    var driveAuth: DriveAuth?
+    var driveClient: DriveClient?
+    var libraryPublisher: LibraryPublisher?
     private var permissionCoordinator: PermissionCoordinator?
     private var selectionObserver: SelectionObserver?
     private var panelController: PanelController?
@@ -60,6 +63,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         )
         librarySynthesizer = synthesizer
         saveCoordinator = SaveCoordinator(store: libraryStore, synthesizer: synthesizer)
+
+        // Build Drive publishing infrastructure.
+        let auth = DriveAuth()
+        driveAuth = auth
+        let client = DriveClient(auth: auth, configProvider: { DriveConfig.load() })
+        driveClient = client
+        let feedURL = DriveConfig.load()?.feedURL() ?? URL(string: "https://susurro.benatespina.com/feed")!
+        let rssChannel = RSSChannel(
+            title: "Susurro Library",
+            description: "Articles saved with Susurro",
+            link: feedURL,
+            language: "es-ES",
+            imageURL: nil,
+            author: "Susurro"
+        )
+        let publisher = LibraryPublisher(
+            store: libraryStore,
+            driveClient: client,
+            configProvider: { DriveConfig.load() },
+            channel: rssChannel
+        )
+        libraryPublisher = publisher
+        Task { await synthesizer.setPublisher(publisher) }
 
         permissionCoordinator = PermissionCoordinator(appState: appState)
         let settings = ttsSettings
@@ -147,14 +173,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     private func installMenuBarController() {
-        guard let server = ipcServer, let synthesizer = librarySynthesizer else { return }
+        guard let server = ipcServer, let synthesizer = librarySynthesizer,
+              let auth = driveAuth, let client = driveClient else { return }
         let controller = MenuBarController(
             appState: appState,
             settings: ttsSettings,
             ipcServer: server,
             libraryStore: libraryStore,
             librarySynthesizer: synthesizer,
-            librarySynthesisState: librarySynthesisState
+            librarySynthesisState: librarySynthesisState,
+            driveAuth: auth,
+            driveClient: client,
+            libraryPublisher: libraryPublisher
         )
         controller.onShowTranscript = { [weak self] in
             guard let self, let coordinator = self.playbackCoordinator else { return }

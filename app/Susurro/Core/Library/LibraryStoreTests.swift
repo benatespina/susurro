@@ -152,7 +152,8 @@ struct LibraryStoreTests {
             durationSeconds: nil,
             byteSize: nil,
             lastError: nil,
-            playedAt: nil
+            playedAt: nil,
+            driveFileID: nil
         )
     }
 }

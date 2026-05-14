@@ -17,6 +17,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let libraryStore: LibraryStore
     private let librarySynthesizer: LibrarySynthesizer
     private let librarySynthesisState: LibrarySynthesisState
+    private let driveAuth: DriveAuth
+    private let driveClient: DriveClient
+    private let libraryPublisher: (any LibraryPublishing)?
 
     private var cachedLastSeenCwd: String?
 
@@ -40,7 +43,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         ipcServer: IPCServer,
         libraryStore: LibraryStore,
         librarySynthesizer: LibrarySynthesizer,
-        librarySynthesisState: LibrarySynthesisState
+        librarySynthesisState: LibrarySynthesisState,
+        driveAuth: DriveAuth,
+        driveClient: DriveClient,
+        libraryPublisher: (any LibraryPublishing)?
     ) {
         self.appState = appState
         self.settings = settings
@@ -48,6 +54,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         self.libraryStore = libraryStore
         self.librarySynthesizer = librarySynthesizer
         self.librarySynthesisState = librarySynthesisState
+        self.driveAuth = driveAuth
+        self.driveClient = driveClient
+        self.libraryPublisher = libraryPublisher
         statusItem = NSStatusBar.system.statusItem(withLength: SusurroIcon.iconWidth)
         speakerImageView = NSImageView()
         pauseButton = NSButton()
@@ -269,6 +278,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         readItem.isEnabled = appState.backendStatus == .ready
         menu.addItem(readItem)
         menu.addItem(menuItem(title: "Reading List…", action: #selector(handleShowReadingList)))
+        menu.addItem(menuItem(title: "Configure Google Drive…", action: #selector(handleConfigureDrive)))
         menu.addItem(menuItem(title: "Show transcript…", action: #selector(handleShowTranscript)))
 
         let checkUpdatesItem = NSMenuItem(
@@ -503,8 +513,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         LibraryWindowController.show(
             store: libraryStore,
             synthesizer: librarySynthesizer,
-            state: librarySynthesisState
+            state: librarySynthesisState,
+            publisher: libraryPublisher
         )
+    }
+
+    @objc private func handleConfigureDrive() {
+        DriveConfigWindowController.show(auth: driveAuth, client: driveClient)
     }
     @objc private func handleShowTranscript() { onShowTranscript() }
     @objc private func handleQuit() { NSApp.terminate(nil) }

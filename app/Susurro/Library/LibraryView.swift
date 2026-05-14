@@ -4,10 +4,12 @@ struct LibraryView: View {
     @Bindable var store: LibraryStore
     var synthesizer: LibrarySynthesizer
     var synthesisState: LibrarySynthesisState
+    var publisher: (any LibraryPublishing)?
     var onSynthesize: (UUID) -> Void
 
     @State private var newURL: String = ""
     @State private var selection: UUID?
+    @State private var feedConfig: DriveConfig?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,9 +17,11 @@ struct LibraryView: View {
             if synthesisState.depth > 0 {
                 synthesisBanner
             }
+            driveStatusBanner
             Divider()
             content
         }
+        .onAppear { feedConfig = DriveConfig.load() }
     }
 
     // MARK: - Subviews
@@ -51,6 +55,44 @@ struct LibraryView: View {
         .padding(.vertical, 4)
         .background(Color(nsColor: .controlBackgroundColor))
         Divider()
+    }
+
+    @ViewBuilder
+    private var driveStatusBanner: some View {
+        if let feedURL = feedConfig?.feedURL() {
+            HStack(spacing: 6) {
+                Text("Feed URL:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(feedURL.absoluteString)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+                Button("Copy feed URL") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(feedURL.absoluteString, forType: .string)
+                }
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .background(Color(nsColor: .controlBackgroundColor))
+            Divider()
+        } else if publisher != nil {
+            HStack(spacing: 6) {
+                Text("Configure Google Drive to publish")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .background(Color(nsColor: .controlBackgroundColor))
+            Divider()
+        }
     }
 
     @ViewBuilder
@@ -168,27 +210,45 @@ struct LibraryView: View {
             }
 
         case .ready:
-            VStack(alignment: .trailing, spacing: 2) {
-                if let dur = item.durationSeconds {
-                    Text(formattedDuration(dur))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                VStack(alignment: .trailing, spacing: 2) {
+                    if let dur = item.durationSeconds {
+                        Text(formattedDuration(dur))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let size = item.byteSize {
+                        Text(formattedSize(size))
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
-                if let size = item.byteSize {
-                    Text(formattedSize(size))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                if let pub = publisher, feedConfig?.hasFolder == true {
+                    Button("Re-publish") {
+                        Task { try? await pub.publish(itemID: item.id) }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
             }
 
         case .played:
-            Text("Played")
-                .font(.caption2)
-                .fontWeight(.medium)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(Color.secondary))
+            HStack(spacing: 6) {
+                Text("Played")
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.secondary))
+                if let pub = publisher, feedConfig?.hasFolder == true {
+                    Button("Re-publish") {
+                        Task { try? await pub.publish(itemID: item.id) }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
 
         case .archived:
             Text("Archived")
@@ -285,7 +345,8 @@ struct LibraryView: View {
             durationSeconds: nil,
             byteSize: nil,
             lastError: nil,
-            playedAt: nil
+            playedAt: nil,
+            driveFileID: nil
         )
         store.add(item)
         onSynthesize(item.id)
@@ -304,7 +365,8 @@ struct LibraryView: View {
             durationSeconds: nil,
             byteSize: nil,
             lastError: nil,
-            playedAt: nil
+            playedAt: nil,
+            driveFileID: nil
         )
         store.add(item)
         onSynthesize(item.id)

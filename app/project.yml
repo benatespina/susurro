@@ -46,6 +46,10 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "1"
         CFBundleIconFile: AppIcon
+        CFBundleURLTypes:
+          - CFBundleURLName: com.benatespina.susurro.oauth
+            CFBundleURLSchemes:
+              - com.benatespina.susurro
     entitlements:
       path: Susurro/Susurro.entitlements
       properties:

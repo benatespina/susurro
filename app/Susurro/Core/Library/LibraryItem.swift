@@ -92,4 +92,5 @@ struct LibraryItem: Codable, Sendable, Identifiable, Equatable {
     var byteSize: Int64?
     var lastError: String?
     var playedAt: Date?
+    var driveFileID: String?
 }

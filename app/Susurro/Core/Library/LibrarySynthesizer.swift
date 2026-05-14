@@ -59,6 +59,10 @@ actor LibrarySynthesizer {
     private let langDetect: any LangDetecting
     private let audioDirectoryURL: URL
 
+    // MARK: - Optional publisher (Drive)
+
+    private var publisher: (any LibraryPublishing)?
+
     // MARK: - State
 
     private var queue: [UUID] = []
@@ -91,6 +95,11 @@ actor LibrarySynthesizer {
     }
 
     // MARK: - Public API
+
+    /// Sets the Drive publisher. Called from AppDelegate after Drive is configured.
+    func setPublisher(_ publisher: any LibraryPublishing) {
+        self.publisher = publisher
+    }
 
     /// Appends `itemID` to the queue and starts the processor if idle.
     func enqueue(itemID: UUID) {
@@ -265,6 +274,17 @@ actor LibrarySynthesizer {
             }
         }
         AppLogger.app.info("LibrarySynthesizer: item \(id.uuidString, privacy: .public) ready, dur=\(duration, privacy: .public)s size=\(byteSize, privacy: .public)B")
+
+        // 7. Publish to Drive if configured.
+        if let pub = publisher, DriveConfig.load()?.hasFolder == true {
+            do {
+                try await pub.publish(itemID: id)
+            } catch PublisherError.notConnected {
+                // Drive not configured yet; silently skip.
+            } catch {
+                AppLogger.app.error("LibrarySynthesizer: Drive publish failed for \(id.uuidString, privacy: .public): \(error, privacy: .public)")
+            }
+        }
     }
 
     // MARK: - Private: helpers
