@@ -29,6 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let appState = AppState()
     let ttsSettings = TTSSettings()
     let libraryStore = LibraryStore()
+    let librarySynthesisState = LibrarySynthesisState()
+    var librarySynthesizer: LibrarySynthesizer?
     var playbackCoordinator: PlaybackCoordinator?
     private var permissionCoordinator: PermissionCoordinator?
     private var selectionObserver: SelectionObserver?
@@ -41,6 +43,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSigtermHandler()
         libraryStore.load()
+
+        // Build the library synthesizer.
+        let audioDir = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appending(path: "Susurro/library/audio")
+        let synthesizer = LibrarySynthesizer(
+            store: libraryStore,
+            extractor: ArticleExtractor(),
+            currentProviderProvider: { await MainActor.run { TTSProviderRegistry.shared.current } },
+            durationProbe: AVAudioDurationProbe(),
+            langDetect: StaticLangDetector(),
+            audioDirectoryURL: audioDir,
+            synthesisState: librarySynthesisState
+        )
+        librarySynthesizer = synthesizer
+
         permissionCoordinator = PermissionCoordinator(appState: appState)
         let settings = ttsSettings
         let coordinator = PlaybackCoordinator(
@@ -119,11 +137,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             try? await Task.sleep(for: .seconds(5))
             await ReleaseChecker.shared.checkIfDue()
         }
+
+        // Pick up any pending/failed library items from a previous session.
+        if let synth = librarySynthesizer {
+            Task { await synth.enqueuePending() }
+        }
     }
 
     private func installMenuBarController() {
-        guard let server = ipcServer else { return }
-        let controller = MenuBarController(appState: appState, settings: ttsSettings, ipcServer: server, libraryStore: libraryStore)
+        guard let server = ipcServer, let synthesizer = librarySynthesizer else { return }
+        let controller = MenuBarController(
+            appState: appState,
+            settings: ttsSettings,
+            ipcServer: server,
+            libraryStore: libraryStore,
+            librarySynthesizer: synthesizer,
+            librarySynthesisState: librarySynthesisState
+        )
         controller.onShowTranscript = { [weak self] in
             guard let self, let coordinator = self.playbackCoordinator else { return }
             TranscriptWindowController.show(

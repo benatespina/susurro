@@ -2,16 +2,25 @@ import SwiftUI
 
 struct LibraryView: View {
     @Bindable var store: LibraryStore
+    var synthesizer: LibrarySynthesizer
+    var synthesisState: LibrarySynthesisState
+    var onSynthesize: (UUID) -> Void
+
     @State private var newURL: String = ""
     @State private var selection: UUID?
 
     var body: some View {
         VStack(spacing: 0) {
             toolbar
+            if synthesisState.depth > 0 {
+                synthesisBanner
+            }
             Divider()
             content
         }
     }
+
+    // MARK: - Subviews
 
     @ViewBuilder
     private var toolbar: some View {
@@ -25,6 +34,23 @@ struct LibraryView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var synthesisBanner: some View {
+        HStack(spacing: 6) {
+            ProgressView()
+                .scaleEffect(0.7)
+                .frame(width: 14, height: 14)
+            Text("Synthesizing \(synthesisState.depth) item\(synthesisState.depth == 1 ? "" : "s")…")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .background(Color(nsColor: .controlBackgroundColor))
+        Divider()
     }
 
     @ViewBuilder
@@ -49,7 +75,7 @@ struct LibraryView: View {
     @ViewBuilder
     private var itemList: some View {
         List(store.items, id: \.id, selection: $selection) { item in
-            HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(displayTitle(for: item))
                         .lineLimit(1)
@@ -59,7 +85,7 @@ struct LibraryView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                statusPill(for: item.status)
+                rowTrailing(for: item)
             }
             .padding(.vertical, 2)
             .contextMenu {
@@ -93,42 +119,117 @@ struct LibraryView: View {
         }
     }
 
+    // MARK: - Per-row trailing controls
+
     @ViewBuilder
-    private func statusPill(for status: LibraryItemStatus) -> some View {
-        Text(statusLabel(status))
-            .font(.caption2)
-            .fontWeight(.medium)
-            .foregroundStyle(.white)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(statusColor(status)))
-    }
+    private func rowTrailing(for item: LibraryItem) -> some View {
+        switch item.status {
+        case .pending:
+            Button("Synthesize now") {
+                onSynthesize(item.id)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
 
-    private func statusLabel(_ status: LibraryItemStatus) -> String {
-        switch status {
-        case .pending: return "Pending"
-        case .extracting: return "Extracting"
-        case .synthesizing: return "Synthesizing"
-        case .uploading: return "Uploading"
-        case .ready: return "Ready"
-        case .played: return "Played"
-        case .archived: return "Archived"
-        case .failed: return "Failed"
+        case .extracting:
+            HStack(spacing: 4) {
+                ProgressView()
+                    .scaleEffect(0.7)
+                    .frame(width: 14, height: 14)
+                Text("Extracting")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+        case .synthesizing(let progress):
+            HStack(spacing: 6) {
+                if let p = progress {
+                    ProgressView(value: p, total: 1.0)
+                        .frame(width: 60)
+                        .progressViewStyle(.linear)
+                } else {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .frame(width: 14, height: 14)
+                }
+                Text("Synthesizing")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+        case .uploading:
+            HStack(spacing: 4) {
+                ProgressView()
+                    .scaleEffect(0.7)
+                    .frame(width: 14, height: 14)
+                Text("Uploading")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+        case .ready:
+            VStack(alignment: .trailing, spacing: 2) {
+                if let dur = item.durationSeconds {
+                    Text(formattedDuration(dur))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let size = item.byteSize {
+                    Text(formattedSize(size))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+        case .played:
+            Text("Played")
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.secondary))
+
+        case .archived:
+            Text("Archived")
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.secondary))
+
+        case .failed(let reason):
+            HStack(spacing: 4) {
+                Text(reason)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Button("Retry") {
+                    onSynthesize(item.id)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
         }
     }
 
-    private func statusColor(_ status: LibraryItemStatus) -> Color {
-        switch status {
-        case .pending: return .gray
-        case .extracting: return .blue
-        case .synthesizing: return .blue
-        case .uploading: return .orange
-        case .ready: return .green
-        case .played: return .secondary
-        case .archived: return .secondary
-        case .failed: return .red
-        }
+    // MARK: - Formatting helpers
+
+    private func formattedDuration(_ seconds: Double) -> String {
+        let total = Int(seconds)
+        let m = total / 60
+        let s = total % 60
+        return "\(m)m \(String(format: "%02d", s))s"
     }
+
+    private func formattedSize(_ bytes: Int64) -> String {
+        let mb = Double(bytes) / 1_048_576
+        return String(format: "%.1f MB", mb)
+    }
+
+    // MARK: - Existing helpers (unchanged)
 
     private func displayTitle(for item: LibraryItem) -> String {
         if let title = item.title, !title.isEmpty { return title }
@@ -187,6 +288,7 @@ struct LibraryView: View {
             playedAt: nil
         )
         store.add(item)
+        onSynthesize(item.id)
     }
 
     private func addItem(text: String) {
@@ -205,5 +307,6 @@ struct LibraryView: View {
             playedAt: nil
         )
         store.add(item)
+        onSynthesize(item.id)
     }
 }

@@ -15,6 +15,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let settings: TTSSettings
     private let ipcServer: IPCServer
     private let libraryStore: LibraryStore
+    private let librarySynthesizer: LibrarySynthesizer
+    private let librarySynthesisState: LibrarySynthesisState
 
     private var cachedLastSeenCwd: String?
 
@@ -32,11 +34,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private static let slotSize: CGFloat = 22
     private static let speedLabelWidth: CGFloat = 40
 
-    init(appState: AppState, settings: TTSSettings, ipcServer: IPCServer, libraryStore: LibraryStore) {
+    init(
+        appState: AppState,
+        settings: TTSSettings,
+        ipcServer: IPCServer,
+        libraryStore: LibraryStore,
+        librarySynthesizer: LibrarySynthesizer,
+        librarySynthesisState: LibrarySynthesisState
+    ) {
         self.appState = appState
         self.settings = settings
         self.ipcServer = ipcServer
         self.libraryStore = libraryStore
+        self.librarySynthesizer = librarySynthesizer
+        self.librarySynthesisState = librarySynthesisState
         statusItem = NSStatusBar.system.statusItem(withLength: SusurroIcon.iconWidth)
         speakerImageView = NSImageView()
         pauseButton = NSButton()
@@ -488,7 +499,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func handleResume() { onResumeReading() }
     @objc private func handleReadThis() { onReadThis() }
-    @objc private func handleShowReadingList() { LibraryWindowController.show(store: libraryStore) }
+    @objc private func handleShowReadingList() {
+        LibraryWindowController.show(
+            store: libraryStore,
+            synthesizer: librarySynthesizer,
+            state: librarySynthesisState
+        )
+    }
     @objc private func handleShowTranscript() { onShowTranscript() }
     @objc private func handleQuit() { NSApp.terminate(nil) }
     @objc private func handleToggleAutoRead() { settings.autoReadEnabled.toggle() }
