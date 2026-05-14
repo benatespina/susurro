@@ -30,12 +30,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let ttsSettings = TTSSettings()
     let libraryStore = LibraryStore()
     let librarySynthesisState = LibrarySynthesisState()
+    let libraryPlayer = LibraryPlayer()
+    let librarySettings = LibrarySettings()
     var librarySynthesizer: LibrarySynthesizer?
     var saveCoordinator: SaveCoordinator?
     var playbackCoordinator: PlaybackCoordinator?
     var driveAuth: DriveAuth?
     var driveClient: DriveClient?
     var libraryPublisher: LibraryPublisher?
+    var libraryCleanupTask: LibraryCleanupTask?
     private var permissionCoordinator: PermissionCoordinator?
     private var selectionObserver: SelectionObserver?
     private var panelController: PanelController?
@@ -86,6 +89,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         )
         libraryPublisher = publisher
         Task { await synthesizer.setPublisher(publisher) }
+
+        // Build cleanup task and schedule it (reuse audioDir defined above).
+        let cleanupTask = LibraryCleanupTask(
+            store: libraryStore,
+            publisher: publisher,
+            settings: librarySettings,
+            audioDirectoryURL: audioDir
+        )
+        libraryCleanupTask = cleanupTask
+
+        // Run ~10s after launch (mirrors ReleaseChecker pattern).
+        Task.detached {
+            try? await Task.sleep(for: .seconds(10))
+            await cleanupTask.runOnce()
+        }
+
+        // Run once per day thereafter.
+        Task.detached {
+            while true {
+                try? await Task.sleep(for: .seconds(86400))
+                await cleanupTask.runOnce()
+            }
+        }
 
         permissionCoordinator = PermissionCoordinator(appState: appState)
         let settings = ttsSettings
@@ -172,6 +198,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
 
+    private func markPlayed(itemID: UUID) {
+        libraryStore.update(id: itemID) { item in
+            item.status = .played
+            item.playedAt = Date()
+        }
+        if let pub = libraryPublisher {
+            Task { try? await pub.regenerateFeed() }
+        }
+    }
+
     private func installMenuBarController() {
         guard let server = ipcServer, let synthesizer = librarySynthesizer,
               let auth = driveAuth, let client = driveClient else { return }
@@ -184,8 +220,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             librarySynthesisState: librarySynthesisState,
             driveAuth: auth,
             driveClient: client,
-            libraryPublisher: libraryPublisher
+            libraryPublisher: libraryPublisher,
+            libraryPlayer: libraryPlayer,
+            librarySettings: librarySettings
         )
+        controller.onMarkPlayed = { [weak self] id in self?.markPlayed(itemID: id) }
         controller.onShowTranscript = { [weak self] in
             guard let self, let coordinator = self.playbackCoordinator else { return }
             TranscriptWindowController.show(

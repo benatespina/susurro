@@ -5,11 +5,15 @@ struct LibraryView: View {
     var synthesizer: LibrarySynthesizer
     var synthesisState: LibrarySynthesisState
     var publisher: (any LibraryPublishing)?
+    var player: LibraryPlayer
+    var settings: LibrarySettings
     var onSynthesize: (UUID) -> Void
+    var onMarkPlayed: (UUID) -> Void
 
     @State private var newURL: String = ""
     @State private var selection: UUID?
     @State private var feedConfig: DriveConfig?
+    @State private var showingSettings = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,6 +26,9 @@ struct LibraryView: View {
             content
         }
         .onAppear { feedConfig = DriveConfig.load() }
+        .sheet(isPresented: $showingSettings) {
+            LibrarySettingsSheet(settings: settings)
+        }
     }
 
     // MARK: - Subviews
@@ -35,6 +42,10 @@ struct LibraryView: View {
             Button("Add") { addURL() }
                 .disabled(newURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !isValidURL(newURL))
                 .keyboardShortcut(.defaultAction)
+            Spacer()
+            Button("Settings…") { showingSettings = true }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -117,17 +128,24 @@ struct LibraryView: View {
     @ViewBuilder
     private var itemList: some View {
         List(store.items, id: \.id, selection: $selection) { item in
-            HStack(alignment: .center, spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(displayTitle(for: item))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    Text(relativeDate(item.createdAt))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .center, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(displayTitle(for: item))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .foregroundStyle(item.status == .archived ? Color.secondary : Color.primary)
+                        Text(relativeDate(item.createdAt))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    rowTrailing(for: item)
                 }
-                Spacer()
-                rowTrailing(for: item)
+                // Scrubber — only visible when this item is currently playing.
+                if player.nowPlayingID == item.id && player.duration > 0 {
+                    scrubber(for: item)
+                }
             }
             .padding(.vertical, 2)
             .contextMenu {
@@ -158,6 +176,27 @@ struct LibraryView: View {
                 }
             }
             return !strings.isEmpty
+        }
+    }
+
+    @ViewBuilder
+    private func scrubber(for item: LibraryItem) -> some View {
+        HStack(spacing: 8) {
+            Text(formattedDuration(player.currentTime))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 44, alignment: .trailing)
+            Slider(
+                value: Binding(
+                    get: { player.currentTime },
+                    set: { player.seek(to: $0) }
+                ),
+                in: 0...max(player.duration, 1)
+            )
+            Text(formattedDuration(player.duration))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 44, alignment: .leading)
         }
     }
 
@@ -223,6 +262,12 @@ struct LibraryView: View {
                             .foregroundStyle(.tertiary)
                     }
                 }
+                playPauseButton(for: item)
+                Button("Mark played") {
+                    onMarkPlayed(item.id)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 if let pub = publisher, feedConfig?.hasFolder == true {
                     Button("Re-publish") {
                         Task { try? await pub.publish(itemID: item.id) }
@@ -234,7 +279,10 @@ struct LibraryView: View {
 
         case .played:
             HStack(spacing: 6) {
-                Text("Played")
+                if item.audioFilename != nil {
+                    playPauseButton(for: item)
+                }
+                Text("Played ✓")
                     .font(.caption2)
                     .fontWeight(.medium)
                     .foregroundStyle(.white)
@@ -254,10 +302,10 @@ struct LibraryView: View {
             Text("Archived")
                 .font(.caption2)
                 .fontWeight(.medium)
-                .foregroundStyle(.white)
+                .foregroundStyle(.secondary)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(Capsule().fill(Color.secondary))
+                .background(Capsule().fill(Color(nsColor: .separatorColor)))
 
         case .failed(let reason):
             HStack(spacing: 4) {
@@ -273,6 +321,27 @@ struct LibraryView: View {
                 .controlSize(.small)
             }
         }
+    }
+
+    @ViewBuilder
+    private func playPauseButton(for item: LibraryItem) -> some View {
+        let isThisItemPlaying = player.nowPlayingID == item.id && player.isPlaying
+        Button {
+            if isThisItemPlaying {
+                player.pause()
+            } else if player.nowPlayingID == item.id {
+                player.resume()
+            } else {
+                if let audioURL = store.audioURL(for: item) {
+                    player.play(item: item, audioURL: audioURL)
+                }
+            }
+        } label: {
+            Image(systemName: isThisItemPlaying ? "pause.fill" : "play.fill")
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .disabled(store.audioURL(for: item) == nil)
     }
 
     // MARK: - Formatting helpers
@@ -370,5 +439,45 @@ struct LibraryView: View {
         )
         store.add(item)
         onSynthesize(item.id)
+    }
+}
+
+// MARK: - LibrarySettingsSheet
+
+private struct LibrarySettingsSheet: View {
+    @Bindable var settings: LibrarySettings
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Library Settings")
+                .font(.headline)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Played items TTL: \(settings.playedTTLDays) days")
+                    .font(.subheadline)
+                Slider(
+                    value: Binding(
+                        get: { Double(settings.playedTTLDays) },
+                        set: { settings.playedTTLDays = Int($0) }
+                    ),
+                    in: 1...365,
+                    step: 1
+                )
+                Text("Items marked as played are automatically archived after this many days.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Toggle("Auto-publish after synthesis", isOn: $settings.autoPublishOnSynthesize)
+
+            HStack {
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 360)
     }
 }

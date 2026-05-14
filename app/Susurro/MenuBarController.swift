@@ -20,6 +20,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let driveAuth: DriveAuth
     private let driveClient: DriveClient
     private let libraryPublisher: (any LibraryPublishing)?
+    private let libraryPlayer: LibraryPlayer
+    private let librarySettings: LibrarySettings
+    var onMarkPlayed: (UUID) -> Void = { _ in }
 
     private var cachedLastSeenCwd: String?
 
@@ -46,7 +49,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         librarySynthesisState: LibrarySynthesisState,
         driveAuth: DriveAuth,
         driveClient: DriveClient,
-        libraryPublisher: (any LibraryPublishing)?
+        libraryPublisher: (any LibraryPublishing)?,
+        libraryPlayer: LibraryPlayer,
+        librarySettings: LibrarySettings
     ) {
         self.appState = appState
         self.settings = settings
@@ -57,6 +62,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         self.driveAuth = driveAuth
         self.driveClient = driveClient
         self.libraryPublisher = libraryPublisher
+        self.libraryPlayer = libraryPlayer
+        self.librarySettings = librarySettings
         statusItem = NSStatusBar.system.statusItem(withLength: SusurroIcon.iconWidth)
         speakerImageView = NSImageView()
         pauseButton = NSButton()
@@ -511,10 +518,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func handleReadThis() { onReadThis() }
     @objc private func handleShowReadingList() {
         LibraryWindowController.show(
-            store: libraryStore,
-            synthesizer: librarySynthesizer,
-            state: librarySynthesisState,
-            publisher: libraryPublisher
+            environment: LibraryEnvironment(
+                store: libraryStore,
+                synthesizer: librarySynthesizer,
+                synthesisState: librarySynthesisState,
+                publisher: libraryPublisher,
+                player: libraryPlayer,
+                settings: librarySettings,
+                onMarkPlayed: { [weak self] id in self?.onMarkPlayed(id) }
+            )
         )
     }
 

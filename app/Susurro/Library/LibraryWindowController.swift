@@ -1,30 +1,40 @@
 import AppKit
 import SwiftUI
 
+// Groups all Library-window dependencies to keep call sites clean.
+struct LibraryEnvironment {
+    var store: LibraryStore
+    var synthesizer: LibrarySynthesizer
+    var synthesisState: LibrarySynthesisState
+    var publisher: (any LibraryPublishing)?
+    var player: LibraryPlayer
+    var settings: LibrarySettings
+    var onMarkPlayed: (UUID) -> Void
+}
+
 @MainActor
 enum LibraryWindowController {
     private static var windowController: NSWindowController?
 
-    static func show(
-        store: LibraryStore,
-        synthesizer: LibrarySynthesizer,
-        state: LibrarySynthesisState,
-        publisher: (any LibraryPublishing)? = nil
-    ) {
+    static func show(environment: LibraryEnvironment) {
         if let existing = windowController {
             existing.window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
 
+        let env = environment
         let view = LibraryView(
-            store: store,
-            synthesizer: synthesizer,
-            synthesisState: state,
-            publisher: publisher,
+            store: env.store,
+            synthesizer: env.synthesizer,
+            synthesisState: env.synthesisState,
+            publisher: env.publisher,
+            player: env.player,
+            settings: env.settings,
             onSynthesize: { itemID in
-                Task { await synthesizer.enqueue(itemID: itemID) }
-            }
+                Task { await env.synthesizer.enqueue(itemID: itemID) }
+            },
+            onMarkPlayed: env.onMarkPlayed
         )
         let hosting = NSHostingController(rootView: view)
         hosting.preferredContentSize = NSSize(width: 720, height: 480)
