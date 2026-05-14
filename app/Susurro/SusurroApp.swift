@@ -28,6 +28,7 @@ import UserNotifications
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     let appState = AppState()
     let ttsSettings = TTSSettings()
+    let libraryStore = LibraryStore()
     var playbackCoordinator: PlaybackCoordinator?
     private var permissionCoordinator: PermissionCoordinator?
     private var selectionObserver: SelectionObserver?
@@ -39,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSigtermHandler()
+        libraryStore.load()
         permissionCoordinator = PermissionCoordinator(appState: appState)
         let settings = ttsSettings
         let coordinator = PlaybackCoordinator(
@@ -121,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     private func installMenuBarController() {
         guard let server = ipcServer else { return }
-        let controller = MenuBarController(appState: appState, settings: ttsSettings, ipcServer: server)
+        let controller = MenuBarController(appState: appState, settings: ttsSettings, ipcServer: server, libraryStore: libraryStore)
         controller.onShowTranscript = { [weak self] in
             guard let self, let coordinator = self.playbackCoordinator else { return }
             TranscriptWindowController.show(

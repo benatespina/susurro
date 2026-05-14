@@ -14,6 +14,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let appState: AppState
     private let settings: TTSSettings
     private let ipcServer: IPCServer
+    private let libraryStore: LibraryStore
 
     private var cachedLastSeenCwd: String?
 
@@ -31,10 +32,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private static let slotSize: CGFloat = 22
     private static let speedLabelWidth: CGFloat = 40
 
-    init(appState: AppState, settings: TTSSettings, ipcServer: IPCServer) {
+    init(appState: AppState, settings: TTSSettings, ipcServer: IPCServer, libraryStore: LibraryStore) {
         self.appState = appState
         self.settings = settings
         self.ipcServer = ipcServer
+        self.libraryStore = libraryStore
         statusItem = NSStatusBar.system.statusItem(withLength: SusurroIcon.iconWidth)
         speakerImageView = NSImageView()
         pauseButton = NSButton()
@@ -255,6 +257,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let readItem = menuItem(title: "Read this (⌥⌘R)", action: #selector(handleReadThis))
         readItem.isEnabled = appState.backendStatus == .ready
         menu.addItem(readItem)
+        menu.addItem(menuItem(title: "Reading List…", action: #selector(handleShowReadingList)))
         menu.addItem(menuItem(title: "Show transcript…", action: #selector(handleShowTranscript)))
 
         let checkUpdatesItem = NSMenuItem(
@@ -485,6 +488,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func handleResume() { onResumeReading() }
     @objc private func handleReadThis() { onReadThis() }
+    @objc private func handleShowReadingList() { LibraryWindowController.show(store: libraryStore) }
     @objc private func handleShowTranscript() { onShowTranscript() }
     @objc private func handleQuit() { NSApp.terminate(nil) }
     @objc private func handleToggleAutoRead() { settings.autoReadEnabled.toggle() }
