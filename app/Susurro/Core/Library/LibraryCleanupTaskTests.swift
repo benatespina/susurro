@@ -12,6 +12,7 @@ actor FakePublisher: LibraryPublishing {
     private(set) var publishedIDs: [UUID] = []
     private(set) var unpublishedIDs: [UUID] = []
     private(set) var regenerateFeedCallCount: Int = 0
+    private(set) var publishOrphansCallCount: Int = 0
 
     func publish(itemID: UUID) async throws {
         publishedIDs.append(itemID)
@@ -23,6 +24,10 @@ actor FakePublisher: LibraryPublishing {
 
     func regenerateFeed() async throws {
         regenerateFeedCallCount += 1
+    }
+
+    func publishOrphans() async {
+        publishOrphansCallCount += 1
     }
 }
 

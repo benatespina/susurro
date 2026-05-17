@@ -27,7 +27,7 @@ struct LibraryView: View {
         }
         .onAppear { feedConfig = DriveConfig.load() }
         .sheet(isPresented: $showingSettings) {
-            LibrarySettingsSheet(settings: settings)
+            LibrarySettingsSheet(settings: settings, publisher: publisher, store: store)
         }
     }
 
@@ -439,9 +439,18 @@ struct LibraryView: View {
 
 private struct LibrarySettingsSheet: View {
     @Bindable var settings: LibrarySettings
+    let publisher: (any LibraryPublishing)?
+    let store: LibraryStore
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        let orphanCount = store.items.filter { item in
+            if case .ready = item.status {
+                return item.driveFileID == nil && item.audioFilename != nil
+            }
+            return false
+        }.count
+
         VStack(alignment: .leading, spacing: 20) {
             Text("Library Settings")
                 .font(.headline)
@@ -463,6 +472,13 @@ private struct LibrarySettingsSheet: View {
             }
 
             Toggle("Auto-publish after synthesis", isOn: $settings.autoPublishOnSynthesize)
+
+            Button("Re-publish orphans (\(orphanCount))") {
+                guard let pub = publisher else { return }
+                Task { await pub.publishOrphans() }
+                dismiss()
+            }
+            .disabled(orphanCount == 0 || publisher == nil)
 
             HStack {
                 Spacer()

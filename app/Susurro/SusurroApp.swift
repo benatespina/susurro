@@ -92,7 +92,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             channel: rssChannel
         )
         libraryPublisher = publisher
-        Task { await synthesizer.setPublisher(publisher) }
+        Task {
+            await synthesizer.setPublisher(publisher)
+            await publisher.publishOrphans()
+            await synthesizer.enqueuePending()
+        }
 
         // Build cleanup task and schedule it (reuse audioDir defined above).
         let cleanupTask = LibraryCleanupTask(
@@ -195,10 +199,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             await ReleaseChecker.shared.checkIfDue()
         }
 
-        // Pick up any pending/failed library items from a previous session.
-        if let synth = librarySynthesizer {
-            Task { await synth.enqueuePending() }
-        }
     }
 
     private func markPlayed(itemID: UUID) {

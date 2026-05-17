@@ -6,6 +6,7 @@ protocol LibraryPublishing: Sendable {
     func publish(itemID: UUID) async throws
     func unpublish(itemID: UUID) async throws
     func regenerateFeed() async throws
+    func publishOrphans() async
 }
 
 // MARK: - Errors
@@ -47,44 +48,59 @@ actor LibraryPublisher: LibraryPublishing {
     // MARK: - LibraryPublishing
 
     func publish(itemID: UUID) async throws {
+        AppLogger.publishing.info("publish start \(itemID.uuidString, privacy: .public)")
         guard let item = await loadItem(itemID) else {
             throw PublisherError.itemNotFound
         }
         await setStatus(id: itemID, status: .uploading)
 
+        // Stage A — MP3 upload (with idempotency check).
         do {
             guard let config = configProvider(), let folderID = config.folderID else {
                 throw PublisherError.notConnected
             }
 
-            // Read MP3 from disk.
-            let audioFilename = "\(item.id.uuidString).mp3"
-            let audioURL = audioDirectory().appendingPathComponent(audioFilename)
-            guard FileManager.default.fileExists(atPath: audioURL.path) else {
-                throw PublisherError.audioFileNotFound(audioURL.path)
-            }
-            let mp3Data = try Data(contentsOf: audioURL)
-
-            // Upload MP3.
-            let fileID = try await driveClient.uploadFile(
-                name: audioFilename,
-                mimeType: "audio/mpeg",
-                data: mp3Data,
-                parentID: folderID
-            )
-            try await driveClient.setAnyoneWithLink(fileID: fileID)
-
-            // Persist driveFileID on item.
-            await MainActor.run {
-                store.update(id: itemID) { i in
-                    i.driveFileID = fileID
+            if let existingFileID = item.driveFileID,
+               let headResult = try? await driveClient.headFile(fileID: existingFileID),
+               headResult != nil {
+                // MP3 already on Drive — reuse without re-uploading.
+                AppLogger.publishing.info("publish: MP3 reused \(existingFileID, privacy: .public)")
+            } else {
+                // Read MP3 from disk.
+                let audioFilename = "\(item.id.uuidString).mp3"
+                let audioURL = audioDirectory().appendingPathComponent(audioFilename)
+                guard FileManager.default.fileExists(atPath: audioURL.path) else {
+                    throw PublisherError.audioFileNotFound(audioURL.path)
                 }
+                let mp3Data = try Data(contentsOf: audioURL)
+
+                // Upload MP3.
+                let fileID = try await driveClient.uploadFile(
+                    name: audioFilename,
+                    mimeType: "audio/mpeg",
+                    data: mp3Data,
+                    parentID: folderID
+                )
+                try await driveClient.setAnyoneWithLink(fileID: fileID)
+
+                // Persist driveFileID on item.
+                await MainActor.run {
+                    store.update(id: itemID) { i in
+                        i.driveFileID = fileID
+                    }
+                }
+                AppLogger.publishing.info("publish: MP3 uploaded \(fileID, privacy: .public) size=\(mp3Data.count, privacy: .public)")
             }
 
-            // Regenerate and upload feed.
-            try await uploadFeed(config: config)
-
+            // Stage B — Mark .ready immediately once MP3 is on Drive.
             await setStatus(id: itemID, status: .ready)
+
+            // Stage C — Feed regeneration; failure only logs, does not affect item status.
+            do {
+                try await uploadFeed(config: config)
+            } catch {
+                AppLogger.publishing.error("feed regeneration failed (item already on Drive): \(error, privacy: .public)")
+            }
 
         } catch {
             await setStatus(id: itemID, status: .failed(reason: String(describing: error)))
@@ -93,12 +109,14 @@ actor LibraryPublisher: LibraryPublishing {
     }
 
     func unpublish(itemID: UUID) async throws {
+        AppLogger.publishing.info("unpublish start \(itemID.uuidString, privacy: .public)")
         guard let item = await loadItem(itemID) else {
             throw PublisherError.itemNotFound
         }
 
         if let fileID = item.driveFileID {
             try await driveClient.deleteFile(fileID: fileID)
+            AppLogger.publishing.info("unpublish: deleted Drive file \(fileID, privacy: .public)")
         }
 
         await MainActor.run {
@@ -108,11 +126,36 @@ actor LibraryPublisher: LibraryPublishing {
         }
 
         try await regenerateFeed()
+        AppLogger.publishing.info("unpublish: feed regenerated for \(itemID.uuidString, privacy: .public)")
     }
 
     func regenerateFeed() async throws {
         guard let config = configProvider() else { return }
         try await uploadFeed(config: config)
+    }
+
+    func publishOrphans() async {
+        guard configProvider()?.hasFolder == true else {
+            AppLogger.publishing.info("publishOrphans skipped: Drive not configured")
+            return
+        }
+        let orphans = await MainActor.run {
+            store.items.filter { item in
+                if case .ready = item.status {
+                    return item.driveFileID == nil && item.audioFilename != nil
+                }
+                return false
+            }
+        }
+        guard !orphans.isEmpty else { return }
+        AppLogger.publishing.info("publishOrphans: \(orphans.count, privacy: .public) item(s) to back-publish")
+        for item in orphans {
+            do {
+                try await publish(itemID: item.id)
+            } catch {
+                AppLogger.publishing.error("publishOrphans: \(item.id.uuidString, privacy: .public) failed: \(error, privacy: .public)")
+            }
+        }
     }
 
     // MARK: - Private: feed upload

@@ -326,9 +326,9 @@ actor LibrarySynthesizer {
             do {
                 try await pub.publish(itemID: id)
             } catch PublisherError.notConnected {
-                // Drive not configured yet; silently skip.
+                AppLogger.publishing.warning("auto-publish skipped for \(id.uuidString, privacy: .public): Drive not connected")
             } catch {
-                AppLogger.app.error("LibrarySynthesizer: Drive publish failed for \(id.uuidString, privacy: .public): \(error, privacy: .public)")
+                AppLogger.publishing.error("auto-publish failed for \(id.uuidString, privacy: .public): \(error, privacy: .public)")
             }
         }
     }
