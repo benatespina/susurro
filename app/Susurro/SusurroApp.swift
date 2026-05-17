@@ -28,7 +28,17 @@ import UserNotifications
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     let appState = AppState()
     let ttsSettings = TTSSettings()
+    let libraryStore = LibraryStore()
+    let librarySynthesisState = LibrarySynthesisState()
+    let libraryPlayer = LibraryPlayer()
+    let librarySettings = LibrarySettings()
+    var librarySynthesizer: LibrarySynthesizer?
+    var saveCoordinator: SaveCoordinator?
     var playbackCoordinator: PlaybackCoordinator?
+    var driveAuth: DriveAuth?
+    var driveClient: DriveClient?
+    var libraryPublisher: LibraryPublisher?
+    var libraryCleanupTask: LibraryCleanupTask?
     private var permissionCoordinator: PermissionCoordinator?
     private var selectionObserver: SelectionObserver?
     private var panelController: PanelController?
@@ -39,6 +49,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSigtermHandler()
+        libraryStore.load()
+
+        // Build the library synthesizer.
+        let audioDir = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appending(path: "Susurro/library/audio")
+        let synthesizer = LibrarySynthesizer(
+            store: libraryStore,
+            extractor: ArticleExtractor(),
+            currentProviderProvider: { await MainActor.run { TTSProviderRegistry.shared.current } },
+            durationProbe: AVAudioDurationProbe(),
+            langDetect: StaticLangDetector(),
+            audioDirectoryURL: audioDir,
+            synthesisState: librarySynthesisState,
+            librarySettings: librarySettings
+        )
+        librarySynthesizer = synthesizer
+        saveCoordinator = SaveCoordinator(store: libraryStore, synthesizer: synthesizer)
+
+        // Build Drive publishing infrastructure.
+        let auth = DriveAuth()
+        driveAuth = auth
+        let client = DriveClient(auth: auth, configProvider: { DriveConfig.load() })
+        driveClient = client
+        let feedURL = DriveConfig.load()?.feedURL() ?? URL(string: "https://susurro.benatespina.com/feed")!
+        let rssChannel = RSSChannel(
+            title: "Susurro Library",
+            description: "Articles saved with Susurro",
+            link: feedURL,
+            language: "es-ES",
+            imageURL: nil,
+            author: "Susurro"
+        )
+        let publisher = LibraryPublisher(
+            store: libraryStore,
+            driveClient: client,
+            configProvider: { DriveConfig.load() },
+            channel: rssChannel
+        )
+        libraryPublisher = publisher
+        Task { await synthesizer.setPublisher(publisher) }
+
+        // Build cleanup task and schedule it (reuse audioDir defined above).
+        let cleanupTask = LibraryCleanupTask(
+            store: libraryStore,
+            publisher: publisher,
+            settings: librarySettings,
+            audioDirectoryURL: audioDir
+        )
+        libraryCleanupTask = cleanupTask
+
+        // Run ~10s after launch (mirrors ReleaseChecker pattern).
+        Task.detached {
+            try? await Task.sleep(for: .seconds(10))
+            await cleanupTask.runOnce()
+        }
+
+        // Run once per day thereafter.
+        Task.detached {
+            while true {
+                try? await Task.sleep(for: .seconds(86400))
+                await cleanupTask.runOnce()
+            }
+        }
+
         permissionCoordinator = PermissionCoordinator(appState: appState)
         let settings = ttsSettings
         let coordinator = PlaybackCoordinator(
@@ -107,7 +182,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
         }
         startSelectionSystemWhenPermitted()
-        registerReadThisHotkey()
+        registerHotkeys()
 
         // Set notification delegate so taps open the release page.
         UNUserNotificationCenter.current().delegate = self
@@ -117,11 +192,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             try? await Task.sleep(for: .seconds(5))
             await ReleaseChecker.shared.checkIfDue()
         }
+
+        // Pick up any pending/failed library items from a previous session.
+        if let synth = librarySynthesizer {
+            Task { await synth.enqueuePending() }
+        }
+    }
+
+    private func markPlayed(itemID: UUID) {
+        libraryStore.update(id: itemID) { item in
+            item.status = .played
+            item.playedAt = Date()
+        }
+        if let pub = libraryPublisher {
+            Task { try? await pub.regenerateFeed() }
+        }
     }
 
     private func installMenuBarController() {
-        guard let server = ipcServer else { return }
-        let controller = MenuBarController(appState: appState, settings: ttsSettings, ipcServer: server)
+        guard let server = ipcServer, let synthesizer = librarySynthesizer,
+              let auth = driveAuth, let client = driveClient else { return }
+        let controller = MenuBarController(
+            appState: appState,
+            settings: ttsSettings,
+            ipcServer: server,
+            libraryStore: libraryStore,
+            librarySynthesizer: synthesizer,
+            librarySynthesisState: librarySynthesisState,
+            driveAuth: auth,
+            driveClient: client,
+            libraryPublisher: libraryPublisher,
+            libraryPlayer: libraryPlayer,
+            librarySettings: librarySettings
+        )
+        controller.onMarkPlayed = { [weak self] id in self?.markPlayed(itemID: id) }
         controller.onShowTranscript = { [weak self] in
             guard let self, let coordinator = self.playbackCoordinator else { return }
             TranscriptWindowController.show(
@@ -159,14 +263,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         menuBarController = controller
     }
 
-    private func registerReadThisHotkey() {
-        GlobalHotkeyManager.shared.register(
-            keyCode: HotkeyDefaults.readThisKeyCode,
-            modifiers: HotkeyDefaults.readThisModifiers
+    private func registerHotkeys() {
+        HotkeyRegistry.shared.register(
+            id: HotkeyDefaults.readSelectionID,
+            keyCode: HotkeyDefaults.readSelectionKeyCode,
+            modifiers: HotkeyDefaults.readSelectionModifiers
         ) { [weak self] in
             self?.readFromCurrentApp()
         }
-        AppLogger.app.info("global hotkey Cmd+Option+R registered for Read this")
+        HotkeyRegistry.shared.register(
+            id: HotkeyDefaults.saveURLID,
+            keyCode: HotkeyDefaults.saveURLKeyCode,
+            modifiers: HotkeyDefaults.saveURLModifiers
+        ) { [weak self] in
+            Task { @MainActor [weak self] in
+                await self?.saveCoordinator?.saveFromFrontmost()
+            }
+        }
+        AppLogger.app.info("global hotkeys registered: Cmd+Option+R (read), Cmd+Option+S (save)")
     }
 
     private func startSelectionSystemWhenPermitted() {
@@ -202,6 +316,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         panelController?.onStop = { [weak self] in
             Task { await self?.playbackCoordinator?.stop() }
         }
+        panelController?.onSave = { [weak self] in
+            Task { @MainActor [weak self] in
+                await self?.saveCoordinator?.saveFromFrontmost()
+            }
+        }
         AppLogger.selection.info("selection system activated")
     }
 
@@ -223,7 +342,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func readFromCurrentApp() {
         let resolved = SourceResolver.resolve()
-        let fallback: String? = resolved == nil ? Self.urlFromClipboard() : nil
+        let fallback: String? = resolved == nil ? SourceResolver.urlFromClipboard() : nil
         if resolved == nil && fallback == nil {
             AppLogger.app.info("no readable source in frontmost app or clipboard")
             NSSound.beep()
@@ -281,19 +400,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private static func urlLooksLikePDF(_ raw: String) -> Bool {
         guard let parsed = URL(string: raw) else { return false }
         return parsed.path.lowercased().hasSuffix(".pdf")
-    }
-
-    private static func urlFromClipboard() -> String? {
-        let pb = NSPasteboard.general
-        let raw = pb.string(forType: .string)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !raw.isEmpty,
-              let parsed = URL(string: raw),
-              let scheme = parsed.scheme?.lowercased(),
-              scheme == "http" || scheme == "https",
-              parsed.host?.isEmpty == false
-        else { return nil }
-        return parsed.absoluteString
     }
 
     private func installSigtermHandler() {

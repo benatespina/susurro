@@ -14,6 +14,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let appState: AppState
     private let settings: TTSSettings
     private let ipcServer: IPCServer
+    private let libraryStore: LibraryStore
+    private let librarySynthesizer: LibrarySynthesizer
+    private let librarySynthesisState: LibrarySynthesisState
+    private let driveAuth: DriveAuth
+    private let driveClient: DriveClient
+    private let libraryPublisher: (any LibraryPublishing)?
+    private let libraryPlayer: LibraryPlayer
+    private let librarySettings: LibrarySettings
+    var onMarkPlayed: (UUID) -> Void = { _ in }
 
     private var cachedLastSeenCwd: String?
 
@@ -31,10 +40,30 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private static let slotSize: CGFloat = 22
     private static let speedLabelWidth: CGFloat = 40
 
-    init(appState: AppState, settings: TTSSettings, ipcServer: IPCServer) {
+    init(
+        appState: AppState,
+        settings: TTSSettings,
+        ipcServer: IPCServer,
+        libraryStore: LibraryStore,
+        librarySynthesizer: LibrarySynthesizer,
+        librarySynthesisState: LibrarySynthesisState,
+        driveAuth: DriveAuth,
+        driveClient: DriveClient,
+        libraryPublisher: (any LibraryPublishing)?,
+        libraryPlayer: LibraryPlayer,
+        librarySettings: LibrarySettings
+    ) {
         self.appState = appState
         self.settings = settings
         self.ipcServer = ipcServer
+        self.libraryStore = libraryStore
+        self.librarySynthesizer = librarySynthesizer
+        self.librarySynthesisState = librarySynthesisState
+        self.driveAuth = driveAuth
+        self.driveClient = driveClient
+        self.libraryPublisher = libraryPublisher
+        self.libraryPlayer = libraryPlayer
+        self.librarySettings = librarySettings
         statusItem = NSStatusBar.system.statusItem(withLength: SusurroIcon.iconWidth)
         speakerImageView = NSImageView()
         pauseButton = NSButton()
@@ -255,6 +284,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let readItem = menuItem(title: "Read this (⌥⌘R)", action: #selector(handleReadThis))
         readItem.isEnabled = appState.backendStatus == .ready
         menu.addItem(readItem)
+        menu.addItem(menuItem(title: "Reading List…", action: #selector(handleShowReadingList)))
+        menu.addItem(menuItem(title: "Configure Google Drive…", action: #selector(handleConfigureDrive)))
         menu.addItem(menuItem(title: "Show transcript…", action: #selector(handleShowTranscript)))
 
         let checkUpdatesItem = NSMenuItem(
@@ -485,6 +516,23 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func handleResume() { onResumeReading() }
     @objc private func handleReadThis() { onReadThis() }
+    @objc private func handleShowReadingList() {
+        LibraryWindowController.show(
+            environment: LibraryEnvironment(
+                store: libraryStore,
+                synthesizer: librarySynthesizer,
+                synthesisState: librarySynthesisState,
+                publisher: libraryPublisher,
+                player: libraryPlayer,
+                settings: librarySettings,
+                onMarkPlayed: { [weak self] id in self?.onMarkPlayed(id) }
+            )
+        )
+    }
+
+    @objc private func handleConfigureDrive() {
+        DriveConfigWindowController.show(auth: driveAuth, client: driveClient)
+    }
     @objc private func handleShowTranscript() { onShowTranscript() }
     @objc private func handleQuit() { NSApp.terminate(nil) }
     @objc private func handleToggleAutoRead() { settings.autoReadEnabled.toggle() }

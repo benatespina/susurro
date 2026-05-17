@@ -30,6 +30,19 @@ private func tempSocketPath() -> String {
 	NSTemporaryDirectory() + "ipc-test-\(UUID().uuidString).sock"
 }
 
+/// Polls until the socket file appears on disk or the timeout elapses.
+/// NWListener.start(queue:) is asynchronous; the socket file is created once the
+/// listener reaches .ready state. Without this guard, test connect attempts race
+/// the listener setup and fail with POSIXErrorCode(rawValue: 50) "Network is down".
+private func waitForSocketReady(path: String, timeoutMs: Int = 500) async {
+	let pollIntervalNs: UInt64 = 10_000_000 // 10 ms
+	let maxAttempts = max(1, timeoutMs / 10)
+	for _ in 0 ..< maxAttempts {
+		if FileManager.default.fileExists(atPath: path) { return }
+		try? await Task.sleep(nanoseconds: pollIntervalNs)
+	}
+}
+
 @MainActor
 private func makeSettings(autoReadEnabled: Bool) -> TTSSettings {
 	let key = "claude.autoRead.enabled"
@@ -55,7 +68,39 @@ private final class OnceResumer: @unchecked Sendable {
 	}
 }
 
+private func isNetworkDown(_ error: Error) -> Bool {
+	let nsErr = error as NSError
+	if nsErr.domain == NSPOSIXErrorDomain && nsErr.code == Int(ENETDOWN) { return true }
+	if (error as? POSIXError)?.code == .ENETDOWN { return true }
+	// NWError wraps a POSIX error; check the underlying error too.
+	if let underlying = nsErr.userInfo[NSUnderlyingErrorKey] as? Error {
+		return isNetworkDown(underlying)
+	}
+	return false
+}
+
 private func sendAndReceive(socketPath: String, payload: Data) async throws -> Data {
+	// Retry up to ~500 ms to absorb transient "Network is down" (POSIXErrorCode 50) failures
+	// that occur when the NWListener is still starting up or the previous test's listener has
+	// not fully torn down yet.
+	var lastError: Error = URLError(.unknown)
+	for attempt in 0 ..< 10 {
+		if attempt > 0 {
+			try? await Task.sleep(nanoseconds: 50_000_000) // 50 ms back-off
+		}
+		do {
+			return try await sendAndReceiveOnce(socketPath: socketPath, payload: payload)
+		} catch let error where isNetworkDown(error) {
+			lastError = error
+			continue
+		} catch {
+			throw error
+		}
+	}
+	throw lastError
+}
+
+private func sendAndReceiveOnce(socketPath: String, payload: Data) async throws -> Data {
 	try await withCheckedThrowingContinuation { continuation in
 		let connection = NWConnection(
 			to: NWEndpoint.unix(path: socketPath),
@@ -123,7 +168,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: ["cmd": "read", "text": "Hello world"])
 		#expect(resp["ok"] as? Bool == true)
@@ -144,7 +189,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		// Only a code block — filter will strip everything, leaving empty string
 		let resp = try await sendJSON(socketPath: path, object: ["cmd": "read", "text": "```swift\nlet x = 1\n```"])
@@ -164,7 +209,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: ["cmd": "read", "text": "Hello world"])
 		#expect(resp["ok"] as? Bool == true)
@@ -183,7 +228,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: ["cmd": "speak", "text": "Hello"])
 		#expect(resp["ok"] as? Bool == false)
@@ -199,7 +244,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let badPayload = Data("not json at all {{{".utf8)
 		let responseData = try await sendAndReceive(socketPath: path, payload: badPayload)
@@ -217,7 +262,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let bigText = String(repeating: "A", count: 1_048_577)
 		let bigPayload = try JSONSerialization.data(withJSONObject: ["cmd": "read", "text": bigText])
@@ -236,7 +281,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		async let resp1 = sendJSON(socketPath: path, object: ["cmd": "read", "text": "First message"])
 		try await Task.sleep(for: .milliseconds(200))
@@ -265,7 +310,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: ["cmd": "read", "text": "Hello"])
 		#expect(resp["ok"] as? Bool == true)
@@ -280,7 +325,7 @@ struct IPCServerTests {
 		let server = IPCServer(socketPath: path, speaker: speaker, settings: settings)
 		try await server.start()
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 		#expect(FileManager.default.fileExists(atPath: path))
 
 		await server.stop()
@@ -296,7 +341,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(
 			socketPath: path,
@@ -317,7 +362,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(
 			socketPath: path,
@@ -338,7 +383,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		_ = try await sendJSON(
 			socketPath: path,
@@ -362,7 +407,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: ["cmd": "read", "text": "Hello world"])
 		#expect(resp["ok"] as? Bool == false)
@@ -387,7 +432,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: ["cmd": "health"])
 		#expect(resp["ok"] as? Bool == true)
@@ -411,7 +456,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: ["cmd": "tts", "text": "Hello"])
 		#expect(resp["ok"] as? Bool == true)
@@ -429,7 +474,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: ["cmd": "tts"])
 		#expect(resp["ok"] as? Bool == false)
@@ -450,7 +495,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let payload = try JSONSerialization.data(withJSONObject: ["cmd": "tts-stream", "text": "Hello stream"])
 		let raw = try await sendAndReceive(socketPath: path, payload: payload)
@@ -500,7 +545,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: ["cmd": "extract"])
 		#expect(resp["ok"] as? Bool == false)
@@ -515,7 +560,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: ["cmd": "extract", "url": "not-a-url"])
 		#expect(resp["ok"] as? Bool == false)
@@ -532,7 +577,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: ["cmd": "pron-list"])
 		#expect(resp["ok"] as? Bool == true)
@@ -550,7 +595,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		// Upsert
 		let upsertResp = try await sendJSON(socketPath: path, object: [
@@ -588,7 +633,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: [
 			"cmd": "pron-candidates",
@@ -612,7 +657,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: [
 			"cmd": "pron-preview",
@@ -632,7 +677,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: ["cmd": "stop"])
 		#expect(resp["ok"] as? Bool == true)
@@ -647,7 +692,7 @@ struct IPCServerTests {
 		try await server.start()
 		defer { Task { await server.stop() } }
 
-		try await Task.sleep(for: .milliseconds(50))
+		await waitForSocketReady(path: path)
 
 		let resp = try await sendJSON(socketPath: path, object: ["cmd": "totally-unknown"])
 		#expect(resp["ok"] as? Bool == false)

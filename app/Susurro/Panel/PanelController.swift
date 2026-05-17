@@ -11,10 +11,12 @@ final class PanelController {
     private var lastSelectionRect: CGRect?
     var onRead: ((String) -> Void)?
     var onStop: (() -> Void)?
+    var onSave: (() -> Void)?
     var onHide: (() -> Void)?
 
     // 32 (button) + 4*2 (inner padding) + 8*2 (outer padding) = 56 each axis
-    private static let toolbarSize = CGSize(width: 56, height: 56)
+    // Two buttons side-by-side: width = 56 + 32 + 4 (gap) = 92; height stays 56.
+    private static let toolbarSize = CGSize(width: 92, height: 56)
 
     init(observer: SelectionObserver, appState: AppState) {
         self.observer = observer
@@ -91,7 +93,8 @@ final class PanelController {
                 guard let text = self?.lastSelectionText ?? SelectionReader.current()?.text else { return }
                 self?.onRead?(text)
             },
-            onStop: { [weak self] in self?.onStop?() }
+            onStop: { [weak self] in self?.onStop?() },
+            onSave: { [weak self] in self?.onSave?() }
         )
         if let panel, let host = panel.contentView as? NSHostingView<PanelContent> {
             host.rootView = content
