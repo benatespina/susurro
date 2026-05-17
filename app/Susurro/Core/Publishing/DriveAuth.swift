@@ -75,9 +75,18 @@ final class DriveAuth: NSObject, ASWebAuthenticationPresentationContextProviding
         }
 
         guard
-            let components = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false),
-            let code = components.queryItems?.first(where: { $0.name == "code" })?.value
+            let components = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)
         else {
+            throw DriveAuthError.invalidCallback
+        }
+
+        // Surface Google's error description when the user denies access.
+        if let oauthError = components.queryItems?.first(where: { $0.name == "error" })?.value {
+            let description = components.queryItems?.first(where: { $0.name == "error_description" })?.value
+            throw DriveAuthError.tokenExchangeFailed(description ?? oauthError)
+        }
+
+        guard let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
             throw DriveAuthError.invalidCallback
         }
 
@@ -214,8 +223,11 @@ extension Data {
 // MARK: - String URL encoding helper
 
 private extension String {
+    /// Percent-encodes a value for use as an `application/x-www-form-urlencoded` field.
+    /// `.urlQueryAllowed` still admits `&`, `=`, `+`, `#`, etc., which would corrupt form bodies.
+    /// We use `.alphanumerics` plus the unreserved characters defined by RFC 3986 §2.3.
     var urlEncoded: String {
-        addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)?
-            .replacingOccurrences(of: "+", with: "%2B") ?? self
+        let unreserved = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+        return addingPercentEncoding(withAllowedCharacters: unreserved) ?? self
     }
 }

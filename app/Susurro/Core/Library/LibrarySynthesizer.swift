@@ -116,6 +116,15 @@ actor LibrarySynthesizer {
             switch item.status {
             case .pending, .failed:
                 enqueue(itemID: item.id)
+            case .extracting, .synthesizing, .uploading:
+                // These transient states are never persisted as terminal; if found on startup
+                // they indicate a crash mid-pipeline. Reset to .pending so the item re-runs.
+                await MainActor.run {
+                    store.update(id: item.id) { i in
+                        i.status = .pending
+                    }
+                }
+                enqueue(itemID: item.id)
             default:
                 break
             }
@@ -276,6 +285,7 @@ actor LibrarySynthesizer {
         AppLogger.app.info("LibrarySynthesizer: item \(id.uuidString, privacy: .public) ready, dur=\(duration, privacy: .public)s size=\(byteSize, privacy: .public)B")
 
         // 7. Publish to Drive if configured.
+        // TODO: pass LibrarySettings and guard on settings.autoPublishOnSynthesize here.
         if let pub = publisher, DriveConfig.load()?.hasFolder == true {
             do {
                 try await pub.publish(itemID: id)
