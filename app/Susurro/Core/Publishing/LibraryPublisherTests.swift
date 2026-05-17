@@ -385,6 +385,12 @@ struct LibraryPublisherTests {
         let uploadArgs = mp3Uploads.flatMap { $0.args }
         #expect(!uploadArgs.contains("\(publishedID.uuidString).mp3"))
 
+        // The already-published item should NOT have triggered a headFile call —
+        // publishOrphans filters by isOrphan (driveFileID == nil), so it never calls publish() for it.
+        let headFileCalls = calls.filter { $0.method == "headFile" }
+        let headFileArgs = headFileCalls.flatMap { $0.args }
+        #expect(!headFileArgs.contains("existing-drive-id"))
+
         // Orphans should now have driveFileID set
         let updatedOrphan1 = store.items.first { $0.id == orphan1ID }
         let updatedOrphan2 = store.items.first { $0.id == orphan2ID }

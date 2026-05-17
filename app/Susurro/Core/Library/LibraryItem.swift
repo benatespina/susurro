@@ -93,4 +93,10 @@ struct LibraryItem: Codable, Sendable, Identifiable, Equatable {
     var lastError: String?
     var playedAt: Date?
     var driveFileID: String?
+
+    /// Ready-state item whose audio is synthesised but not yet on Drive.
+    var isOrphan: Bool {
+        guard case .ready = status else { return false }
+        return driveFileID == nil && audioFilename != nil
+    }
 }

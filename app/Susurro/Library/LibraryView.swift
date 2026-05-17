@@ -444,12 +444,7 @@ private struct LibrarySettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        let orphanCount = store.items.filter { item in
-            if case .ready = item.status {
-                return item.driveFileID == nil && item.audioFilename != nil
-            }
-            return false
-        }.count
+        let orphanCount = store.items.filter(\.isOrphan).count
 
         VStack(alignment: .leading, spacing: 20) {
             Text("Library Settings")

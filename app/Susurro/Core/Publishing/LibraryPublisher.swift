@@ -60,12 +60,18 @@ actor LibraryPublisher: LibraryPublishing {
                 throw PublisherError.notConnected
             }
 
-            if let existingFileID = item.driveFileID,
-               let headResult = try? await driveClient.headFile(fileID: existingFileID),
-               headResult != nil {
-                // MP3 already on Drive — reuse without re-uploading.
-                AppLogger.publishing.info("publish: MP3 reused \(existingFileID, privacy: .public)")
-            } else {
+            var mp3AlreadyOnDrive = false
+            if let existingFileID = item.driveFileID {
+                do {
+                    mp3AlreadyOnDrive = try await driveClient.headFile(fileID: existingFileID) != nil
+                } catch {
+                    AppLogger.publishing.debug("publish: headFile check failed for \(existingFileID, privacy: .public), will re-upload: \(error, privacy: .public)")
+                }
+                if mp3AlreadyOnDrive {
+                    AppLogger.publishing.info("publish: MP3 reused \(existingFileID, privacy: .public)")
+                }
+            }
+            if !mp3AlreadyOnDrive {
                 // Read MP3 from disk.
                 let audioFilename = "\(item.id.uuidString).mp3"
                 let audioURL = audioDirectory().appendingPathComponent(audioFilename)
@@ -99,7 +105,7 @@ actor LibraryPublisher: LibraryPublishing {
             do {
                 try await uploadFeed(config: config)
             } catch {
-                AppLogger.publishing.error("feed regeneration failed (item already on Drive): \(error, privacy: .public)")
+                AppLogger.publishing.error("feed update failed: \(error, privacy: .public)")
             }
 
         } catch {
@@ -140,12 +146,7 @@ actor LibraryPublisher: LibraryPublishing {
             return
         }
         let orphans = await MainActor.run {
-            store.items.filter { item in
-                if case .ready = item.status {
-                    return item.driveFileID == nil && item.audioFilename != nil
-                }
-                return false
-            }
+            store.items.filter(\.isOrphan)
         }
         guard !orphans.isEmpty else { return }
         AppLogger.publishing.info("publishOrphans: \(orphans.count, privacy: .public) item(s) to back-publish")
