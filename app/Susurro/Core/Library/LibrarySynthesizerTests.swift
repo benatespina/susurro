@@ -653,4 +653,97 @@ struct LibrarySynthesizerTests {
         #expect(servedLangs.contains("en"), "Expected provider to receive 'en', got \(servedLangs)")
         #expect(!servedLangs.contains("es"), "Provider should NOT receive 'es' when flag is off")
     }
+
+    // MARK: - Translation: translator throws → item still completes ready in original language
+
+    @Test @MainActor
+    func translationFailureFallsBackToOriginalLanguage() async throws {
+        let tmp = makeTempDir()
+        let audioDir = tmp.appendingPathComponent("audio")
+        let store = makeStore(in: tmp)
+
+        let item = makeTextItem(text: "Hello world. This is sample text for synthesis.")
+        store.add(item)
+
+        let provider = FakeProvider()
+        let probe = FakeDurationProbe(fixedDuration: 5.0)
+        let mockTranslator = MockTranslator()
+        mockTranslator.errorToThrow = TranslatorError.failed(message: "network error")
+
+        let synthesizer = makeSynthesizer(
+            store: store,
+            provider: provider,
+            probe: probe,
+            langDetect: FakeLangDetector(language: "en"),
+            audioDir: audioDir,
+            translator: mockTranslator,
+            translateFlag: { true }
+        )
+
+        await synthesizer.enqueue(itemID: item.id)
+
+        let finalItem = await waitForItem(store: store, id: item.id) { item in
+            switch item.status {
+            case .ready, .failed: return true
+            default: return false
+            }
+        }
+
+        let unwrapped = try #require(finalItem)
+        // Item must complete successfully even though translation failed.
+        #expect(unwrapped.status == .ready)
+
+        // Translator was called once (attempted).
+        #expect(mockTranslator.translateCallCount == 1)
+
+        // TTS provider must have received the original language "en", not "es".
+        let servedLangs = await provider.servedItems
+        #expect(servedLangs.contains("en"), "Expected fallback to original 'en', got \(servedLangs)")
+        #expect(!servedLangs.contains("es"), "Provider should NOT receive 'es' after translation failure")
+    }
+
+    // MARK: - Translation: flag on but language is already "es" → translator not called
+
+    @Test @MainActor
+    func skipsTranslationWhenLanguageAlreadySpanish() async throws {
+        let tmp = makeTempDir()
+        let audioDir = tmp.appendingPathComponent("audio")
+        let store = makeStore(in: tmp)
+
+        let item = makeTextItem(text: "Hola mundo. Este es el texto de ejemplo para la síntesis.")
+        store.add(item)
+
+        let provider = FakeProvider()
+        let probe = FakeDurationProbe(fixedDuration: 5.0)
+        let mockTranslator = MockTranslator()
+
+        let synthesizer = makeSynthesizer(
+            store: store,
+            provider: provider,
+            probe: probe,
+            langDetect: FakeLangDetector(language: "es"),
+            audioDir: audioDir,
+            translator: mockTranslator,
+            translateFlag: { true }
+        )
+
+        await synthesizer.enqueue(itemID: item.id)
+
+        let finalItem = await waitForItem(store: store, id: item.id) { item in
+            switch item.status {
+            case .ready, .failed: return true
+            default: return false
+            }
+        }
+
+        let unwrapped = try #require(finalItem)
+        #expect(unwrapped.status == .ready)
+
+        // Translator must NOT have been called — source is already Spanish.
+        #expect(mockTranslator.translateCallCount == 0)
+
+        // TTS provider must have received "es" directly.
+        let servedLangs = await provider.servedItems
+        #expect(servedLangs.contains("es"), "Expected provider to receive 'es', got \(servedLangs)")
+    }
 }
