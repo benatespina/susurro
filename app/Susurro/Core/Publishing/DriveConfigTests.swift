@@ -140,4 +140,20 @@ struct DriveConfigTests {
         DriveConfig.clear()
         #expect(DriveConfig.load() == nil)
     }
+
+    @Test func clearTokensOnlyKeepsClientIDAndFolder() throws {
+        defer { DriveConfig.clear() }
+        DriveConfig.save(DriveConfig(
+            clientID: "cid", clientSecret: "cs", refreshToken: "rt",
+            accessToken: "at", accessTokenExpiry: Date(), folderID: "fid", feedFileID: "ffid"
+        ))
+        DriveConfig.clearTokensOnly()
+        let loaded = try #require(DriveConfig.load())
+        #expect(loaded.clientID == "cid")
+        #expect(loaded.folderID == "fid")
+        #expect(loaded.feedFileID == "ffid")
+        #expect(loaded.isConnected == false)
+        #expect(loaded.accessToken == nil || loaded.accessToken == "")
+        #expect(loaded.accessTokenExpiry == nil)
+    }
 }

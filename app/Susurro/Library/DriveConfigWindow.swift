@@ -43,7 +43,6 @@ struct DriveConfigView: View {
     private let client: DriveClient
 
     @State private var clientID: String = ""
-    @State private var clientSecret: String = ""
     @State private var config: DriveConfig?
     @State private var statusMessage: String?
     @State private var isConnecting = false
@@ -59,8 +58,6 @@ struct DriveConfigView: View {
             credentialsSection
             Divider()
             connectionSection
-            Divider()
-            storageSection
             Divider()
             feedSection
             Spacer()
@@ -79,13 +76,16 @@ struct DriveConfigView: View {
             Text("OAuth Credentials")
                 .font(.headline)
 
-            Form {
-                TextField("Client ID", text: $clientID)
-                SecureField("Client Secret (leave empty for iOS OAuth client)", text: $clientSecret)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Client ID")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                TextField("", text: $clientID)
+                    .textFieldStyle(.roundedBorder)
             }
 
             HStack {
-                Link("How to obtain these →", destination: URL(string: "https://github.com/benatespina/susurro#drive-setup")!)
+                Link("How to obtain this →", destination: URL(string: "https://github.com/benatespina/susurro#drive-setup")!)
                     .font(.caption)
                 Spacer()
                 Button("Save") { saveCredentials() }
@@ -108,34 +108,25 @@ struct DriveConfigView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Button(isConnecting ? "Connecting…" : "Connect Google Drive") {
-                Task { await connectDrive() }
+            if config?.isConnected == true {
+                Button("Disconnect Google Drive") {
+                    disconnectDrive()
+                }
+            } else {
+                Button(isConnecting ? "Connecting…" : "Connect Google Drive") {
+                    Task { await connectDrive() }
+                }
+                .disabled(
+                    isConnecting ||
+                    clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                )
             }
-            .disabled(
-                isConnecting ||
-                clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            )
 
             if let msg = statusMessage {
                 Text(msg)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var storageSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Storage")
-                .font(.headline)
-            HStack {
-                Text("Folder:")
-                    .foregroundStyle(.secondary)
-                Text(config?.folderID != nil ? "Susurro Library" : "Not configured")
-                    .foregroundStyle(config?.folderID != nil ? .primary : .secondary)
-            }
-            .font(.callout)
         }
     }
 
@@ -183,17 +174,15 @@ struct DriveConfigView: View {
     private func loadConfig() {
         config = DriveConfig.load()
         clientID = config?.clientID ?? ""
-        // Don't populate clientSecret from Keychain into a TextField for security.
     }
 
     private func saveCredentials() {
         let trimmedID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedSecret = clientSecret.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedID.isEmpty else { return }
 
         let updated = DriveConfig(
             clientID: trimmedID,
-            clientSecret: trimmedSecret,
+            clientSecret: "",
             refreshToken: config?.refreshToken,
             accessToken: config?.accessToken,
             accessTokenExpiry: config?.accessTokenExpiry,
@@ -207,7 +196,6 @@ struct DriveConfigView: View {
 
     private func connectDrive() async {
         let trimmedID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedSecret = clientSecret.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedID.isEmpty else { return }
 
         isConnecting = true
@@ -217,12 +205,12 @@ struct DriveConfigView: View {
         do {
             let (refreshToken, accessToken, expiry) = try await auth.connect(
                 clientID: trimmedID,
-                clientSecret: trimmedSecret
+                clientSecret: ""
             )
 
             var updated = DriveConfig(
                 clientID: trimmedID,
-                clientSecret: trimmedSecret,
+                clientSecret: "",
                 refreshToken: refreshToken,
                 accessToken: accessToken,
                 accessTokenExpiry: expiry,
@@ -236,7 +224,7 @@ struct DriveConfigView: View {
                 let folderID = try await client.createFolder(name: "Susurro Library", parentID: "root")
                 updated = DriveConfig(
                     clientID: trimmedID,
-                    clientSecret: trimmedSecret,
+                    clientSecret: "",
                     refreshToken: refreshToken,
                     accessToken: accessToken,
                     accessTokenExpiry: expiry,
@@ -253,6 +241,12 @@ struct DriveConfigView: View {
         } catch {
             statusMessage = "Connection failed: \(error.localizedDescription)"
         }
+    }
+
+    private func disconnectDrive() {
+        DriveConfig.clearTokensOnly()
+        config = DriveConfig.load()
+        statusMessage = "Disconnected. Reconnect to resume publishing."
     }
 
     private func testConnection() async {

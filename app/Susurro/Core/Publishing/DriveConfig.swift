@@ -69,6 +69,12 @@ struct DriveConfig: Sendable, Equatable {
         Keychain.set("", for: Account.feedFileID)
     }
 
+    static func clearTokensOnly() {
+        Keychain.set("", for: Account.refreshToken)
+        Keychain.set("", for: Account.accessToken)
+        Keychain.set("", for: Account.accessTokenExpiry)
+    }
+
     // MARK: - Copy helpers
 
     func copying(
@@ -89,7 +95,7 @@ struct DriveConfig: Sendable, Equatable {
 
     // MARK: - Convenience
 
-    var isConnected: Bool { refreshToken != nil }
+    var isConnected: Bool { (refreshToken?.isEmpty == false) }
     var hasFolder: Bool { folderID != nil }
 
     func feedURL() -> URL? {
