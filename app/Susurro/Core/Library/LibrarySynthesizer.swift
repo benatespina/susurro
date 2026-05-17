@@ -82,6 +82,11 @@ actor LibrarySynthesizer {
 
     private let driveConfigProvider: @Sendable () -> DriveConfig?
 
+    // MARK: - Translation
+
+    private let translator: any TranslatorProviding
+    private let isTranslateToSpanishEnabled: @Sendable () -> Bool
+
     // MARK: - Init
 
     init(
@@ -93,7 +98,9 @@ actor LibrarySynthesizer {
         audioDirectoryURL: URL,
         synthesisState: LibrarySynthesisState,
         librarySettings: LibrarySettings? = nil,
-        driveConfigProvider: @escaping @Sendable () -> DriveConfig? = { DriveConfig.load() }
+        driveConfigProvider: @escaping @Sendable () -> DriveConfig? = { DriveConfig.load() },
+        translator: any TranslatorProviding,
+        isTranslateToSpanishEnabled: @escaping @Sendable () -> Bool = { false }
     ) {
         self.store = store
         self.extractor = extractor
@@ -104,6 +111,8 @@ actor LibrarySynthesizer {
         self.synthesisState = synthesisState
         self.librarySettings = librarySettings
         self.driveConfigProvider = driveConfigProvider
+        self.translator = translator
+        self.isTranslateToSpanishEnabled = isTranslateToSpanishEnabled
     }
 
     // MARK: - Public API
@@ -246,6 +255,16 @@ actor LibrarySynthesizer {
         }
 
         if checkCancelled(id) { throw CancellationError() }
+
+        // 1b. Optional translation to Spanish
+        if isTranslateToSpanishEnabled() && language != "es" && !text.isEmpty {
+            do {
+                text = try await translator.translate(text, to: "es-ES")
+                language = "es"
+            } catch {
+                AppLogger.app.error("LibrarySynthesizer: translation failed: \(error, privacy: .public)")
+            }
+        }
 
         // 2. Synthesizing phase
         await updateStatus(id: id, status: .synthesizing(progress: 0))
