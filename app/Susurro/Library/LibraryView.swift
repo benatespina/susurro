@@ -9,6 +9,7 @@ struct LibraryView: View {
     var settings: LibrarySettings
     var onSynthesize: (UUID) -> Void
     var onMarkPlayed: (UUID) -> Void
+    var onDelete: ((UUID) -> Void)? = nil
 
     @State private var newURL: String = ""
     @State private var selection: UUID?
@@ -150,13 +151,13 @@ struct LibraryView: View {
             .padding(.vertical, 2)
             .contextMenu {
                 Button("Delete", role: .destructive) {
-                    store.remove(id: item.id)
+                    (onDelete ?? { store.remove(id: $0) })(item.id)
                 }
             }
         }
         .onDeleteCommand {
             if let id = selection {
-                store.remove(id: id)
+                (onDelete ?? { store.remove(id: $0) })(id)
                 selection = nil
             }
         }
@@ -442,10 +443,9 @@ private struct LibrarySettingsSheet: View {
     let publisher: (any LibraryPublishing)?
     let store: LibraryStore
     @Environment(\.dismiss) private var dismiss
+    @State private var orphanCount: Int = 0
 
     var body: some View {
-        let orphanCount = store.items.filter(\.isOrphan).count
-
         VStack(alignment: .leading, spacing: 20) {
             Text("Library Settings")
                 .font(.headline)
@@ -468,12 +468,15 @@ private struct LibrarySettingsSheet: View {
 
             Toggle("Auto-publish after synthesis", isOn: $settings.autoPublishOnSynthesize)
 
-            Button("Re-publish orphans (\(orphanCount))") {
+            Button("Sync now (\(orphanCount) pending)") {
                 guard let pub = publisher else { return }
-                Task { await pub.publishOrphans() }
+                Task { _ = await pub.sync() }
                 dismiss()
             }
-            .disabled(orphanCount == 0 || publisher == nil)
+            .disabled(publisher == nil)
+            .task {
+                if let pub = publisher { orphanCount = await pub.orphanCount() }
+            }
 
             HStack {
                 Spacer()

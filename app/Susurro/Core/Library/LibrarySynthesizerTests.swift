@@ -17,7 +17,15 @@ actor FakeSynthesizerPublisher: LibraryPublishing {
 
     func regenerateFeed() async throws {}
 
-    func publishOrphans() async {}
+    func publishOrphans() async -> Int { 0 }
+
+    func reconcileMissing() async -> Int { 0 }
+
+    func sync() async -> LibraryPublisher.SyncSummary {
+        .init(orphansPublished: 0, missingRePublished: 0, feedRegenerated: false)
+    }
+
+    func orphanCount() async -> Int { 0 }
 }
 
 /// A fake TTS provider that emits a configurable number of data chunks.
