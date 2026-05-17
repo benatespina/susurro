@@ -20,7 +20,7 @@ struct DriveConfigTests {
         #expect(DriveConfig.load() == nil)
     }
 
-    @Test func loadReturnsNilWhenClientSecretMissing() {
+    @Test func loadSucceedsWithEmptyClientSecret() throws {
         defer { DriveConfig.clear() }
         DriveConfig.save(DriveConfig(
             clientID: "client-id",
@@ -31,7 +31,9 @@ struct DriveConfigTests {
             folderID: nil,
             feedFileID: nil
         ))
-        #expect(DriveConfig.load() == nil)
+        let loaded = try #require(DriveConfig.load())
+        #expect(loaded.clientID == "client-id")
+        #expect(loaded.clientSecret == "")
     }
 
     @Test func roundTripMinimal() throws {
@@ -122,12 +124,12 @@ struct DriveConfigTests {
             accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: "FILE123"
         )
         let url = try #require(config.feedURL())
-        #expect(url.absoluteString == "https://drive.google.com/uc?export=download&id=FILE123")
+        #expect(url.absoluteString == "https://drive.usercontent.google.com/download?id=FILE123&export=download&authuser=0&confirm=t")
     }
 
     @Test func enclosureURLHasCorrectForm() {
         let url = DriveConfig.enclosureURL(forFileID: "abc-def")
-        #expect(url.absoluteString == "https://drive.google.com/uc?export=download&id=abc-def")
+        #expect(url.absoluteString == "https://drive.usercontent.google.com/download?id=abc-def&export=download&authuser=0&confirm=t")
     }
 
     @Test func clearDeletesAllEntries() {

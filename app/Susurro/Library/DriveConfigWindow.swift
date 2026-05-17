@@ -81,7 +81,7 @@ struct DriveConfigView: View {
 
             Form {
                 TextField("Client ID", text: $clientID)
-                SecureField("Client Secret", text: $clientSecret)
+                SecureField("Client Secret (leave empty for iOS OAuth client)", text: $clientSecret)
             }
 
             HStack {
@@ -89,8 +89,7 @@ struct DriveConfigView: View {
                     .font(.caption)
                 Spacer()
                 Button("Save") { saveCredentials() }
-                    .disabled(clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                              clientSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
     }
@@ -114,8 +113,7 @@ struct DriveConfigView: View {
             }
             .disabled(
                 isConnecting ||
-                clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                clientSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             )
 
             if let msg = statusMessage {
@@ -191,7 +189,7 @@ struct DriveConfigView: View {
     private func saveCredentials() {
         let trimmedID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedSecret = clientSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedID.isEmpty, !trimmedSecret.isEmpty else { return }
+        guard !trimmedID.isEmpty else { return }
 
         let updated = DriveConfig(
             clientID: trimmedID,
@@ -210,7 +208,7 @@ struct DriveConfigView: View {
     private func connectDrive() async {
         let trimmedID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedSecret = clientSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedID.isEmpty, !trimmedSecret.isEmpty else { return }
+        guard !trimmedID.isEmpty else { return }
 
         isConnecting = true
         statusMessage = nil

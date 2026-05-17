@@ -54,7 +54,7 @@ final class DriveAuth: NSObject, ASWebAuthenticationPresentationContextProviding
             let session = ASWebAuthenticationSession(
                 url: authorizeURL,
                 callbackURLScheme: "com.benatespina.susurro"
-            ) { url, error in
+            ) { @Sendable url, error in
                 if let error {
                     if (error as NSError).code == ASWebAuthenticationSessionError.canceledLogin.rawValue {
                         continuation.resume(throwing: DriveAuthError.userCancelled)
@@ -165,10 +165,10 @@ final class DriveAuth: NSObject, ASWebAuthenticationPresentationContextProviding
     ) -> URLRequest {
         var params: [String: String] = [
             "client_id": clientID,
-            "client_secret": clientSecret,
             "grant_type": grantType,
             "redirect_uri": "com.benatespina.susurro:/oauth/callback",
         ]
+        if !clientSecret.isEmpty { params["client_secret"] = clientSecret }
         if let code { params["code"] = code }
         if let codeVerifier { params["code_verifier"] = codeVerifier }
         if let refreshToken { params["refresh_token"] = refreshToken }

@@ -25,9 +25,9 @@ struct DriveConfig: Sendable, Equatable {
 
     static func load() -> DriveConfig? {
         guard
-            let clientID = Keychain.string(for: Account.clientID), !clientID.isEmpty,
-            let clientSecret = Keychain.string(for: Account.clientSecret), !clientSecret.isEmpty
+            let clientID = Keychain.string(for: Account.clientID), !clientID.isEmpty
         else { return nil }
+        let clientSecret = Keychain.string(for: Account.clientSecret) ?? ""
 
         let expiryString = Keychain.string(for: Account.accessTokenExpiry)
         let expiry: Date? = expiryString.flatMap {
@@ -76,10 +76,10 @@ struct DriveConfig: Sendable, Equatable {
 
     func feedURL() -> URL? {
         guard let fileID = feedFileID else { return nil }
-        return URL(string: "https://drive.google.com/uc?export=download&id=\(fileID)")
+        return URL(string: "https://drive.usercontent.google.com/download?id=\(fileID)&export=download&authuser=0&confirm=t")
     }
 
     static func enclosureURL(forFileID id: String) -> URL {
-        URL(string: "https://drive.google.com/uc?export=download&id=\(id)")!
+        URL(string: "https://drive.usercontent.google.com/download?id=\(id)&export=download&authuser=0&confirm=t")!
     }
 }
