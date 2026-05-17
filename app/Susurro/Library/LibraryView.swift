@@ -213,14 +213,7 @@ struct LibraryView: View {
             .controlSize(.small)
 
         case .extracting:
-            HStack(spacing: 4) {
-                ProgressView()
-                    .scaleEffect(0.7)
-                    .frame(width: 14, height: 14)
-                Text("Extracting")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            inProgressLabel("Extracting")
 
         case .synthesizing(let progress):
             HStack(spacing: 6) {
@@ -239,14 +232,7 @@ struct LibraryView: View {
             }
 
         case .uploading:
-            HStack(spacing: 4) {
-                ProgressView()
-                    .scaleEffect(0.7)
-                    .frame(width: 14, height: 14)
-                Text("Uploading")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            inProgressLabel("Uploading")
 
         case .ready:
             HStack(spacing: 6) {
@@ -268,13 +254,7 @@ struct LibraryView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                if let pub = publisher, feedConfig?.hasFolder == true {
-                    Button("Re-publish") {
-                        Task { try? await pub.publish(itemID: item.id) }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
+                rePublishButton(for: item)
             }
 
         case .played:
@@ -289,13 +269,7 @@ struct LibraryView: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Capsule().fill(Color.secondary))
-                if let pub = publisher, feedConfig?.hasFolder == true {
-                    Button("Re-publish") {
-                        Task { try? await pub.publish(itemID: item.id) }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
+                rePublishButton(for: item)
             }
 
         case .archived:
@@ -342,6 +316,29 @@ struct LibraryView: View {
         .buttonStyle(.bordered)
         .controlSize(.small)
         .disabled(store.audioURL(for: item) == nil)
+    }
+
+    @ViewBuilder
+    private func rePublishButton(for item: LibraryItem) -> some View {
+        if let pub = publisher, feedConfig?.hasFolder == true {
+            Button("Re-publish") {
+                Task { try? await pub.publish(itemID: item.id) }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+    }
+
+    @ViewBuilder
+    private func inProgressLabel(_ label: String) -> some View {
+        HStack(spacing: 4) {
+            ProgressView()
+                .scaleEffect(0.7)
+                .frame(width: 14, height: 14)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     // MARK: - Formatting helpers
@@ -402,33 +399,26 @@ struct LibraryView: View {
     }
 
     private func addItem(url: String, kind: SourceKind) {
-        let item = LibraryItem(
-            id: UUID(),
-            createdAt: Date(),
-            title: nil,
-            sourceURL: url,
-            sourceKind: kind,
-            rawText: nil,
-            status: .pending,
-            audioFilename: nil,
-            durationSeconds: nil,
-            byteSize: nil,
-            lastError: nil,
-            playedAt: nil,
-            driveFileID: nil
-        )
-        store.add(item)
-        onSynthesize(item.id)
+        enqueueNewItem(sourceURL: url, sourceKind: kind, rawText: nil, title: nil)
     }
 
     private func addItem(text: String) {
+        enqueueNewItem(sourceURL: nil, sourceKind: .text, rawText: text, title: nil)
+    }
+
+    private func enqueueNewItem(
+        sourceURL: String?,
+        sourceKind: SourceKind,
+        rawText: String?,
+        title: String?
+    ) {
         let item = LibraryItem(
             id: UUID(),
             createdAt: Date(),
-            title: nil,
-            sourceURL: nil,
-            sourceKind: .text,
-            rawText: text,
+            title: title,
+            sourceURL: sourceURL,
+            sourceKind: sourceKind,
+            rawText: rawText,
             status: .pending,
             audioFilename: nil,
             durationSeconds: nil,

@@ -196,16 +196,7 @@ actor DriveClient: DriveUploading {
         )
 
         // Persist updated token.
-        let updated = DriveConfig(
-            clientID: config.clientID,
-            clientSecret: config.clientSecret,
-            refreshToken: config.refreshToken,
-            accessToken: newToken,
-            accessTokenExpiry: newExpiry,
-            folderID: config.folderID,
-            feedFileID: config.feedFileID
-        )
-        DriveConfig.save(updated)
+        DriveConfig.save(config.copying(accessToken: newToken, accessTokenExpiry: newExpiry))
         return newToken
     }
 

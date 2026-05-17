@@ -69,6 +69,24 @@ struct DriveConfig: Sendable, Equatable {
         Keychain.set("", for: Account.feedFileID)
     }
 
+    // MARK: - Copy helpers
+
+    func copying(
+        accessToken: String? = nil,
+        accessTokenExpiry: Date? = nil,
+        feedFileID: String? = nil
+    ) -> DriveConfig {
+        DriveConfig(
+            clientID: clientID,
+            clientSecret: clientSecret,
+            refreshToken: refreshToken,
+            accessToken: accessToken ?? self.accessToken,
+            accessTokenExpiry: accessTokenExpiry ?? self.accessTokenExpiry,
+            folderID: folderID,
+            feedFileID: feedFileID ?? self.feedFileID
+        )
+    }
+
     // MARK: - Convenience
 
     var isConnected: Bool { refreshToken != nil }

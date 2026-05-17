@@ -140,16 +140,7 @@ actor LibraryPublisher: LibraryPublishing {
             try await driveClient.setAnyoneWithLink(fileID: newFeedFileID)
 
             // Persist new feedFileID.
-            let updated = DriveConfig(
-                clientID: config.clientID,
-                clientSecret: config.clientSecret,
-                refreshToken: config.refreshToken,
-                accessToken: config.accessToken,
-                accessTokenExpiry: config.accessTokenExpiry,
-                folderID: config.folderID,
-                feedFileID: newFeedFileID
-            )
-            DriveConfig.save(updated)
+            DriveConfig.save(config.copying(feedFileID: newFeedFileID))
         }
     }
 
