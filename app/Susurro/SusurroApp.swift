@@ -220,6 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 await MainActor.run { self.libraryStore.remove(id: itemID) }
             }
         } else {
+            // No publisher means Drive is not configured; remove locally only.
             libraryStore.remove(id: itemID)
         }
     }
