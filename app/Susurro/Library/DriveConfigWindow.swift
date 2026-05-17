@@ -16,12 +16,12 @@ enum DriveConfigWindowController {
 
         let view = DriveConfigView(auth: auth, client: client)
         let hosting = NSHostingController(rootView: view)
-        hosting.preferredContentSize = NSSize(width: 480, height: 360)
+        hosting.preferredContentSize = NSSize(width: 480, height: 420)
         let window = NSWindow(contentViewController: hosting)
         window.title = "Configure Google Drive"
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 480, height: 360))
+        window.setContentSize(NSSize(width: 480, height: 420))
         window.center()
 
         let controller = NSWindowController(window: window)
@@ -63,7 +63,8 @@ struct DriveConfigView: View {
             Spacer()
             testConnectionButton
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 24)
         .frame(width: 480)
         .onAppear { loadConfig() }
     }
@@ -126,6 +127,8 @@ struct DriveConfigView: View {
                 Text(msg)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -137,18 +140,19 @@ struct DriveConfigView: View {
                 .font(.headline)
 
             if let feedURL = config?.feedURL() {
-                HStack {
-                    Text(feedURL.absoluteString)
-                        .font(.caption)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("URL")
+                        .font(.callout)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer()
-                    Button("Copy URL") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(feedURL.absoluteString, forType: .string)
+                    HStack {
+                        TextField("", text: .constant(feedURL.absoluteString))
+                            .textFieldStyle(.roundedBorder)
+                            .truncationMode(.middle)
+                        Button("Copy URL") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(feedURL.absoluteString, forType: .string)
+                        }
                     }
-                    .controlSize(.small)
                 }
             } else {
                 Text("Feed URL will appear here after first publish.")
