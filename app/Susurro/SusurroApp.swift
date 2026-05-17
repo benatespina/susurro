@@ -62,7 +62,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             durationProbe: AVAudioDurationProbe(),
             langDetect: StaticLangDetector(),
             audioDirectoryURL: audioDir,
-            synthesisState: librarySynthesisState
+            synthesisState: librarySynthesisState,
+            librarySettings: librarySettings
         )
         librarySynthesizer = synthesizer
         saveCoordinator = SaveCoordinator(store: libraryStore, synthesizer: synthesizer)

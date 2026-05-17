@@ -12,10 +12,20 @@ enum DriveAuthError: Error, Sendable {
     case refreshFailed(String)
 }
 
+// MARK: - DriveAuthing protocol (for testability)
+
+protocol DriveAuthing: Sendable {
+    func refreshAccessToken(
+        clientID: String,
+        clientSecret: String,
+        refreshToken: String
+    ) async throws -> (accessToken: String, expiry: Date)
+}
+
 // MARK: - DriveAuth
 
 @MainActor
-final class DriveAuth: NSObject, ASWebAuthenticationPresentationContextProviding, Sendable {
+final class DriveAuth: NSObject, ASWebAuthenticationPresentationContextProviding, Sendable, DriveAuthing {
 
     // MARK: - Dependencies
 

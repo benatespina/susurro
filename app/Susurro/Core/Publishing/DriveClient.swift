@@ -34,19 +34,22 @@ actor DriveClient: DriveUploading {
 
     // MARK: - Dependencies
 
-    private let auth: DriveAuth
+    private let auth: any DriveAuthing
     private let configProvider: @Sendable () -> DriveConfig?
+    private let configPersistor: @Sendable (DriveConfig) -> Void
     private let urlSession: URLSession
 
     // MARK: - Init
 
     init(
-        auth: DriveAuth,
+        auth: any DriveAuthing,
         configProvider: @escaping @Sendable () -> DriveConfig?,
+        configPersistor: (@Sendable (DriveConfig) -> Void)? = nil,
         urlSession: URLSession = .shared
     ) {
         self.auth = auth
         self.configProvider = configProvider
+        self.configPersistor = configPersistor ?? { DriveConfig.save($0) }
         self.urlSession = urlSession
     }
 
@@ -196,7 +199,7 @@ actor DriveClient: DriveUploading {
         )
 
         // Persist updated token.
-        DriveConfig.save(config.copying(accessToken: newToken, accessTokenExpiry: newExpiry))
+        configPersistor(config.copying(accessToken: newToken, accessTokenExpiry: newExpiry))
         return newToken
     }
 

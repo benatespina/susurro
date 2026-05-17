@@ -293,6 +293,9 @@ struct LibraryView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                if item.audioFilename != nil && store.audioURL(for: item) != nil {
+                    rePublishButton(for: item)
+                }
             }
         }
     }

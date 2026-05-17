@@ -5,6 +5,19 @@ import Testing
 
 // MARK: - Fakes
 
+/// A fake LibraryPublishing implementation that records publish calls.
+actor FakeSynthesizerPublisher: LibraryPublishing {
+    private(set) var publishedIDs: [UUID] = []
+
+    func publish(itemID: UUID) async throws {
+        publishedIDs.append(itemID)
+    }
+
+    func unpublish(itemID: UUID) async throws {}
+
+    func regenerateFeed() async throws {}
+}
+
 /// A fake TTS provider that emits a configurable number of data chunks.
 actor FakeProvider: TTSProvider {
     var chunksToEmit: Int = 2
@@ -102,7 +115,9 @@ private func makeSynthesizer(
     provider: any TTSProvider,
     probe: any AudioDurationProbing = FakeDurationProbe(),
     langDetect: any LangDetecting = FakeLangDetector(),
-    audioDir: URL
+    audioDir: URL,
+    librarySettings: LibrarySettings? = nil,
+    driveConfigProvider: (@Sendable () -> DriveConfig?)? = nil
 ) -> LibrarySynthesizer {
     let state = LibrarySynthesisState()
     return LibrarySynthesizer(
@@ -112,7 +127,21 @@ private func makeSynthesizer(
         durationProbe: probe,
         langDetect: langDetect,
         audioDirectoryURL: audioDir,
-        synthesisState: state
+        synthesisState: state,
+        librarySettings: librarySettings,
+        driveConfigProvider: driveConfigProvider ?? { nil }
+    )
+}
+
+private func makeFakeDriveConfig() -> DriveConfig {
+    DriveConfig(
+        clientID: "test-client-id",
+        clientSecret: "test-client-secret",
+        refreshToken: "test-refresh-token",
+        accessToken: "test-access-token",
+        accessTokenExpiry: Date().addingTimeInterval(3600),
+        folderID: "test-folder-id",
+        feedFileID: nil
     )
 }
 
@@ -383,6 +412,94 @@ struct LibrarySynthesizerTests {
 
         let unwrapped = try #require(finalItem)
         #expect(unwrapped.status == .ready)
+    }
+
+    // MARK: - autoPublishOnSynthesize: true publishes
+
+    @Test @MainActor
+    func autoPublishTrueCallsPublisher() async throws {
+        let tmp = makeTempDir()
+        let audioDir = tmp.appendingPathComponent("audio")
+        let store = makeStore(in: tmp)
+
+        let item = makeTextItem()
+        store.add(item)
+
+        let provider = FakeProvider()
+        let settings = LibrarySettings()
+        settings.autoPublishOnSynthesize = true
+        let fakeDriveConfig = makeFakeDriveConfig()
+
+        let synthesizer = makeSynthesizer(
+            store: store,
+            provider: provider,
+            probe: FakeDurationProbe(fixedDuration: 5.0),
+            audioDir: audioDir,
+            librarySettings: settings,
+            driveConfigProvider: { fakeDriveConfig }
+        )
+
+        let fakePublisher = FakeSynthesizerPublisher()
+        await synthesizer.setPublisher(fakePublisher)
+
+        await synthesizer.enqueue(itemID: item.id)
+
+        _ = await waitForItem(store: store, id: item.id) { item in
+            switch item.status {
+            case .ready, .failed: return true
+            default: return false
+            }
+        }
+
+        // Give publisher.publish a moment to complete (it runs after status flip).
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        let publishedIDs = await fakePublisher.publishedIDs
+        #expect(publishedIDs.contains(item.id), "Publisher should have been called when autoPublish is true")
+    }
+
+    // MARK: - autoPublishOnSynthesize: false skips publish
+
+    @Test @MainActor
+    func autoPublishFalseSkipsPublisher() async throws {
+        let tmp = makeTempDir()
+        let audioDir = tmp.appendingPathComponent("audio")
+        let store = makeStore(in: tmp)
+
+        let item = makeTextItem()
+        store.add(item)
+
+        let provider = FakeProvider()
+        let settings = LibrarySettings()
+        settings.autoPublishOnSynthesize = false
+        let fakeDriveConfig = makeFakeDriveConfig()
+
+        let synthesizer = makeSynthesizer(
+            store: store,
+            provider: provider,
+            probe: FakeDurationProbe(fixedDuration: 5.0),
+            audioDir: audioDir,
+            librarySettings: settings,
+            driveConfigProvider: { fakeDriveConfig }
+        )
+
+        let fakePublisher = FakeSynthesizerPublisher()
+        await synthesizer.setPublisher(fakePublisher)
+
+        await synthesizer.enqueue(itemID: item.id)
+
+        _ = await waitForItem(store: store, id: item.id) { item in
+            switch item.status {
+            case .ready, .failed: return true
+            default: return false
+            }
+        }
+
+        // Give a moment to confirm publisher was NOT called.
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        let publishedIDs = await fakePublisher.publishedIDs
+        #expect(publishedIDs.isEmpty, "Publisher should NOT be called when autoPublish is false")
     }
 
     // MARK: - enqueuePending picks up pending and failed

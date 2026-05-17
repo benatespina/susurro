@@ -4,10 +4,9 @@ import Testing
 
 // MARK: - Fake DriveAuth for token refresh simulation
 
-@MainActor
-final class FakeDriveAuth: @unchecked Sendable {
+final class FakeDriveAuth: DriveAuthing, @unchecked Sendable {
     var refreshCallCount = 0
-    var refreshResult: (String, Date) = ("fake-access-token", Date().addingTimeInterval(3600))
+    var refreshResult: (String, Date) = ("fresh-access-token", Date().addingTimeInterval(3600))
 
     func refreshAccessToken(
         clientID: String,
@@ -100,6 +99,40 @@ private func makeClientWithFreshToken(
                 feedFileID: nil
             )
         },
+        urlSession: session
+    )
+    return client
+}
+
+final class ConfigBox: @unchecked Sendable {
+    var value: DriveConfig?
+}
+
+private func makeClientWithExpiredToken(
+    fakeAuth: FakeDriveAuth,
+    responses: [(statusCode: Int, body: String)],
+    box: ConfigBox
+) -> DriveClient {
+    MultiMockURLProtocol.reset(responses: responses)
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [MultiMockURLProtocol.self]
+    let session = URLSession(configuration: config)
+
+    // Provide a config with an expired access token; the client should refresh before the request.
+    let client = DriveClient(
+        auth: fakeAuth,
+        configProvider: {
+            DriveConfig(
+                clientID: "cid",
+                clientSecret: "cs",
+                refreshToken: "old-refresh-token",
+                accessToken: "expired-access-token",
+                accessTokenExpiry: Date().addingTimeInterval(-60), // already expired
+                folderID: "folder-id",
+                feedFileID: nil
+            )
+        },
+        configPersistor: { saved in box.value = saved },
         urlSession: session
     )
     return client
@@ -234,5 +267,33 @@ struct DriveClientTests {
         _ = try await client.createFolder(name: "Test", parentID: "root")
         let authHeader = MultiMockURLProtocol.requests[0].value(forHTTPHeaderField: "Authorization")
         #expect(authHeader == "Bearer fake-access-token")
+    }
+
+    @Test func expiredTokenTriggersRefreshAndUsesNewToken() async throws {
+        let fakeAuth = FakeDriveAuth()
+        let newToken = "fresh-access-token"
+        let newExpiry = Date().addingTimeInterval(3600)
+        fakeAuth.refreshResult = (newToken, newExpiry)
+
+        let box = ConfigBox()
+        let client = makeClientWithExpiredToken(
+            fakeAuth: fakeAuth,
+            responses: [
+                (200, #"{"id":"file-abc","name":"test.mp3","size":"100","mimeType":"audio/mpeg"}"#),
+            ],
+            box: box
+        )
+
+        _ = try await client.headFile(fileID: "file-abc")
+
+        // Refresh was called exactly once.
+        #expect(fakeAuth.refreshCallCount == 1)
+
+        // The updated config was persisted with the new token.
+        #expect(box.value?.accessToken == newToken)
+
+        // The actual Drive request carried the new bearer token.
+        let authHeader = MultiMockURLProtocol.requests[0].value(forHTTPHeaderField: "Authorization")
+        #expect(authHeader == "Bearer \(newToken)")
     }
 }

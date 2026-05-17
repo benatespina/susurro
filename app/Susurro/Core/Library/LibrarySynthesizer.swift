@@ -74,6 +74,14 @@ actor LibrarySynthesizer {
 
     private let synthesisState: LibrarySynthesisState
 
+    // MARK: - Settings (read via await MainActor.run in process(_:))
+
+    private let librarySettings: LibrarySettings?
+
+    // MARK: - Drive config provider (injectable for tests)
+
+    private let driveConfigProvider: @Sendable () -> DriveConfig?
+
     // MARK: - Init
 
     init(
@@ -83,7 +91,9 @@ actor LibrarySynthesizer {
         durationProbe: any AudioDurationProbing,
         langDetect: any LangDetecting,
         audioDirectoryURL: URL,
-        synthesisState: LibrarySynthesisState
+        synthesisState: LibrarySynthesisState,
+        librarySettings: LibrarySettings? = nil,
+        driveConfigProvider: @escaping @Sendable () -> DriveConfig? = { DriveConfig.load() }
     ) {
         self.store = store
         self.extractor = extractor
@@ -92,6 +102,8 @@ actor LibrarySynthesizer {
         self.langDetect = langDetect
         self.audioDirectoryURL = audioDirectoryURL
         self.synthesisState = synthesisState
+        self.librarySettings = librarySettings
+        self.driveConfigProvider = driveConfigProvider
     }
 
     // MARK: - Public API
@@ -284,9 +296,14 @@ actor LibrarySynthesizer {
         }
         AppLogger.app.info("LibrarySynthesizer: item \(id.uuidString, privacy: .public) ready, dur=\(duration, privacy: .public)s size=\(byteSize, privacy: .public)B")
 
-        // 7. Publish to Drive if configured.
-        // TODO: pass LibrarySettings and guard on settings.autoPublishOnSynthesize here.
-        if let pub = publisher, DriveConfig.load()?.hasFolder == true {
+        // 7. Publish to Drive if configured and auto-publish is enabled.
+        let shouldAutoPublish: Bool
+        if let settings = librarySettings {
+            shouldAutoPublish = await MainActor.run { settings.autoPublishOnSynthesize }
+        } else {
+            shouldAutoPublish = true
+        }
+        if shouldAutoPublish, let pub = publisher, driveConfigProvider()?.hasFolder == true {
             do {
                 try await pub.publish(itemID: id)
             } catch PublisherError.notConnected {
