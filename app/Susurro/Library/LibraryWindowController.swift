@@ -10,6 +10,7 @@ struct LibraryEnvironment {
     var player: LibraryPlayer
     var settings: LibrarySettings
     var onMarkPlayed: (UUID) -> Void
+    var onDelete: ((UUID) -> Void)?
 }
 
 @MainActor
@@ -34,7 +35,8 @@ enum LibraryWindowController {
             onSynthesize: { itemID in
                 Task { await env.synthesizer.enqueue(itemID: itemID) }
             },
-            onMarkPlayed: env.onMarkPlayed
+            onMarkPlayed: env.onMarkPlayed,
+            onDelete: env.onDelete
         )
         let hosting = NSHostingController(rootView: view)
         hosting.preferredContentSize = NSSize(width: 720, height: 480)

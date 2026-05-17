@@ -93,8 +93,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         )
         libraryPublisher = publisher
         Task {
+            // Sequence matters: publisher must be set before sync; sync must complete
+            // before enqueuePending to avoid double-handling items that land in both passes.
             await synthesizer.setPublisher(publisher)
-            await publisher.publishOrphans()
+            _ = await publisher.sync()
             await synthesizer.enqueuePending()
         }
 
@@ -211,6 +213,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
 
+    private func deleteItem(itemID: UUID) {
+        if let pub = libraryPublisher {
+            Task {
+                try? await pub.unpublish(itemID: itemID)
+                await MainActor.run { self.libraryStore.remove(id: itemID) }
+            }
+        } else {
+            libraryStore.remove(id: itemID)
+        }
+    }
+
     private func installMenuBarController() {
         guard let server = ipcServer, let synthesizer = librarySynthesizer,
               let auth = driveAuth, let client = driveClient else { return }
@@ -228,6 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             librarySettings: librarySettings
         )
         controller.onMarkPlayed = { [weak self] id in self?.markPlayed(itemID: id) }
+        controller.onDelete = { [weak self] id in self?.deleteItem(itemID: id) }
         controller.onShowTranscript = { [weak self] in
             guard let self, let coordinator = self.playbackCoordinator else { return }
             TranscriptWindowController.show(
