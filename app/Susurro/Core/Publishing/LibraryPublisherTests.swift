@@ -13,6 +13,8 @@ actor FakeDriveClient: DriveUploading {
     private(set) var calls: [Call] = []
     var uploadedFileIDs: [String: String] = [:]  // name → id
     var feedFileID: String = "feed-file-id"
+    var headFileResult: DriveFileMeta? = nil
+    var feedUpdateShouldThrow: Bool = false
 
     func createFolder(name: String, parentID: String) async throws -> String {
         calls.append(Call(method: "createFolder", args: [name, parentID]))
@@ -30,6 +32,10 @@ actor FakeDriveClient: DriveUploading {
 
     func updateFile(fileID: String, data: Data, mimeType: String) async throws {
         calls.append(Call(method: "updateFile", args: [fileID, mimeType]))
+        if feedUpdateShouldThrow {
+            struct FeedUpdateError: Error {}
+            throw FeedUpdateError()
+        }
     }
 
     func deleteFile(fileID: String) async throws {
@@ -42,11 +48,19 @@ actor FakeDriveClient: DriveUploading {
 
     func headFile(fileID: String) async throws -> DriveFileMeta? {
         calls.append(Call(method: "headFile", args: [fileID]))
-        return nil
+        return headFileResult
     }
 
     func callMethods() async -> [String] {
         calls.map { $0.method }
+    }
+
+    func setHeadFileResult(_ result: DriveFileMeta?) {
+        headFileResult = result
+    }
+
+    func setFeedUpdateShouldThrow(_ value: Bool) {
+        feedUpdateShouldThrow = value
     }
 }
 
@@ -289,5 +303,209 @@ struct LibraryPublisherTests {
 
         let methods = await fakeClient.callMethods()
         #expect(methods == ["updateFile"])
+    }
+
+    // MARK: - publishOrphans
+
+    @Test func publishOrphansBackPublishesReadyItemsWithoutDriveFileID() async throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let store = makeStore()
+
+        // 2 orphans: .ready, audioFilename set, driveFileID nil
+        let orphan1ID = UUID()
+        let orphan2ID = UUID()
+        _ = try addReadyItemWithAudio(to: store, id: orphan1ID, tempDir: tempDir)
+        _ = try addReadyItemWithAudio(to: store, id: orphan2ID, tempDir: tempDir)
+
+        // 1 already-published item: .ready, driveFileID set
+        let publishedID = UUID()
+        let publishedItem = LibraryItem(
+            id: publishedID,
+            createdAt: Date(),
+            title: "Published",
+            sourceURL: "https://example.com/pub",
+            sourceKind: .url,
+            rawText: nil,
+            status: .ready,
+            audioFilename: "\(publishedID.uuidString).mp3",
+            durationSeconds: 60,
+            byteSize: 1234,
+            lastError: nil,
+            playedAt: nil,
+            driveFileID: "existing-drive-id"
+        )
+        store.add(publishedItem)
+
+        // 1 pending item
+        let pendingItem = LibraryItem(
+            id: UUID(),
+            createdAt: Date(),
+            title: "Pending",
+            sourceURL: nil,
+            sourceKind: .text,
+            rawText: "some text",
+            status: .pending,
+            audioFilename: nil,
+            durationSeconds: nil,
+            byteSize: nil,
+            lastError: nil,
+            playedAt: nil,
+            driveFileID: nil
+        )
+        store.add(pendingItem)
+
+        let fakeClient = FakeDriveClient()
+        let publisher = LibraryPublisher(
+            store: store,
+            driveClient: fakeClient,
+            configProvider: {
+                DriveConfig(
+                    clientID: "cid", clientSecret: "cs",
+                    refreshToken: "rt", accessToken: "at",
+                    accessTokenExpiry: Date().addingTimeInterval(3600),
+                    folderID: "folder-id",
+                    feedFileID: "existing-feed-id"
+                )
+            },
+            channel: makeChannel(),
+            audioDirectory: tempDir
+        )
+
+        await publisher.publishOrphans()
+
+        let calls = await fakeClient.calls
+        let mp3Uploads = calls.filter { $0.method == "uploadFile" && $0.args.contains("audio/mpeg") }
+        // Only 2 orphans should upload an MP3
+        #expect(mp3Uploads.count == 2)
+
+        // The already-published item should NOT have triggered an uploadFile for its file
+        let uploadArgs = mp3Uploads.flatMap { $0.args }
+        #expect(!uploadArgs.contains("\(publishedID.uuidString).mp3"))
+
+        // The already-published item should NOT have triggered a headFile call —
+        // publishOrphans filters by isOrphan (driveFileID == nil), so it never calls publish() for it.
+        let headFileCalls = calls.filter { $0.method == "headFile" }
+        let headFileArgs = headFileCalls.flatMap { $0.args }
+        #expect(!headFileArgs.contains("existing-drive-id"))
+
+        // Orphans should now have driveFileID set
+        let updatedOrphan1 = store.items.first { $0.id == orphan1ID }
+        let updatedOrphan2 = store.items.first { $0.id == orphan2ID }
+        #expect(updatedOrphan1?.driveFileID != nil)
+        #expect(updatedOrphan2?.driveFileID != nil)
+    }
+
+    // MARK: - Idempotency: skip MP3 upload when headFile confirms existing
+
+    @Test func publishSkipsMP3UploadWhenDriveFileIDExistsAndHeadFileSucceeds() async throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let store = makeStore()
+        let itemID = UUID()
+
+        // Item already has a driveFileID
+        let item = LibraryItem(
+            id: itemID,
+            createdAt: Date(),
+            title: "Already Uploaded",
+            sourceURL: "https://example.com/article",
+            sourceKind: .url,
+            rawText: nil,
+            status: .ready,
+            audioFilename: "\(itemID.uuidString).mp3",
+            durationSeconds: 120,
+            byteSize: 9876,
+            lastError: nil,
+            playedAt: nil,
+            driveFileID: "existing-id"
+        )
+        // Write audio file in case it falls through (shouldn't be read)
+        let audioURL = tempDir.appendingPathComponent("\(itemID.uuidString).mp3")
+        try Data("fake mp3 data".utf8).write(to: audioURL)
+        store.add(item)
+
+        let fakeClient = FakeDriveClient()
+        // headFile returns a valid DriveFileMeta, meaning the file exists on Drive
+        await fakeClient.setHeadFileResult(DriveFileMeta(id: "existing-id", name: "\(itemID.uuidString).mp3", size: 9876, mimeType: "audio/mpeg"))
+
+        let publisher = LibraryPublisher(
+            store: store,
+            driveClient: fakeClient,
+            configProvider: {
+                DriveConfig(
+                    clientID: "cid", clientSecret: "cs",
+                    refreshToken: "rt", accessToken: "at",
+                    accessTokenExpiry: Date().addingTimeInterval(3600),
+                    folderID: "folder-id",
+                    feedFileID: "existing-feed-id"
+                )
+            },
+            channel: makeChannel(),
+            audioDirectory: tempDir
+        )
+
+        try await publisher.publish(itemID: itemID)
+
+        let calls = await fakeClient.calls
+        let mp3Uploads = calls.filter { $0.method == "uploadFile" && $0.args.contains("audio/mpeg") }
+        // No MP3 upload should have occurred
+        #expect(mp3Uploads.isEmpty)
+
+        // driveFileID unchanged
+        let updatedItem = store.items.first { $0.id == itemID }
+        #expect(updatedItem?.driveFileID == "existing-id")
+        #expect(updatedItem?.status == .ready)
+    }
+
+    // MARK: - Feed failure leaves item .ready
+
+    @Test func feedUploadFailureLeavesItemAsReadyAndPublished() async throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let store = makeStore()
+        let itemID = UUID()
+        _ = try addReadyItemWithAudio(to: store, id: itemID, tempDir: tempDir)
+
+        let fakeClient = FakeDriveClient()
+        // Feed update will throw
+        await fakeClient.setFeedUpdateShouldThrow(true)
+
+        let publisher = LibraryPublisher(
+            store: store,
+            driveClient: fakeClient,
+            configProvider: {
+                DriveConfig(
+                    clientID: "cid", clientSecret: "cs",
+                    refreshToken: "rt", accessToken: "at",
+                    accessTokenExpiry: Date().addingTimeInterval(3600),
+                    folderID: "folder-id",
+                    feedFileID: "existing-feed-id"  // triggers updateFile path
+                )
+            },
+            channel: makeChannel(),
+            audioDirectory: tempDir
+        )
+
+        // Should NOT throw even though feed update fails
+        try await publisher.publish(itemID: itemID)
+
+        // MP3 was uploaded
+        let calls = await fakeClient.calls
+        let mp3Uploads = calls.filter { $0.method == "uploadFile" && $0.args.contains("audio/mpeg") }
+        #expect(mp3Uploads.count == 1)
+
+        // Item driveFileID is set
+        let updatedItem = store.items.first { $0.id == itemID }
+        #expect(updatedItem?.driveFileID != nil)
+
+        // Item status is .ready, NOT .failed
+        #expect(updatedItem?.status == .ready)
     }
 }

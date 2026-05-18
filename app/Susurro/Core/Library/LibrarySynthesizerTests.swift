@@ -16,6 +16,8 @@ actor FakeSynthesizerPublisher: LibraryPublishing {
     func unpublish(itemID: UUID) async throws {}
 
     func regenerateFeed() async throws {}
+
+    func publishOrphans() async {}
 }
 
 /// A fake TTS provider that emits a configurable number of data chunks.
