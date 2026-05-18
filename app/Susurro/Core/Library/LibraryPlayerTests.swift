@@ -82,6 +82,22 @@ struct LibraryPlayerTests {
         #expect(player.playbackRate == 1.5)
     }
 
+    @Test func setRatePersistsToLibrarySettings() {
+        defer { UserDefaults.standard.removeObject(forKey: "library.playback.rate") }
+        let settings = LibrarySettings()
+        let player = LibraryPlayer(librarySettings: settings)
+        player.setRate(1.5)
+        #expect(settings.libraryPlaybackRate == 1.5)
+    }
+
+    @Test func initSeedsFromLibrarySettings() {
+        defer { UserDefaults.standard.removeObject(forKey: "library.playback.rate") }
+        let settings = LibrarySettings()
+        settings.libraryPlaybackRate = 2.0
+        let player = LibraryPlayer(librarySettings: settings)
+        #expect(player.playbackRate == 2.0)
+    }
+
     @Test func playingSecondItemSupersedingFirst() throws {
         let player = LibraryPlayer()
         let item1 = makeItem()

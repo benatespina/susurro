@@ -198,6 +198,22 @@ struct LibraryView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .frame(width: 44, alignment: .leading)
+            Button(action: {
+                player.setRate(PlaybackSpeed.next(from: player.playbackRate))
+            }) {
+                Text(PlaybackSpeed.formatted(player.playbackRate))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 32, alignment: .center)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.secondary.opacity(0.5), lineWidth: 0.5)
+                    )
+            }
+            .buttonStyle(.plain)
+            .help("Playback speed (click to cycle)")
         }
     }
 
