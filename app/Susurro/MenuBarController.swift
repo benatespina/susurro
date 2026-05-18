@@ -23,6 +23,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let libraryPlayer: LibraryPlayer
     private let librarySettings: LibrarySettings
     var onMarkPlayed: (UUID) -> Void = { _ in }
+    var onDelete: ((UUID) -> Void)?
 
     private var cachedLastSeenCwd: String?
 
@@ -525,7 +526,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
                 publisher: libraryPublisher,
                 player: libraryPlayer,
                 settings: librarySettings,
-                onMarkPlayed: { [weak self] id in self?.onMarkPlayed(id) }
+                onMarkPlayed: { [weak self] id in self?.onMarkPlayed(id) },
+                onDelete: { [weak self] id in self?.onDelete?(id) }
             )
         )
     }

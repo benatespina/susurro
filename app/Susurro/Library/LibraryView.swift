@@ -9,6 +9,7 @@ struct LibraryView: View {
     var settings: LibrarySettings
     var onSynthesize: (UUID) -> Void
     var onMarkPlayed: (UUID) -> Void
+    var onDelete: ((UUID) -> Void)? = nil
 
     @State private var newURL: String = ""
     @State private var selection: UUID?
@@ -150,13 +151,13 @@ struct LibraryView: View {
             .padding(.vertical, 2)
             .contextMenu {
                 Button("Delete", role: .destructive) {
-                    store.remove(id: item.id)
+                    deleteItem(item.id)
                 }
             }
         }
         .onDeleteCommand {
             if let id = selection {
-                store.remove(id: id)
+                deleteItem(id)
                 selection = nil
             }
         }
@@ -394,6 +395,10 @@ struct LibraryView: View {
         return true
     }
 
+    private func deleteItem(_ id: UUID) {
+        (onDelete ?? { store.remove(id: $0) })(id)
+    }
+
     private func addURL() {
         let trimmed = newURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isValidURL(trimmed) else { return }
@@ -442,10 +447,10 @@ private struct LibrarySettingsSheet: View {
     let publisher: (any LibraryPublishing)?
     let store: LibraryStore
     @Environment(\.dismiss) private var dismiss
+    @State private var orphanCount: Int = 0
+    @State private var isSyncing = false
 
     var body: some View {
-        let orphanCount = store.items.filter(\.isOrphan).count
-
         VStack(alignment: .leading, spacing: 20) {
             Text("Library Settings")
                 .font(.headline)
@@ -468,12 +473,23 @@ private struct LibrarySettingsSheet: View {
 
             Toggle("Auto-publish after synthesis", isOn: $settings.autoPublishOnSynthesize)
 
-            Button("Re-publish orphans (\(orphanCount))") {
+            Button {
                 guard let pub = publisher else { return }
-                Task { await pub.publishOrphans() }
-                dismiss()
+                isSyncing = true
+                Task {
+                    _ = await pub.sync()
+                    dismiss()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    if isSyncing { ProgressView().scaleEffect(0.7).frame(width: 14, height: 14) }
+                    Text("Sync now (\(orphanCount) pending)")
+                }
             }
-            .disabled(orphanCount == 0 || publisher == nil)
+            .disabled(publisher == nil || isSyncing)
+            .task {
+                if let pub = publisher { orphanCount = await pub.orphanCount() }
+            }
 
             HStack {
                 Spacer()

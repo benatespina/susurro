@@ -26,9 +26,18 @@ actor FakePublisher: LibraryPublishing {
         regenerateFeedCallCount += 1
     }
 
-    func publishOrphans() async {
+    func publishOrphans() async -> Int {
         publishOrphansCallCount += 1
+        return 0
     }
+
+    func reconcileMissing() async -> Int { 0 }
+
+    func sync() async -> LibraryPublisher.SyncSummary {
+        .init(orphansPublished: 0, missingRePublished: 0, feedRegenerated: false)
+    }
+
+    func orphanCount() async -> Int { 0 }
 }
 
 // MARK: - LibraryCleanupTaskTests
