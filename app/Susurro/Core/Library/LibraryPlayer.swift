@@ -9,13 +9,20 @@ final class LibraryPlayer {
     var isPlaying: Bool = false
     var currentTime: Double = 0
     var duration: Double = 0
-    var playbackRate: Float = 1.0
+    var playbackRate: Float
 
     // nonisolated(unsafe) is intentional: player and observer are created/torn down
     // on the main actor, but Swift 6 strict concurrency cannot verify deinit isolation.
     nonisolated(unsafe) private var player: AVPlayer?
     nonisolated(unsafe) private var timeObserver: Any?
     nonisolated(unsafe) private var itemEndObserver: NSObjectProtocol?
+
+    private var librarySettings: LibrarySettings?
+
+    init(librarySettings: LibrarySettings? = nil) {
+        self.librarySettings = librarySettings
+        self.playbackRate = librarySettings?.libraryPlaybackRate ?? 1.0
+    }
 
     func play(item: LibraryItem, audioURL: URL) {
         stop()
@@ -76,6 +83,7 @@ final class LibraryPlayer {
     func setRate(_ rate: Float) {
         playbackRate = rate
         player?.rate = rate
+        librarySettings?.libraryPlaybackRate = rate
     }
 
     func seek(to seconds: Double) {

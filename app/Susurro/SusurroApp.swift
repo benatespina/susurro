@@ -30,9 +30,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let ttsSettings = TTSSettings()
     let libraryStore = LibraryStore()
     let librarySynthesisState = LibrarySynthesisState()
-    let libraryPlayer = LibraryPlayer()
-    let librarySettings = LibrarySettings()
+    let librarySettings: LibrarySettings
+    let libraryPlayer: LibraryPlayer
     var librarySynthesizer: LibrarySynthesizer?
+
+    override init() {
+        let settings = LibrarySettings()
+        librarySettings = settings
+        libraryPlayer = LibraryPlayer(librarySettings: settings)
+        super.init()
+    }
+
     var saveCoordinator: SaveCoordinator?
     var playbackCoordinator: PlaybackCoordinator?
     var driveAuth: DriveAuth?

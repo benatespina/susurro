@@ -7,10 +7,12 @@ import Testing
 struct LibrarySettingsTests {
     private static let ttlKey = "library.ttl.days"
     private static let autoPublishKey = "library.autoPublish"
+    private static let libraryPlaybackRateKey = "library.playback.rate"
 
     init() {
         UserDefaults.standard.removeObject(forKey: Self.ttlKey)
         UserDefaults.standard.removeObject(forKey: Self.autoPublishKey)
+        UserDefaults.standard.removeObject(forKey: Self.libraryPlaybackRateKey)
         UserDefaults.standard.synchronize()
     }
 
@@ -64,5 +66,13 @@ struct LibrarySettingsTests {
         let settings = LibrarySettings()
         #expect(settings.playedTTLDays == 14)
         #expect(settings.autoPublishOnSynthesize == false)
+    }
+
+    @Test func libraryPlaybackRatePersists() {
+        defer { UserDefaults.standard.removeObject(forKey: Self.libraryPlaybackRateKey) }
+        let settings = LibrarySettings()
+        settings.libraryPlaybackRate = 1.5
+        let settings2 = LibrarySettings()
+        #expect(settings2.libraryPlaybackRate == 1.5)
     }
 }
