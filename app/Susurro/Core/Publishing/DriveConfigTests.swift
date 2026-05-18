@@ -5,22 +5,7 @@ import Testing
 @Suite("DriveConfig", .serialized)
 struct DriveConfigTests {
 
-    /// Swap in an isolated UserDefaults suite per test so production defaults stay clean.
-    private static func withIsolatedDefaults<T>(_ body: () throws -> T) rethrows -> T {
-        let suiteName = "test.DriveConfig.\(UUID().uuidString)"
-        let suite = UserDefaults(suiteName: suiteName)!
-        let previous = DriveConfig.defaults
-        DriveConfig.defaults = suite
-        defer {
-            DriveConfig.defaults = previous
-            suite.removePersistentDomain(forName: suiteName)
-        }
-        return try body()
-    }
-
-    /// Snapshot the user's real Keychain entries for DriveConfig and restore after the test.
-    /// Keychain is process-wide and cannot be sandboxed per-suite, so tests that mutate it
-    /// must not destroy a real developer's Drive setup.
+    /// Keychain is process-wide; snapshot and restore so tests don't trash a real Drive setup.
     private static let touchedAccounts: [String] = [
         DriveConfig.Account.clientID,
         DriveConfig.Account.clientSecret,
@@ -31,26 +16,28 @@ struct DriveConfigTests {
         DriveConfig.Account.feedFileID,
     ]
 
-    private static func withKeychainSnapshot<T>(_ body: () throws -> T) rethrows -> T {
-        let snapshot: [String: String] = Dictionary(uniqueKeysWithValues: touchedAccounts.map { account in
-            (account, Keychain.string(for: account) ?? "")
+    /// Per-test isolation: a fresh UserDefaults suite plus a Keychain snapshot/restore.
+    private static func withIsolatedStorage<T>(_ body: () throws -> T) rethrows -> T {
+        let suiteName = "test.DriveConfig.\(UUID().uuidString)"
+        let suite = UserDefaults(suiteName: suiteName)!
+        let previousDefaults = DriveConfig.defaults
+        DriveConfig.defaults = suite
+
+        let keychainSnapshot: [String: String] = Dictionary(uniqueKeysWithValues: touchedAccounts.map {
+            ($0, Keychain.string(for: $0) ?? "")
         })
-        defer {
-            for (account, value) in snapshot {
-                Keychain.set(value, for: account)
-            }
-        }
-        // Pre-clear so each test starts from a clean slate.
         for account in touchedAccounts {
             Keychain.set("", for: account)
         }
-        return try body()
-    }
 
-    private static func withIsolatedStorage<T>(_ body: () throws -> T) rethrows -> T {
-        try withIsolatedDefaults {
-            try withKeychainSnapshot(body)
+        defer {
+            for (account, value) in keychainSnapshot {
+                Keychain.set(value, for: account)
+            }
+            DriveConfig.defaults = previousDefaults
+            suite.removePersistentDomain(forName: suiteName)
         }
+        return try body()
     }
 
     @Test func loadReturnsNilWhenClientIDMissing() {

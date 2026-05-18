@@ -9,6 +9,9 @@ struct DriveConfig: Sendable, Equatable {
     let folderID: String?
     let feedFileID: String?
 
+    /// Name of the root folder created/looked up on Google Drive.
+    static let folderName = "Susurro Library"
+
     // MARK: - Storage keys
 
     /// UserDefaults keys for non-sensitive identifiers.
@@ -65,9 +68,8 @@ struct DriveConfig: Sendable, Equatable {
             ISO8601DateFormatter().date(from: $0)
         }
 
-        let folderID = defaults.string(forKey: UserDefaultsKey.folderID).flatMap {
-            $0.isEmpty ? nil : $0
-        }
+        let folderIDRaw = defaults.string(forKey: UserDefaultsKey.folderID) ?? ""
+        let folderID: String? = folderIDRaw.isEmpty ? nil : folderIDRaw
 
         return DriveConfig(
             clientID: clientID,
