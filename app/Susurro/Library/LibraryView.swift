@@ -27,7 +27,14 @@ struct LibraryView: View {
             content
         }
         .onAppear { feedConfig = DriveConfig.load() }
-        .sheet(isPresented: $showingSettings) {
+        .onChange(of: store.items.map(\.driveFileID)) { _, _ in
+            // Auto-publish (LibrarySynthesizer step 7) writes feedFileID to Keychain
+            // and driveFileID onto items without going through the settings sheet or
+            // the re-publish button. Re-read DriveConfig so the feed-URL banner
+            // refreshes the moment any driveFileID changes.
+            feedConfig = DriveConfig.load()
+        }
+        .sheet(isPresented: $showingSettings, onDismiss: { feedConfig = DriveConfig.load() }) {
             LibrarySettingsSheet(settings: settings, publisher: publisher, store: store)
         }
     }
@@ -342,7 +349,10 @@ struct LibraryView: View {
     private func rePublishButton(for item: LibraryItem) -> some View {
         if let pub = publisher, feedConfig?.hasFolder == true {
             Button("Re-publish") {
-                Task { try? await pub.publish(itemID: item.id) }
+                Task { @MainActor in
+                    defer { feedConfig = DriveConfig.load() }
+                    try? await pub.publish(itemID: item.id)
+                }
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
