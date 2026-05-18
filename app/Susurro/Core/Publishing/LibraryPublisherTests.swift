@@ -16,10 +16,16 @@ actor FakeDriveClient: DriveUploading {
     var headFileResult: DriveFileMeta? = nil
     var headFileResultsByID: [String: DriveFileMeta] = [:]
     var feedUpdateShouldThrow: Bool = false
+    var existingFoldersByName: [String: String] = [:]  // name → id
 
     func createFolder(name: String, parentID: String) async throws -> String {
         calls.append(Call(method: "createFolder", args: [name, parentID]))
         return "folder-\(name)"
+    }
+
+    func findFolderByName(_ name: String, parentID: String) async throws -> String? {
+        calls.append(Call(method: "findFolderByName", args: [name, parentID]))
+        return existingFoldersByName[name]
     }
 
     func uploadFile(name: String, mimeType: String, data: Data, parentID: String) async throws -> String {
