@@ -55,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let audioDir = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appending(path: "Susurro/library/audio")
+        let settings = ttsSettings
         let synthesizer = LibrarySynthesizer(
             store: libraryStore,
             extractor: ArticleExtractor(),
@@ -63,7 +64,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             langDetect: StaticLangDetector(),
             audioDirectoryURL: audioDir,
             synthesisState: librarySynthesisState,
-            librarySettings: librarySettings
+            librarySettings: librarySettings,
+            translator: Translator.shared,
+            isTranslateToSpanishEnabled: { [weak settings] in settings?.translateToSpanish ?? false }
         )
         librarySynthesizer = synthesizer
         saveCoordinator = SaveCoordinator(store: libraryStore, synthesizer: synthesizer)
@@ -115,7 +118,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
 
         permissionCoordinator = PermissionCoordinator(appState: appState)
-        let settings = ttsSettings
         let coordinator = PlaybackCoordinator(
             translator: Translator.shared,
             isTranslateToSpanishEnabled: { [weak settings] in settings?.translateToSpanish ?? false }
