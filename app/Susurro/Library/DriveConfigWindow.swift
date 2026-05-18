@@ -206,21 +206,27 @@ struct DriveConfigView: View {
         statusMessage = nil
         defer { isConnecting = false }
 
+        // Capture prior persisted values before OAuth flow may alter state.
+        let prior = DriveConfig.load()
+        let priorFeedFileID = prior?.feedFileID
+        let priorFolderID = prior?.folderID ?? config?.folderID
+
         do {
             let (refreshToken, accessToken, expiry) = try await auth.connect(
                 clientID: trimmedID,
                 clientSecret: ""
             )
 
-            var updated = DriveConfig(
+            let base = DriveConfig(
                 clientID: trimmedID,
                 clientSecret: "",
                 refreshToken: refreshToken,
                 accessToken: accessToken,
                 accessTokenExpiry: expiry,
-                folderID: config?.folderID,
-                feedFileID: config?.feedFileID
+                folderID: priorFolderID,
+                feedFileID: priorFeedFileID
             )
+            var updated = base
             DriveConfig.save(updated)
 
             // Reuse the existing root folder if present so reconnecting after a local
@@ -232,14 +238,11 @@ struct DriveConfigView: View {
                 } else {
                     folderID = try await client.createFolder(name: DriveConfig.folderName, parentID: "root")
                 }
-                updated = DriveConfig(
-                    clientID: trimmedID,
-                    clientSecret: "",
+                updated = base.copying(
                     refreshToken: refreshToken,
                     accessToken: accessToken,
                     accessTokenExpiry: expiry,
-                    folderID: folderID,
-                    feedFileID: nil
+                    folderID: folderID
                 )
                 DriveConfig.save(updated)
             }

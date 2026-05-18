@@ -261,4 +261,151 @@ struct DriveConfigTests {
             #expect(loaded.accessTokenExpiry == nil)
         }
     }
+
+    // MARK: - copying(refreshToken:accessToken:accessTokenExpiry:folderID:)
+
+    @Test func copyingWithNewTokensPreservesFeedFileID() {
+        let original = DriveConfig(
+            clientID: "cid", clientSecret: "cs", refreshToken: "old-rt",
+            accessToken: "old-at", accessTokenExpiry: nil, folderID: "folder-1", feedFileID: "feed-abc"
+        )
+        let updated = original.copying(
+            refreshToken: "new-rt",
+            accessToken: "new-at",
+            accessTokenExpiry: nil
+        )
+        #expect(updated.clientID == "cid")
+        #expect(updated.clientSecret == "cs")
+        #expect(updated.refreshToken == "new-rt")
+        #expect(updated.accessToken == "new-at")
+        #expect(updated.folderID == "folder-1")
+        #expect(updated.feedFileID == "feed-abc")
+    }
+
+    @Test func copyingWithNewTokensAndFolderIDPreservesFeedFileID() {
+        let original = DriveConfig(
+            clientID: "cid", clientSecret: "cs", refreshToken: "old-rt",
+            accessToken: "old-at", accessTokenExpiry: nil, folderID: nil, feedFileID: "feed-xyz"
+        )
+        let updated = original.copying(
+            refreshToken: "new-rt",
+            accessToken: "new-at",
+            accessTokenExpiry: nil,
+            folderID: "new-folder"
+        )
+        #expect(updated.folderID == "new-folder")
+        #expect(updated.feedFileID == "feed-xyz")
+    }
+
+    @Test func copyingWithNewTokensWhenNoFeedFileIDRemainsNil() {
+        let original = DriveConfig(
+            clientID: "cid", clientSecret: "cs", refreshToken: "old-rt",
+            accessToken: "old-at", accessTokenExpiry: nil, folderID: "fid", feedFileID: nil
+        )
+        let updated = original.copying(
+            refreshToken: "new-rt",
+            accessToken: "new-at",
+            accessTokenExpiry: nil
+        )
+        #expect(updated.feedFileID == nil)
+    }
+
+    // MARK: - Reconnect persistence (acceptance criteria 1, 2, 4)
+
+    /// AC1: feedFileID survives a reconnect when one was previously persisted.
+    @Test func reconnectPreservesFeedFileID() throws {
+        try Self.withIsolatedStorage {
+            // Simulate a connected state with a known feedFileID.
+            DriveConfig.save(DriveConfig(
+                clientID: "cid", clientSecret: "", refreshToken: "old-rt",
+                accessToken: "old-at", accessTokenExpiry: nil, folderID: "fid", feedFileID: "feed-stable"
+            ))
+
+            // Simulate what connectDrive() does: read prior, build new config with prior feedFileID.
+            let prior = DriveConfig.load()
+            let priorFeedFileID = prior?.feedFileID
+            let priorFolderID = prior?.folderID
+
+            // New OAuth tokens arrive (e.g. after re-auth).
+            let reconnected = DriveConfig(
+                clientID: "cid", clientSecret: "", refreshToken: "new-rt",
+                accessToken: "new-at", accessTokenExpiry: nil, folderID: priorFolderID,
+                feedFileID: priorFeedFileID
+            )
+            DriveConfig.save(reconnected)
+
+            let loaded = try #require(DriveConfig.load())
+            #expect(loaded.feedFileID == "feed-stable")
+            #expect(loaded.refreshToken == "new-rt")
+            #expect(loaded.folderID == "fid")
+        }
+    }
+
+    /// AC2: first-time connect (no prior feedFileID) leaves feedFileID nil.
+    @Test func firstTimeConnectLeavesfeedFileIDNil() throws {
+        try Self.withIsolatedStorage {
+            // No prior config at all.
+            let priorFeedFileID = DriveConfig.load()?.feedFileID  // nil
+            let priorFolderID = DriveConfig.load()?.folderID      // nil
+
+            let connected = DriveConfig(
+                clientID: "cid", clientSecret: "", refreshToken: "rt",
+                accessToken: "at", accessTokenExpiry: nil, folderID: priorFolderID,
+                feedFileID: priorFeedFileID
+            )
+            DriveConfig.save(connected)
+
+            let loaded = try #require(DriveConfig.load())
+            #expect(loaded.feedFileID == nil)
+            #expect(loaded.isConnected == true)
+        }
+    }
+
+    /// AC4: clicking Connect twice does not wipe feedFileID on the second click.
+    @Test func doubleConnectPreservesFeedFileID() throws {
+        try Self.withIsolatedStorage {
+            // First connect (no prior).
+            let firstPriorFeedFileID = DriveConfig.load()?.feedFileID
+            DriveConfig.save(DriveConfig(
+                clientID: "cid", clientSecret: "", refreshToken: "rt1",
+                accessToken: "at1", accessTokenExpiry: nil, folderID: "fid",
+                feedFileID: firstPriorFeedFileID
+            ))
+
+            // Simulate publishing sets feedFileID.
+            DriveConfig.save(DriveConfig(
+                clientID: "cid", clientSecret: "", refreshToken: "rt1",
+                accessToken: "at1", accessTokenExpiry: nil, folderID: "fid", feedFileID: "feed-stable"
+            ))
+
+            // Second connect: read prior from Keychain, preserve feedFileID.
+            let secondPrior = DriveConfig.load()
+            let secondPriorFeedFileID = secondPrior?.feedFileID
+            let secondPriorFolderID = secondPrior?.folderID
+
+            let secondConnect = DriveConfig(
+                clientID: "cid", clientSecret: "", refreshToken: "rt2",
+                accessToken: "at2", accessTokenExpiry: nil, folderID: secondPriorFolderID,
+                feedFileID: secondPriorFeedFileID
+            )
+            DriveConfig.save(secondConnect)
+
+            let loaded = try #require(DriveConfig.load())
+            #expect(loaded.feedFileID == "feed-stable")
+            #expect(loaded.refreshToken == "rt2")
+        }
+    }
+
+    /// AC3 (code verification): clearTokensOnly does not touch feedFileID.
+    @Test func clearTokensOnlyDoesNotTouchFeedFileID() throws {
+        try Self.withIsolatedStorage {
+            DriveConfig.save(DriveConfig(
+                clientID: "cid", clientSecret: "cs", refreshToken: "rt",
+                accessToken: "at", accessTokenExpiry: Date(), folderID: "fid", feedFileID: "feed-stable"
+            ))
+            DriveConfig.clearTokensOnly()
+            let loaded = try #require(DriveConfig.load())
+            #expect(loaded.feedFileID == "feed-stable")
+        }
+    }
 }
