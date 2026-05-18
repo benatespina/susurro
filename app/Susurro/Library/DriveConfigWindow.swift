@@ -223,9 +223,15 @@ struct DriveConfigView: View {
             )
             DriveConfig.save(updated)
 
-            // Create "Susurro Library" folder if not yet configured.
+            // Reuse the existing root folder if present so reconnecting after a local
+            // wipe doesn't create a duplicate per OAuth connect.
             if updated.folderID == nil {
-                let folderID = try await client.createFolder(name: "Susurro Library", parentID: "root")
+                let folderID: String
+                if let existing = try? await client.findFolderByName(DriveConfig.folderName, parentID: "root") {
+                    folderID = existing
+                } else {
+                    folderID = try await client.createFolder(name: DriveConfig.folderName, parentID: "root")
+                }
                 updated = DriveConfig(
                     clientID: trimmedID,
                     clientSecret: "",

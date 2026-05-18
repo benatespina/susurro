@@ -21,6 +21,7 @@ struct DriveFileMeta: Sendable, Equatable {
 
 protocol DriveUploading: Sendable {
     func createFolder(name: String, parentID: String) async throws -> String
+    func findFolderByName(_ name: String, parentID: String) async throws -> String?
     func uploadFile(name: String, mimeType: String, data: Data, parentID: String) async throws -> String
     func updateFile(fileID: String, data: Data, mimeType: String) async throws
     func deleteFile(fileID: String) async throws
@@ -78,6 +79,35 @@ actor DriveClient: DriveUploading {
             throw DriveError.httpError(status: -1, body: "Missing id in createFolder response")
         }
         return fileID
+    }
+
+    // Returns the first matching folder ID or nil. Multiple matches collapse to the first
+    // result because Drive permits duplicate folder names; callers that already chose a
+    // folder should persist its ID rather than re-resolve by name.
+    func findFolderByName(_ name: String, parentID: String = "root") async throws -> String? {
+        let token = try await accessToken()
+        let escapedName = name
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+        let query = "name = '\(escapedName)' and '\(parentID)' in parents " +
+            "and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+
+        var components = URLComponents(string: "https://www.googleapis.com/drive/v3/files")!
+        components.queryItems = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "fields", value: "files(id,name)"),
+            URLQueryItem(name: "pageSize", value: "1"),
+        ]
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+        try checkHTTPStatus(response, data: data)
+
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let files = json?["files"] as? [[String: Any]] ?? []
+        return files.first?["id"] as? String
     }
 
     func uploadFile(name: String, mimeType: String, data: Data, parentID: String) async throws -> String {

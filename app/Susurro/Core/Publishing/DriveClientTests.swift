@@ -160,6 +160,43 @@ struct DriveClientTests {
         #expect(parents == ["root"])
     }
 
+    @Test func findFolderByNameReturnsFirstMatchID() async throws {
+        let client = await makeClientWithFreshToken(responses: [
+            (200, #"{"files":[{"id":"folder-existing","name":"Susurro Library"}]}"#),
+        ])
+        let id = try await client.findFolderByName("Susurro Library", parentID: "root")
+        #expect(id == "folder-existing")
+
+        let request = MultiMockURLProtocol.requests[0]
+        #expect(request.httpMethod == "GET")
+        #expect(request.url?.path == "/drive/v3/files")
+        let query = request.url?.query ?? ""
+        #expect(query.contains("name"))
+        #expect(query.contains("Susurro"))
+        #expect(query.contains("trashed"))
+        #expect(query.contains("mimeType"))
+    }
+
+    @Test func findFolderByNameReturnsNilWhenEmpty() async throws {
+        let client = await makeClientWithFreshToken(responses: [
+            (200, #"{"files":[]}"#),
+        ])
+        let id = try await client.findFolderByName("Susurro Library", parentID: "root")
+        #expect(id == nil)
+    }
+
+    @Test func findFolderByNameEscapesSingleQuotesInName() async throws {
+        let client = await makeClientWithFreshToken(responses: [
+            (200, #"{"files":[{"id":"folder-quoted","name":"Ben's Library"}]}"#),
+        ])
+        _ = try await client.findFolderByName("Ben's Library", parentID: "root")
+
+        let request = MultiMockURLProtocol.requests[0]
+        // URLComponents percent-encodes the escaped backslash-quote pair; decode and inspect.
+        let decoded = request.url?.query?.removingPercentEncoding ?? ""
+        #expect(decoded.contains("Ben\\'s Library"))
+    }
+
     @Test func uploadFileBuildCorrectMultipartBody() async throws {
         let client = await makeClientWithFreshToken(responses: [
             (200, #"{"id":"file-xyz"}"#),

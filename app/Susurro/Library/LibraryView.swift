@@ -27,7 +27,12 @@ struct LibraryView: View {
             content
         }
         .onAppear { feedConfig = DriveConfig.load() }
-        .sheet(isPresented: $showingSettings) {
+        .onChange(of: store.items.map(\.driveFileID)) { _, _ in
+            // Auto-publish writes feedFileID to Keychain outside this view; re-read
+            // so the feed-URL banner refreshes the moment publishing completes.
+            feedConfig = DriveConfig.load()
+        }
+        .sheet(isPresented: $showingSettings, onDismiss: { feedConfig = DriveConfig.load() }) {
             LibrarySettingsSheet(settings: settings, publisher: publisher, store: store)
         }
     }
