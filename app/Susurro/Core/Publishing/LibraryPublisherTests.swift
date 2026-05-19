@@ -158,10 +158,24 @@ struct LibraryPublisherTests {
     ]
 
     /// Async per-test isolation: a fresh UserDefaults suite plus a Keychain snapshot/restore.
-    /// Mirrors the pattern in DriveConfigTests.withIsolatedStorage. Tests that call
-    /// `DriveConfig.save` internally (via `uploadFeed`) must be wrapped here so they
-    /// leave no Keychain or UserDefaults state behind after the test completes.
+    ///
+    /// Holds `driveConfigTestSem` (declared in DriveConfigTests.swift) for the full duration
+    /// of the isolated block — including the async body — so that cross-suite parallelism
+    /// cannot interleave the read-modify-write of `DriveConfig.defaults` and leak writes
+    /// into the real `UserDefaults.standard` (com.benatespina.susurro).
+    /// A `DispatchSemaphore` is used (rather than `NSLock`) because it has no thread
+    /// affinity and can therefore be held across `await` boundaries.
     private static func withIsolatedDriveStorage<T>(_ body: () async throws -> T) async rethrows -> T {
+        // `DispatchSemaphore.wait()` is unavailable in async contexts in Swift 6, so hop to a
+        // global dispatch queue to perform the blocking wait. `signal()` remains safe to call
+        // directly from the async defer below.
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                driveConfigTestSem.wait()
+                continuation.resume()
+            }
+        }
+
         let suiteName = "test.LibraryPublisher.\(UUID().uuidString)"
         let suite = UserDefaults(suiteName: suiteName)!
         let previousDefaults = DriveConfig.defaults
@@ -174,22 +188,16 @@ struct LibraryPublisherTests {
             Keychain.set("", for: account)
         }
 
-        do {
-            let result = try await body()
+        defer {
             for (account, value) in keychainSnapshot {
                 Keychain.set(value, for: account)
             }
             DriveConfig.defaults = previousDefaults
             suite.removePersistentDomain(forName: suiteName)
-            return result
-        } catch {
-            for (account, value) in keychainSnapshot {
-                Keychain.set(value, for: account)
-            }
-            DriveConfig.defaults = previousDefaults
-            suite.removePersistentDomain(forName: suiteName)
-            throw error
+            driveConfigTestSem.signal()
         }
+
+        return try await body()
     }
 
     // MARK: - Happy path: publish

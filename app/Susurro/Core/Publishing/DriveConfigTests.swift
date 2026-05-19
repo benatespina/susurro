@@ -2,6 +2,14 @@ import Foundation
 import Testing
 @testable import Susurro
 
+/// Cross-suite serialization for tests that swap `DriveConfig.defaults` and mutate the
+/// process-wide Keychain. Without this, the `DriveConfigTests` and `LibraryPublisherTests`
+/// suites can run in parallel and interleave their read-modify-write of `DriveConfig.defaults`,
+/// leaking writes into the real `UserDefaults.standard` (com.benatespina.susurro) and
+/// corrupting production credentials. A `DispatchSemaphore` is used instead of `NSLock`
+/// because it can be held across `await` boundaries (the async helper in `LibraryPublisherTests`).
+nonisolated(unsafe) let driveConfigTestSem = DispatchSemaphore(value: 1)
+
 @Suite("DriveConfig", .serialized)
 struct DriveConfigTests {
 
@@ -17,7 +25,15 @@ struct DriveConfigTests {
     ]
 
     /// Per-test isolation: a fresh UserDefaults suite plus a Keychain snapshot/restore.
+    ///
+    /// Acquires `driveConfigTestSem` for the entire duration so cross-suite parallelism
+    /// (this suite vs `LibraryPublisherTests`) cannot interleave the read-modify-write
+    /// swap of `DriveConfig.defaults` and leak writes into the real `UserDefaults.standard`
+    /// (com.benatespina.susurro).
     private static func withIsolatedStorage<T>(_ body: () throws -> T) rethrows -> T {
+        driveConfigTestSem.wait()
+        defer { driveConfigTestSem.signal() }
+
         let suiteName = "test.DriveConfig.\(UUID().uuidString)"
         let suite = UserDefaults(suiteName: suiteName)!
         let previousDefaults = DriveConfig.defaults
@@ -407,5 +423,43 @@ struct DriveConfigTests {
             let loaded = try #require(DriveConfig.load())
             #expect(loaded.feedFileID == "feed-stable")
         }
+    }
+
+    /// Regression: concurrent invocations of `withIsolatedStorage` must never leak writes
+    /// into `UserDefaults.standard`. The original bug allowed cross-suite parallelism to
+    /// interleave the read-modify-write swap of `DriveConfig.defaults`, causing fixture
+    /// values ("cid", "folder-id") to land in the real app domain (com.benatespina.susurro)
+    /// and overwrite production credentials.
+    ///
+    /// Uses `DispatchQueue` rather than `withTaskGroup` so the concurrent callers run on
+    /// non-cooperative threads — saturating the Swift Concurrency cooperative pool with
+    /// blocking semaphore waits would deadlock the runtime.
+    @Test func concurrentIsolationDoesNotLeakIntoStandardDefaults() {
+        let key = DriveConfig.UserDefaultsKey.clientID
+        let priorValue = UserDefaults.standard.string(forKey: key)
+
+        let group = DispatchGroup()
+        let queue = DispatchQueue(label: "test.DriveConfig.concurrent", attributes: .concurrent)
+        for i in 0..<8 {
+            group.enter()
+            queue.async {
+                Self.withIsolatedStorage {
+                    DriveConfig.save(DriveConfig(
+                        clientID: "concurrent-fixture-\(i)",
+                        clientSecret: "s",
+                        refreshToken: nil,
+                        accessToken: nil,
+                        accessTokenExpiry: nil,
+                        folderID: nil,
+                        feedFileID: nil
+                    ))
+                    #expect(DriveConfig.defaults.string(forKey: key) == "concurrent-fixture-\(i)")
+                }
+                group.leave()
+            }
+        }
+        group.wait()
+
+        #expect(UserDefaults.standard.string(forKey: key) == priorValue)
     }
 }
