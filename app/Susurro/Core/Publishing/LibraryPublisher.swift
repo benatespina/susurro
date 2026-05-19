@@ -39,7 +39,7 @@ actor LibraryPublisher: LibraryPublishing {
     private let store: LibraryStore
     private let driveClient: any DriveUploading
     private let configProvider: @Sendable () -> DriveConfig?
-    private let channel: RSSChannel
+    private let channelProvider: @Sendable () -> RSSChannel
     private let audioDirectoryOverride: URL?
 
     // MARK: - Init
@@ -54,7 +54,21 @@ actor LibraryPublisher: LibraryPublishing {
         self.store = store
         self.driveClient = driveClient
         self.configProvider = configProvider
-        self.channel = channel
+        self.channelProvider = { channel }
+        self.audioDirectoryOverride = audioDirectory
+    }
+
+    init(
+        store: LibraryStore,
+        driveClient: any DriveUploading,
+        configProvider: @escaping @Sendable () -> DriveConfig?,
+        channelProvider: @escaping @Sendable () -> RSSChannel,
+        audioDirectory: URL? = nil
+    ) {
+        self.store = store
+        self.driveClient = driveClient
+        self.configProvider = configProvider
+        self.channelProvider = channelProvider
         self.audioDirectoryOverride = audioDirectory
     }
 
@@ -281,7 +295,7 @@ actor LibraryPublisher: LibraryPublishing {
         }
 
         let items = await buildRSSItems()
-        let feedXML = RSSGenerator.render(channel: channel, items: items)
+        let feedXML = RSSGenerator.render(channel: channelProvider(), items: items)
         let feedData = Data(feedXML.utf8)
 
         if let feedFileID = effectiveConfig.feedFileID {
