@@ -72,6 +72,10 @@ actor LibraryPublisher: LibraryPublishing {
 
     // MARK: - Private: publishWithoutFeed
 
+    private static func canonicalDriveName(for item: LibraryItem) -> String {
+        "\(item.id.uuidString).mp3"
+    }
+
     private func publishWithoutFeed(itemID: UUID) async throws {
         AppLogger.publishing.info("publish start \(itemID.uuidString, privacy: .public)")
         guard let item = await loadItem(itemID) else {
@@ -95,10 +99,21 @@ actor LibraryPublisher: LibraryPublishing {
                 if mp3AlreadyOnDrive {
                     AppLogger.publishing.info("publish: MP3 reused \(existingFileID, privacy: .public)")
                 }
+            } else {
+                // driveFileID nil — self-heal by canonical name before uploading.
+                let canonicalName = Self.canonicalDriveName(for: item)
+                if let foundID = try? await driveClient.findFile(name: canonicalName, parentID: folderID) {
+                    AppLogger.publishing.info("publish: self-healed driveFileID from Drive lookup: \(foundID, privacy: .public)")
+                    try? await driveClient.setAnyoneWithLink(fileID: foundID)
+                    await MainActor.run {
+                        store.update(id: itemID) { i in i.driveFileID = foundID }
+                    }
+                    mp3AlreadyOnDrive = true
+                }
             }
             if !mp3AlreadyOnDrive {
                 // Read MP3 from disk.
-                let audioFilename = "\(item.id.uuidString).mp3"
+                let audioFilename = Self.canonicalDriveName(for: item)
                 let audioURL = audioDirectory().appendingPathComponent(audioFilename)
                 guard FileManager.default.fileExists(atPath: audioURL.path) else {
                     throw PublisherError.audioFileNotFound(audioURL.path)
