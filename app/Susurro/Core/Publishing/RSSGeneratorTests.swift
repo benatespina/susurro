@@ -77,6 +77,32 @@ struct RSSGeneratorTests {
         #expect(output.contains("cover.png"))
     }
 
+    @Test func renderWithImageURLIncludesItunesImage() {
+        let channel = RSSChannel(
+            title: "Feed",
+            description: "Desc",
+            link: URL(string: "https://example.com")!,
+            language: "en",
+            imageURL: URL(string: "https://example.com/cover.png")!,
+            author: nil
+        )
+        let output = RSSGenerator.render(channel: channel, items: [])
+        #expect(output.contains("<itunes:image href=\"https://example.com/cover.png\"/>"))
+    }
+
+    @Test func renderWithoutImageURLOmitsItunesImage() {
+        let channel = RSSChannel(
+            title: "Feed",
+            description: "Desc",
+            link: URL(string: "https://example.com")!,
+            language: "en",
+            imageURL: nil,
+            author: nil
+        )
+        let output = RSSGenerator.render(channel: channel, items: [])
+        #expect(!output.contains("<itunes:image"))
+    }
+
     // MARK: - XML escape edge cases
 
     @Test func xmlEscapeAmpersand() {

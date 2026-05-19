@@ -8,6 +8,27 @@ struct DriveConfig: Sendable, Equatable {
     let accessTokenExpiry: Date?
     let folderID: String?
     let feedFileID: String?
+    let coverImageURLString: String?
+
+    init(
+        clientID: String,
+        clientSecret: String,
+        refreshToken: String?,
+        accessToken: String?,
+        accessTokenExpiry: Date?,
+        folderID: String?,
+        feedFileID: String?,
+        coverImageURLString: String? = nil
+    ) {
+        self.clientID = clientID
+        self.clientSecret = clientSecret
+        self.refreshToken = refreshToken
+        self.accessToken = accessToken
+        self.accessTokenExpiry = accessTokenExpiry
+        self.folderID = folderID
+        self.feedFileID = feedFileID
+        self.coverImageURLString = coverImageURLString
+    }
 
     /// Name of the root folder created/looked up on Google Drive.
     static let folderName = "Susurro Library"
@@ -22,6 +43,7 @@ struct DriveConfig: Sendable, Equatable {
     enum UserDefaultsKey {
         static let clientID = "library.drive.clientID"
         static let folderID = "library.drive.folderID"
+        static let coverImageURL = "library.drive.coverImageURL"
     }
 
     /// Keychain accounts for secrets and the feed file ID.
@@ -71,6 +93,9 @@ struct DriveConfig: Sendable, Equatable {
         let folderIDRaw = defaults.string(forKey: UserDefaultsKey.folderID) ?? ""
         let folderID: String? = folderIDRaw.isEmpty ? nil : folderIDRaw
 
+        let coverImageURLRaw = defaults.string(forKey: UserDefaultsKey.coverImageURL) ?? ""
+        let coverImageURLString: String? = coverImageURLRaw.isEmpty ? nil : coverImageURLRaw
+
         return DriveConfig(
             clientID: clientID,
             clientSecret: clientSecret,
@@ -78,7 +103,8 @@ struct DriveConfig: Sendable, Equatable {
             accessToken: Keychain.string(for: Account.accessToken),
             accessTokenExpiry: expiry,
             folderID: folderID,
-            feedFileID: Keychain.string(for: Account.feedFileID)
+            feedFileID: Keychain.string(for: Account.feedFileID),
+            coverImageURLString: coverImageURLString
         )
     }
 
@@ -88,6 +114,11 @@ struct DriveConfig: Sendable, Equatable {
             defaults.set(folderID, forKey: UserDefaultsKey.folderID)
         } else {
             defaults.removeObject(forKey: UserDefaultsKey.folderID)
+        }
+        if let coverImageURLString = config.coverImageURLString, !coverImageURLString.isEmpty {
+            defaults.set(coverImageURLString, forKey: UserDefaultsKey.coverImageURL)
+        } else {
+            defaults.removeObject(forKey: UserDefaultsKey.coverImageURL)
         }
 
         Keychain.set(config.clientSecret, for: Account.clientSecret)
@@ -104,6 +135,7 @@ struct DriveConfig: Sendable, Equatable {
     static func clear() {
         defaults.removeObject(forKey: UserDefaultsKey.clientID)
         defaults.removeObject(forKey: UserDefaultsKey.folderID)
+        defaults.removeObject(forKey: UserDefaultsKey.coverImageURL)
         Keychain.set("", for: Account.clientSecret)
         Keychain.set("", for: Account.refreshToken)
         Keychain.set("", for: Account.accessToken)
@@ -131,12 +163,13 @@ struct DriveConfig: Sendable, Equatable {
             accessToken: accessToken ?? self.accessToken,
             accessTokenExpiry: accessTokenExpiry ?? self.accessTokenExpiry,
             folderID: folderID,
-            feedFileID: feedFileID ?? self.feedFileID
+            feedFileID: feedFileID ?? self.feedFileID,
+            coverImageURLString: coverImageURLString
         )
     }
 
     /// Returns a new config with fresh OAuth tokens (and optionally a new folderID),
-    /// preserving `clientID`, `clientSecret`, and `feedFileID` from the receiver.
+    /// preserving `clientID`, `clientSecret`, `feedFileID`, and `coverImageURLString` from the receiver.
     func copying(
         refreshToken: String?,
         accessToken: String?,
@@ -150,7 +183,8 @@ struct DriveConfig: Sendable, Equatable {
             accessToken: accessToken,
             accessTokenExpiry: accessTokenExpiry,
             folderID: folderID ?? self.folderID,
-            feedFileID: self.feedFileID
+            feedFileID: self.feedFileID,
+            coverImageURLString: coverImageURLString
         )
     }
 
@@ -162,6 +196,11 @@ struct DriveConfig: Sendable, Equatable {
     func feedURL() -> URL? {
         guard let fileID = feedFileID else { return nil }
         return URL(string: "https://drive.usercontent.google.com/download?id=\(fileID)&export=download&authuser=0&confirm=t")
+    }
+
+    func coverImageURL() -> URL? {
+        guard let urlString = coverImageURLString, !urlString.isEmpty else { return nil }
+        return URL(string: urlString)
     }
 
     static func enclosureURL(forFileID id: String) -> URL {
