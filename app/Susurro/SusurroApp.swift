@@ -90,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             description: "Articles saved with Susurro",
             link: feedURL,
             language: "es-ES",
-            imageURL: nil,
+            imageURL: DriveConfig.load()?.coverImageURL(),
             author: "Susurro"
         )
         let publisher = LibraryPublisher(
