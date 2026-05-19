@@ -104,7 +104,11 @@ actor LibraryPublisher: LibraryPublishing {
                 let canonicalName = Self.canonicalDriveName(for: item)
                 if let foundID = try? await driveClient.findFile(name: canonicalName, parentID: folderID) {
                     AppLogger.publishing.info("publish: self-healed driveFileID from Drive lookup: \(foundID, privacy: .public)")
-                    try? await driveClient.setAnyoneWithLink(fileID: foundID)
+                    do {
+                        try await driveClient.setAnyoneWithLink(fileID: foundID)
+                    } catch {
+                        AppLogger.publishing.error("publish: setAnyoneWithLink failed for self-healed MP3 \(foundID, privacy: .public): \(error, privacy: .public)")
+                    }
                     await MainActor.run {
                         store.update(id: itemID) { i in i.driveFileID = foundID }
                     }
@@ -266,7 +270,11 @@ actor LibraryPublisher: LibraryPublishing {
         if effectiveConfig.feedFileID == nil {
             if let foundID = try? await driveClient.findFile(name: "feed.xml", parentID: folderID) {
                 AppLogger.publishing.info("uploadFeed: self-healed feedFileID from Drive lookup: \(foundID, privacy: .public)")
-                try? await driveClient.setAnyoneWithLink(fileID: foundID)
+                do {
+                    try await driveClient.setAnyoneWithLink(fileID: foundID)
+                } catch {
+                    AppLogger.publishing.error("uploadFeed: setAnyoneWithLink failed for self-healed feed \(foundID, privacy: .public): \(error, privacy: .public)")
+                }
                 effectiveConfig = config.copying(feedFileID: foundID)
                 DriveConfig.save(effectiveConfig)
             }
