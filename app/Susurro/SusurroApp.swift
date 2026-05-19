@@ -84,22 +84,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         driveAuth = auth
         let client = DriveClient(auth: auth, configProvider: { DriveConfig.load() })
         driveClient = client
+        let feedURL = DriveConfig.load()?.feedURL() ?? URL(string: "https://susurro.benatespina.com/feed")!
+        let rssChannel = RSSChannel(
+            title: "Susurro Library",
+            description: "Articles saved with Susurro",
+            link: feedURL,
+            language: "es-ES",
+            imageURL: URL(string: "https://raw.githubusercontent.com/benatespina/susurro/main/assets/cover.png"),
+            author: "Susurro"
+        )
         let publisher = LibraryPublisher(
             store: libraryStore,
             driveClient: client,
             configProvider: { DriveConfig.load() },
-            channelProvider: {
-                let config = DriveConfig.load()
-                let feedURL = config?.feedURL() ?? URL(string: "https://susurro.benatespina.com/feed")!
-                return RSSChannel(
-                    title: "Susurro Library",
-                    description: "Articles saved with Susurro",
-                    link: feedURL,
-                    language: "es-ES",
-                    imageURL: config?.coverImageURL(),
-                    author: "Susurro"
-                )
-            }
+            channel: rssChannel
         )
         libraryPublisher = publisher
         Task {

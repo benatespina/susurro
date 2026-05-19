@@ -43,7 +43,6 @@ struct DriveConfigView: View {
     private let client: DriveClient
 
     @State private var clientID: String = ""
-    @State private var coverImageURL: String = ""
     @State private var config: DriveConfig?
     @State private var statusMessage: String?
     @State private var isConnecting = false
@@ -61,8 +60,6 @@ struct DriveConfigView: View {
             connectionSection
             Divider()
             feedSection
-            Divider()
-            coverImageSection
             Spacer()
             testConnectionButton
         }
@@ -166,31 +163,6 @@ struct DriveConfigView: View {
     }
 
     @ViewBuilder
-    private var coverImageSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Cover Artwork")
-                .font(.headline)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Cover Image URL")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                TextField("https://example.com/cover.png", text: $coverImageURL)
-                    .textFieldStyle(.roundedBorder)
-                Text("HTTPS URL to a square JPEG or PNG image (≥ 1400 × 1400 px) required for Apple Podcasts.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            HStack {
-                Spacer()
-                Button("Save") { saveCoverImage() }
-            }
-        }
-    }
-
-    @ViewBuilder
     private var testConnectionButton: some View {
         HStack {
             Spacer()
@@ -206,14 +178,12 @@ struct DriveConfigView: View {
     private func loadConfig() {
         config = DriveConfig.load()
         clientID = config?.clientID ?? ""
-        coverImageURL = config?.coverImageURLString ?? ""
     }
 
     private func saveCredentials() {
         let trimmedID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedID.isEmpty else { return }
 
-        let trimmedCoverURL = coverImageURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let updated = DriveConfig(
             clientID: trimmedID,
             clientSecret: "",
@@ -221,32 +191,11 @@ struct DriveConfigView: View {
             accessToken: config?.accessToken,
             accessTokenExpiry: config?.accessTokenExpiry,
             folderID: config?.folderID,
-            feedFileID: config?.feedFileID,
-            coverImageURLString: trimmedCoverURL.isEmpty ? nil : trimmedCoverURL
+            feedFileID: config?.feedFileID
         )
         DriveConfig.save(updated)
         config = DriveConfig.load()
         statusMessage = "Credentials saved."
-    }
-
-    private func saveCoverImage() {
-        let trimmedURL = coverImageURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let updated = DriveConfig(
-            clientID: trimmedID.isEmpty ? (config?.clientID ?? "") : trimmedID,
-            clientSecret: config?.clientSecret ?? "",
-            refreshToken: config?.refreshToken,
-            accessToken: config?.accessToken,
-            accessTokenExpiry: config?.accessTokenExpiry,
-            folderID: config?.folderID,
-            feedFileID: config?.feedFileID,
-            coverImageURLString: trimmedURL.isEmpty ? nil : trimmedURL
-        )
-        DriveConfig.save(updated)
-        config = DriveConfig.load()
-        coverImageURL = config?.coverImageURLString ?? ""
-        statusMessage = "Cover image URL saved."
     }
 
     private func connectDrive() async {
@@ -261,7 +210,6 @@ struct DriveConfigView: View {
         let prior = DriveConfig.load()
         let priorFeedFileID = prior?.feedFileID
         let priorFolderID = prior?.folderID ?? config?.folderID
-        let priorCoverImageURLString = prior?.coverImageURLString
 
         do {
             let (refreshToken, accessToken, expiry) = try await auth.connect(
@@ -276,8 +224,7 @@ struct DriveConfigView: View {
                 accessToken: accessToken,
                 accessTokenExpiry: expiry,
                 folderID: priorFolderID,
-                feedFileID: priorFeedFileID,
-                coverImageURLString: priorCoverImageURLString
+                feedFileID: priorFeedFileID
             )
             var updated = base
             DriveConfig.save(updated)

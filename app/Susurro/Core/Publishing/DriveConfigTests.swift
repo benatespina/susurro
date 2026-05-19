@@ -49,8 +49,7 @@ struct DriveConfigTests {
                 accessToken: nil,
                 accessTokenExpiry: nil,
                 folderID: nil,
-                feedFileID: nil,
-                coverImageURLString: nil
+                feedFileID: nil
             ))
             // Saving with empty clientID leaves UserDefaults storing "" — load() treats that as missing.
             #expect(DriveConfig.load() == nil)
@@ -66,8 +65,7 @@ struct DriveConfigTests {
                 accessToken: nil,
                 accessTokenExpiry: nil,
                 folderID: nil,
-                feedFileID: nil,
-                coverImageURLString: nil
+                feedFileID: nil
             ))
             let loaded = try #require(DriveConfig.load())
             #expect(loaded.clientID == "client-id")
@@ -84,8 +82,7 @@ struct DriveConfigTests {
                 accessToken: nil,
                 accessTokenExpiry: nil,
                 folderID: nil,
-                feedFileID: nil,
-                coverImageURLString: nil
+                feedFileID: nil
             )
             DriveConfig.save(config)
             let loaded = try #require(DriveConfig.load())
@@ -96,7 +93,6 @@ struct DriveConfigTests {
             #expect(loaded.accessTokenExpiry == nil)
             #expect(loaded.folderID == nil)
             #expect(loaded.feedFileID == nil)
-            #expect(loaded.coverImageURLString == nil)
         }
     }
 
@@ -110,8 +106,7 @@ struct DriveConfigTests {
                 accessToken: "atoken",
                 accessTokenExpiry: expiry,
                 folderID: "folder-abc",
-                feedFileID: "feed-xyz",
-                coverImageURLString: "https://example.com/cover.png"
+                feedFileID: "feed-xyz"
             )
             DriveConfig.save(config)
             let loaded = try #require(DriveConfig.load())
@@ -121,7 +116,6 @@ struct DriveConfigTests {
             #expect(loaded.accessToken == "atoken")
             #expect(loaded.folderID == "folder-abc")
             #expect(loaded.feedFileID == "feed-xyz")
-            #expect(loaded.coverImageURLString == "https://example.com/cover.png")
 
             // Expiry round-trips to within 1 second due to ISO 8601 second precision.
             let loadedExpiry = try #require(loaded.accessTokenExpiry)
@@ -133,8 +127,7 @@ struct DriveConfigTests {
         try Self.withIsolatedStorage {
             DriveConfig.save(DriveConfig(
                 clientID: "cid", clientSecret: "cs", refreshToken: nil,
-                accessToken: nil, accessTokenExpiry: nil, folderID: "fid", feedFileID: nil,
-                coverImageURLString: nil
+                accessToken: nil, accessTokenExpiry: nil, folderID: "fid", feedFileID: nil
             ))
             #expect(DriveConfig.defaults.string(forKey: DriveConfig.UserDefaultsKey.clientID) == "cid")
             #expect(DriveConfig.defaults.string(forKey: DriveConfig.UserDefaultsKey.folderID) == "fid")
@@ -196,13 +189,11 @@ struct DriveConfigTests {
     @Test func isConnectedReflectsRefreshToken() {
         let connected = DriveConfig(
             clientID: "cid", clientSecret: "cs", refreshToken: "rt",
-            accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: nil,
-            coverImageURLString: nil
+            accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: nil
         )
         let notConnected = DriveConfig(
             clientID: "cid", clientSecret: "cs", refreshToken: nil,
-            accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: nil,
-            coverImageURLString: nil
+            accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: nil
         )
         #expect(connected.isConnected == true)
         #expect(notConnected.isConnected == false)
@@ -211,13 +202,11 @@ struct DriveConfigTests {
     @Test func hasFolderReflectsFolderID() {
         let withFolder = DriveConfig(
             clientID: "cid", clientSecret: "cs", refreshToken: nil,
-            accessToken: nil, accessTokenExpiry: nil, folderID: "abc", feedFileID: nil,
-            coverImageURLString: nil
+            accessToken: nil, accessTokenExpiry: nil, folderID: "abc", feedFileID: nil
         )
         let withoutFolder = DriveConfig(
             clientID: "cid", clientSecret: "cs", refreshToken: nil,
-            accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: nil,
-            coverImageURLString: nil
+            accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: nil
         )
         #expect(withFolder.hasFolder == true)
         #expect(withoutFolder.hasFolder == false)
@@ -226,8 +215,7 @@ struct DriveConfigTests {
     @Test func feedURLReturnsNilWhenNoFeedFileID() {
         let config = DriveConfig(
             clientID: "cid", clientSecret: "cs", refreshToken: nil,
-            accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: nil,
-            coverImageURLString: nil
+            accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: nil
         )
         #expect(config.feedURL() == nil)
     }
@@ -235,8 +223,7 @@ struct DriveConfigTests {
     @Test func feedURLReturnsCorrectForm() throws {
         let config = DriveConfig(
             clientID: "cid", clientSecret: "cs", refreshToken: nil,
-            accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: "FILE123",
-            coverImageURLString: nil
+            accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: "FILE123"
         )
         let url = try #require(config.feedURL())
         #expect(url.absoluteString == "https://drive.usercontent.google.com/download?id=FILE123&export=download&authuser=0&confirm=t")
@@ -251,8 +238,7 @@ struct DriveConfigTests {
         Self.withIsolatedStorage {
             DriveConfig.save(DriveConfig(
                 clientID: "cid", clientSecret: "cs", refreshToken: "rt",
-                accessToken: "at", accessTokenExpiry: Date(), folderID: "fid", feedFileID: "ffid",
-                coverImageURLString: "https://example.com/cover.png"
+                accessToken: "at", accessTokenExpiry: Date(), folderID: "fid", feedFileID: "ffid"
             ))
             DriveConfig.clear()
             #expect(DriveConfig.load() == nil)
@@ -263,8 +249,7 @@ struct DriveConfigTests {
         try Self.withIsolatedStorage {
             DriveConfig.save(DriveConfig(
                 clientID: "cid", clientSecret: "cs", refreshToken: "rt",
-                accessToken: "at", accessTokenExpiry: Date(), folderID: "fid", feedFileID: "ffid",
-                coverImageURLString: nil
+                accessToken: "at", accessTokenExpiry: Date(), folderID: "fid", feedFileID: "ffid"
             ))
             DriveConfig.clearTokensOnly()
             let loaded = try #require(DriveConfig.load())
@@ -277,75 +262,12 @@ struct DriveConfigTests {
         }
     }
 
-    // MARK: - coverImageURL accessor
-
-    @Test func coverImageURLReturnsNilWhenStringIsNil() {
-        let config = DriveConfig(
-            clientID: "cid", clientSecret: "cs", refreshToken: nil,
-            accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: nil,
-            coverImageURLString: nil
-        )
-        #expect(config.coverImageURL() == nil)
-    }
-
-    @Test func coverImageURLReturnsParsedURL() throws {
-        let config = DriveConfig(
-            clientID: "cid", clientSecret: "cs", refreshToken: nil,
-            accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: nil,
-            coverImageURLString: "https://example.com/cover.png"
-        )
-        let url = try #require(config.coverImageURL())
-        #expect(url.absoluteString == "https://example.com/cover.png")
-    }
-
-    @Test func coverImageURLRoundTrip() throws {
-        try Self.withIsolatedStorage {
-            let config = DriveConfig(
-                clientID: "cid", clientSecret: "cs", refreshToken: nil,
-                accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: nil,
-                coverImageURLString: "https://example.com/cover.png"
-            )
-            DriveConfig.save(config)
-            let loaded = try #require(DriveConfig.load())
-            #expect(loaded.coverImageURLString == "https://example.com/cover.png")
-        }
-    }
-
-    @Test func coverImageURLNilRoundTrip() throws {
-        try Self.withIsolatedStorage {
-            let config = DriveConfig(
-                clientID: "cid", clientSecret: "cs", refreshToken: nil,
-                accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: nil,
-                coverImageURLString: nil
-            )
-            DriveConfig.save(config)
-            let loaded = try #require(DriveConfig.load())
-            #expect(loaded.coverImageURLString == nil)
-        }
-    }
-
-    @Test func clearResetsCoverImageURL() throws {
-        try Self.withIsolatedStorage {
-            DriveConfig.save(DriveConfig(
-                clientID: "cid", clientSecret: "cs", refreshToken: nil,
-                accessToken: nil, accessTokenExpiry: nil, folderID: nil, feedFileID: nil,
-                coverImageURLString: "https://example.com/cover.png"
-            ))
-            DriveConfig.clear()
-            // After clear, load() returns nil because clientID is gone.
-            #expect(DriveConfig.load() == nil)
-            // Verify the UserDefaults key was removed.
-            #expect(DriveConfig.defaults.string(forKey: DriveConfig.UserDefaultsKey.coverImageURL) == nil)
-        }
-    }
-
     // MARK: - copying(refreshToken:accessToken:accessTokenExpiry:folderID:)
 
     @Test func copyingWithNewTokensPreservesFeedFileID() {
         let original = DriveConfig(
             clientID: "cid", clientSecret: "cs", refreshToken: "old-rt",
-            accessToken: "old-at", accessTokenExpiry: nil, folderID: "folder-1", feedFileID: "feed-abc",
-            coverImageURLString: nil
+            accessToken: "old-at", accessTokenExpiry: nil, folderID: "folder-1", feedFileID: "feed-abc"
         )
         let updated = original.copying(
             refreshToken: "new-rt",
@@ -363,8 +285,7 @@ struct DriveConfigTests {
     @Test func copyingWithNewTokensAndFolderIDPreservesFeedFileID() {
         let original = DriveConfig(
             clientID: "cid", clientSecret: "cs", refreshToken: "old-rt",
-            accessToken: "old-at", accessTokenExpiry: nil, folderID: nil, feedFileID: "feed-xyz",
-            coverImageURLString: nil
+            accessToken: "old-at", accessTokenExpiry: nil, folderID: nil, feedFileID: "feed-xyz"
         )
         let updated = original.copying(
             refreshToken: "new-rt",
@@ -379,8 +300,7 @@ struct DriveConfigTests {
     @Test func copyingWithNewTokensWhenNoFeedFileIDRemainsNil() {
         let original = DriveConfig(
             clientID: "cid", clientSecret: "cs", refreshToken: "old-rt",
-            accessToken: "old-at", accessTokenExpiry: nil, folderID: "fid", feedFileID: nil,
-            coverImageURLString: nil
+            accessToken: "old-at", accessTokenExpiry: nil, folderID: "fid", feedFileID: nil
         )
         let updated = original.copying(
             refreshToken: "new-rt",
@@ -388,20 +308,6 @@ struct DriveConfigTests {
             accessTokenExpiry: nil
         )
         #expect(updated.feedFileID == nil)
-    }
-
-    @Test func copyingPreservesCoverImageURLString() {
-        let original = DriveConfig(
-            clientID: "cid", clientSecret: "cs", refreshToken: "old-rt",
-            accessToken: "old-at", accessTokenExpiry: nil, folderID: "fid", feedFileID: "feed-abc",
-            coverImageURLString: "https://example.com/cover.png"
-        )
-        let updated = original.copying(
-            refreshToken: "new-rt",
-            accessToken: "new-at",
-            accessTokenExpiry: nil
-        )
-        #expect(updated.coverImageURLString == "https://example.com/cover.png")
     }
 
     // MARK: - Reconnect persistence (acceptance criteria 1, 2, 4)
@@ -412,8 +318,7 @@ struct DriveConfigTests {
             // Simulate a connected state with a known feedFileID.
             DriveConfig.save(DriveConfig(
                 clientID: "cid", clientSecret: "", refreshToken: "old-rt",
-                accessToken: "old-at", accessTokenExpiry: nil, folderID: "fid", feedFileID: "feed-stable",
-                coverImageURLString: nil
+                accessToken: "old-at", accessTokenExpiry: nil, folderID: "fid", feedFileID: "feed-stable"
             ))
 
             // Simulate what connectDrive() does: read prior, build new config with prior feedFileID.
@@ -425,7 +330,7 @@ struct DriveConfigTests {
             let reconnected = DriveConfig(
                 clientID: "cid", clientSecret: "", refreshToken: "new-rt",
                 accessToken: "new-at", accessTokenExpiry: nil, folderID: priorFolderID,
-                feedFileID: priorFeedFileID, coverImageURLString: nil
+                feedFileID: priorFeedFileID
             )
             DriveConfig.save(reconnected)
 
@@ -446,7 +351,7 @@ struct DriveConfigTests {
             let connected = DriveConfig(
                 clientID: "cid", clientSecret: "", refreshToken: "rt",
                 accessToken: "at", accessTokenExpiry: nil, folderID: priorFolderID,
-                feedFileID: priorFeedFileID, coverImageURLString: nil
+                feedFileID: priorFeedFileID
             )
             DriveConfig.save(connected)
 
@@ -464,14 +369,13 @@ struct DriveConfigTests {
             DriveConfig.save(DriveConfig(
                 clientID: "cid", clientSecret: "", refreshToken: "rt1",
                 accessToken: "at1", accessTokenExpiry: nil, folderID: "fid",
-                feedFileID: firstPriorFeedFileID, coverImageURLString: nil
+                feedFileID: firstPriorFeedFileID
             ))
 
             // Simulate publishing sets feedFileID.
             DriveConfig.save(DriveConfig(
                 clientID: "cid", clientSecret: "", refreshToken: "rt1",
-                accessToken: "at1", accessTokenExpiry: nil, folderID: "fid", feedFileID: "feed-stable",
-                coverImageURLString: nil
+                accessToken: "at1", accessTokenExpiry: nil, folderID: "fid", feedFileID: "feed-stable"
             ))
 
             // Second connect: read prior from Keychain, preserve feedFileID.
@@ -482,7 +386,7 @@ struct DriveConfigTests {
             let secondConnect = DriveConfig(
                 clientID: "cid", clientSecret: "", refreshToken: "rt2",
                 accessToken: "at2", accessTokenExpiry: nil, folderID: secondPriorFolderID,
-                feedFileID: secondPriorFeedFileID, coverImageURLString: nil
+                feedFileID: secondPriorFeedFileID
             )
             DriveConfig.save(secondConnect)
 
@@ -497,8 +401,7 @@ struct DriveConfigTests {
         try Self.withIsolatedStorage {
             DriveConfig.save(DriveConfig(
                 clientID: "cid", clientSecret: "cs", refreshToken: "rt",
-                accessToken: "at", accessTokenExpiry: Date(), folderID: "fid", feedFileID: "feed-stable",
-                coverImageURLString: nil
+                accessToken: "at", accessTokenExpiry: Date(), folderID: "fid", feedFileID: "feed-stable"
             ))
             DriveConfig.clearTokensOnly()
             let loaded = try #require(DriveConfig.load())
