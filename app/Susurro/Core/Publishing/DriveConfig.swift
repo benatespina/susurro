@@ -135,6 +135,25 @@ struct DriveConfig: Sendable, Equatable {
         )
     }
 
+    /// Returns a new config with fresh OAuth tokens (and optionally a new folderID),
+    /// preserving `clientID`, `clientSecret`, and `feedFileID` from the receiver.
+    func copying(
+        refreshToken: String?,
+        accessToken: String?,
+        accessTokenExpiry: Date?,
+        folderID: String? = nil
+    ) -> DriveConfig {
+        DriveConfig(
+            clientID: clientID,
+            clientSecret: clientSecret,
+            refreshToken: refreshToken,
+            accessToken: accessToken,
+            accessTokenExpiry: accessTokenExpiry,
+            folderID: folderID ?? self.folderID,
+            feedFileID: self.feedFileID
+        )
+    }
+
     // MARK: - Convenience
 
     var isConnected: Bool { (refreshToken?.isEmpty == false) }
