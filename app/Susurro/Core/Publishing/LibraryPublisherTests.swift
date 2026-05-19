@@ -148,13 +148,12 @@ struct LibraryPublisherTests {
     /// Keychain accounts touched by DriveConfig.save — must be snapshotted/restored so
     /// tests that trigger uploadFeed (and thus DriveConfig.save) don't pollute the global
     /// Keychain and break unrelated tests such as DriveConfigTests.roundTripMinimal.
+    /// Note: clientID and folderID are written to UserDefaults by save(), not Keychain.
     private static let touchedKeychainAccounts: [String] = [
-        DriveConfig.Account.clientID,
         DriveConfig.Account.clientSecret,
         DriveConfig.Account.refreshToken,
         DriveConfig.Account.accessToken,
         DriveConfig.Account.accessTokenExpiry,
-        DriveConfig.Account.folderID,
         DriveConfig.Account.feedFileID,
     ]
 
