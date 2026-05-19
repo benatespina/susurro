@@ -90,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             description: "Articles saved with Susurro",
             link: feedURL,
             language: "es-ES",
-            imageURL: nil,
+            imageURL: URL(string: "https://raw.githubusercontent.com/benatespina/susurro/main/assets/cover.png"),
             author: "Susurro"
         )
         let publisher = LibraryPublisher(

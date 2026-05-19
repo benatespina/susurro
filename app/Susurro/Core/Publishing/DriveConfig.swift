@@ -9,6 +9,24 @@ struct DriveConfig: Sendable, Equatable {
     let folderID: String?
     let feedFileID: String?
 
+    init(
+        clientID: String,
+        clientSecret: String,
+        refreshToken: String?,
+        accessToken: String?,
+        accessTokenExpiry: Date?,
+        folderID: String?,
+        feedFileID: String?
+    ) {
+        self.clientID = clientID
+        self.clientSecret = clientSecret
+        self.refreshToken = refreshToken
+        self.accessToken = accessToken
+        self.accessTokenExpiry = accessTokenExpiry
+        self.folderID = folderID
+        self.feedFileID = feedFileID
+    }
+
     /// Name of the root folder created/looked up on Google Drive.
     static let folderName = "Susurro Library"
 

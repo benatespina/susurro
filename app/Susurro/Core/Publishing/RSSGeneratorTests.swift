@@ -7,13 +7,13 @@ struct RSSGeneratorTests {
 
     // MARK: - Helpers
 
-    private func makeChannel() -> RSSChannel {
+    private func makeChannel(imageURL: URL? = nil) -> RSSChannel {
         RSSChannel(
             title: "Test Podcast",
             description: "A test podcast feed",
             link: URL(string: "https://example.com/feed")!,
             language: "en-US",
-            imageURL: nil,
+            imageURL: imageURL,
             author: "Test Author"
         )
     }
@@ -64,17 +64,21 @@ struct RSSGeneratorTests {
     }
 
     @Test func renderWithImageURL() {
-        let channel = RSSChannel(
-            title: "Feed",
-            description: "Desc",
-            link: URL(string: "https://example.com")!,
-            language: "en",
-            imageURL: URL(string: "https://example.com/cover.png")!,
-            author: nil
-        )
-        let output = RSSGenerator.render(channel: channel, items: [])
+        let imageURL = URL(string: "https://example.com/cover.png")!
+        let output = RSSGenerator.render(channel: makeChannel(imageURL: imageURL), items: [])
         #expect(output.contains("<image>"))
         #expect(output.contains("cover.png"))
+    }
+
+    @Test func renderWithImageURLIncludesItunesImage() {
+        let imageURL = URL(string: "https://example.com/cover.png")!
+        let output = RSSGenerator.render(channel: makeChannel(imageURL: imageURL), items: [])
+        #expect(output.contains("<itunes:image href=\"https://example.com/cover.png\"/>"))
+    }
+
+    @Test func renderWithoutImageURLOmitsItunesImage() {
+        let output = RSSGenerator.render(channel: makeChannel(), items: [])
+        #expect(!output.contains("<itunes:image"))
     }
 
     // MARK: - XML escape edge cases

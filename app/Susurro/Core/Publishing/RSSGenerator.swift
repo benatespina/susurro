@@ -45,6 +45,7 @@ enum RSSGenerator {
                   <title>\(xmlEscape(channel.title))</title>
                   <link>\(xmlEscape(channel.link.absoluteString))</link>
                 </image>
+                <itunes:image href="\(xmlEscape(imageURL.absoluteString))"/>
             """
         }
 
