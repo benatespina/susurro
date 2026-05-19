@@ -199,7 +199,7 @@ struct DriveConfig: Sendable, Equatable {
     }
 
     func coverImageURL() -> URL? {
-        guard let urlString = coverImageURLString, !urlString.isEmpty else { return nil }
+        guard let urlString = coverImageURLString else { return nil }
         return URL(string: urlString)
     }
 

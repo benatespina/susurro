@@ -84,13 +84,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         driveAuth = auth
         let client = DriveClient(auth: auth, configProvider: { DriveConfig.load() })
         driveClient = client
-        let feedURL = DriveConfig.load()?.feedURL() ?? URL(string: "https://susurro.benatespina.com/feed")!
+        let driveConfig = DriveConfig.load()
+        let feedURL = driveConfig?.feedURL() ?? URL(string: "https://susurro.benatespina.com/feed")!
         let rssChannel = RSSChannel(
             title: "Susurro Library",
             description: "Articles saved with Susurro",
             link: feedURL,
             language: "es-ES",
-            imageURL: DriveConfig.load()?.coverImageURL(),
+            imageURL: driveConfig?.coverImageURL(),
             author: "Susurro"
         )
         let publisher = LibraryPublisher(
