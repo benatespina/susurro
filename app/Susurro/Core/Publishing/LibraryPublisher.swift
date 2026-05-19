@@ -245,11 +245,23 @@ actor LibraryPublisher: LibraryPublishing {
     private func uploadFeed(config: DriveConfig) async throws {
         guard let folderID = config.folderID else { throw PublisherError.notConnected }
 
+        // Self-heal: if feedFileID is lost (reinstall, Keychain wipe), look up by name
+        // before creating a duplicate.
+        var effectiveConfig = config
+        if effectiveConfig.feedFileID == nil {
+            if let foundID = try? await driveClient.findFile(name: "feed.xml", parentID: folderID) {
+                AppLogger.publishing.info("uploadFeed: self-healed feedFileID from Drive lookup: \(foundID, privacy: .public)")
+                try? await driveClient.setAnyoneWithLink(fileID: foundID)
+                effectiveConfig = config.copying(feedFileID: foundID)
+                DriveConfig.save(effectiveConfig)
+            }
+        }
+
         let items = await buildRSSItems()
         let feedXML = RSSGenerator.render(channel: channel, items: items)
         let feedData = Data(feedXML.utf8)
 
-        if let feedFileID = config.feedFileID {
+        if let feedFileID = effectiveConfig.feedFileID {
             try await driveClient.updateFile(
                 fileID: feedFileID,
                 data: feedData,
@@ -265,7 +277,7 @@ actor LibraryPublisher: LibraryPublishing {
             try await driveClient.setAnyoneWithLink(fileID: newFeedFileID)
 
             // Persist new feedFileID.
-            DriveConfig.save(config.copying(feedFileID: newFeedFileID))
+            DriveConfig.save(effectiveConfig.copying(feedFileID: newFeedFileID))
         }
     }
 

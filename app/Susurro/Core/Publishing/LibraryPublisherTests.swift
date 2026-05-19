@@ -17,6 +17,8 @@ actor FakeDriveClient: DriveUploading {
     var headFileResultsByID: [String: DriveFileMeta] = [:]
     var feedUpdateShouldThrow: Bool = false
     var existingFoldersByName: [String: String] = [:]  // name → id
+    var existingFilesByName: [String: String] = [:]    // name → id
+    var findFileShouldThrow: Bool = false
 
     func createFolder(name: String, parentID: String) async throws -> String {
         calls.append(Call(method: "createFolder", args: [name, parentID]))
@@ -26,6 +28,12 @@ actor FakeDriveClient: DriveUploading {
     func findFolderByName(_ name: String, parentID: String) async throws -> String? {
         calls.append(Call(method: "findFolderByName", args: [name, parentID]))
         return existingFoldersByName[name]
+    }
+
+    func findFile(name: String, parentID: String) async throws -> String? {
+        calls.append(Call(method: "findFile", args: [name, parentID]))
+        if findFileShouldThrow { throw URLError(.notConnectedToInternet) }
+        return existingFilesByName[name]
     }
 
     func uploadFile(name: String, mimeType: String, data: Data, parentID: String) async throws -> String {
@@ -74,6 +82,14 @@ actor FakeDriveClient: DriveUploading {
 
     func setFeedUpdateShouldThrow(_ value: Bool) {
         feedUpdateShouldThrow = value
+    }
+
+    func setExistingFilesByName(_ value: [String: String]) {
+        existingFilesByName = value
+    }
+
+    func setFindFileShouldThrow(_ value: Bool) {
+        findFileShouldThrow = value
     }
 }
 
@@ -127,43 +143,97 @@ private func addReadyItemWithAudio(to store: LibraryStore, id: UUID, tempDir: UR
 @MainActor
 struct LibraryPublisherTests {
 
+    // MARK: - Drive storage isolation
+
+    /// Keychain accounts touched by DriveConfig.save — must be snapshotted/restored so
+    /// tests that trigger uploadFeed (and thus DriveConfig.save) don't pollute the global
+    /// Keychain and break unrelated tests such as DriveConfigTests.roundTripMinimal.
+    private static let touchedKeychainAccounts: [String] = [
+        DriveConfig.Account.clientID,
+        DriveConfig.Account.clientSecret,
+        DriveConfig.Account.refreshToken,
+        DriveConfig.Account.accessToken,
+        DriveConfig.Account.accessTokenExpiry,
+        DriveConfig.Account.folderID,
+        DriveConfig.Account.feedFileID,
+    ]
+
+    /// Async per-test isolation: a fresh UserDefaults suite plus a Keychain snapshot/restore.
+    /// Mirrors the pattern in DriveConfigTests.withIsolatedStorage. Tests that call
+    /// `DriveConfig.save` internally (via `uploadFeed`) must be wrapped here so they
+    /// leave no Keychain or UserDefaults state behind after the test completes.
+    private static func withIsolatedDriveStorage<T>(_ body: () async throws -> T) async rethrows -> T {
+        let suiteName = "test.LibraryPublisher.\(UUID().uuidString)"
+        let suite = UserDefaults(suiteName: suiteName)!
+        let previousDefaults = DriveConfig.defaults
+        DriveConfig.defaults = suite
+
+        let keychainSnapshot: [String: String] = Dictionary(uniqueKeysWithValues: touchedKeychainAccounts.map {
+            ($0, Keychain.string(for: $0) ?? "")
+        })
+        for account in touchedKeychainAccounts {
+            Keychain.set("", for: account)
+        }
+
+        do {
+            let result = try await body()
+            for (account, value) in keychainSnapshot {
+                Keychain.set(value, for: account)
+            }
+            DriveConfig.defaults = previousDefaults
+            suite.removePersistentDomain(forName: suiteName)
+            return result
+        } catch {
+            for (account, value) in keychainSnapshot {
+                Keychain.set(value, for: account)
+            }
+            DriveConfig.defaults = previousDefaults
+            suite.removePersistentDomain(forName: suiteName)
+            throw error
+        }
+    }
+
     // MARK: - Happy path: publish
 
     @Test func publishHappyPathRecordsCallsInOrder() async throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
+        try await Self.withIsolatedDriveStorage {
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        let store = makeStore()
-        let itemID = UUID()
-        _ = try addReadyItemWithAudio(to: store, id: itemID, tempDir: tempDir)
+            let store = makeStore()
+            let itemID = UUID()
+            _ = try addReadyItemWithAudio(to: store, id: itemID, tempDir: tempDir)
 
-        let fakeClient = FakeDriveClient()
-        let publisher = LibraryPublisher(
-            store: store,
-            driveClient: fakeClient,
-            configProvider: {
-                DriveConfig(
-                    clientID: "cid", clientSecret: "cs",
-                    refreshToken: "rt", accessToken: "at",
-                    accessTokenExpiry: Date().addingTimeInterval(3600),
-                    folderID: "folder-id",
-                    feedFileID: nil
-                )
-            },
-            channel: makeChannel(),
-            audioDirectory: tempDir
-        )
+            let fakeClient = FakeDriveClient()
+            let publisher = LibraryPublisher(
+                store: store,
+                driveClient: fakeClient,
+                configProvider: {
+                    DriveConfig(
+                        clientID: "cid", clientSecret: "cs",
+                        refreshToken: "rt", accessToken: "at",
+                        accessTokenExpiry: Date().addingTimeInterval(3600),
+                        folderID: "folder-id",
+                        feedFileID: nil
+                    )
+                },
+                channel: makeChannel(),
+                audioDirectory: tempDir
+            )
 
-        try await publisher.publish(itemID: itemID)
+            try await publisher.publish(itemID: itemID)
 
-        let methods = await fakeClient.callMethods()
-        // Expected order: uploadFile(mp3), setAnyoneWithLink(mp3), uploadFile(feed), setAnyoneWithLink(feed)
-        #expect(methods.count == 4)
-        #expect(methods[0] == "uploadFile")           // mp3
-        #expect(methods[1] == "setAnyoneWithLink")    // mp3 file
-        #expect(methods[2] == "uploadFile")           // feed.xml (no feedFileID yet)
-        #expect(methods[3] == "setAnyoneWithLink")    // feed.xml
+            let methods = await fakeClient.callMethods()
+            // Expected order: uploadFile(mp3), setAnyoneWithLink(mp3),
+            //                 findFile(feed.xml lookup — returns nil), uploadFile(feed), setAnyoneWithLink(feed)
+            #expect(methods.count == 5)
+            #expect(methods[0] == "uploadFile")           // mp3
+            #expect(methods[1] == "setAnyoneWithLink")    // mp3 file
+            #expect(methods[2] == "findFile")             // self-heal lookup (returns nil — no existing feed)
+            #expect(methods[3] == "uploadFile")           // feed.xml (no feedFileID yet)
+            #expect(methods[4] == "setAnyoneWithLink")    // feed.xml
+        }
     }
 
     @Test func publishNoFolderIDThrowsNotConnected() async throws {
@@ -722,6 +792,163 @@ struct LibraryPublisherTests {
             ($0.method == "uploadFile" || $0.method == "updateFile") && $0.args.contains("application/rss+xml")
         }
         #expect(feedCalls.count == 1)
+    }
+
+    // MARK: - Self-heal feedFileID
+
+    @Test func uploadFeed_selfHeals_whenFeedFileIDNilButFileExistsInDrive() async throws {
+        try await Self.withIsolatedDriveStorage {
+            let store = makeStore()
+            let fakeClient = FakeDriveClient()
+            await fakeClient.setExistingFilesByName(["feed.xml": "existing-feed-id"])
+
+            let publisher = LibraryPublisher(
+                store: store,
+                driveClient: fakeClient,
+                configProvider: {
+                    DriveConfig(
+                        clientID: "cid", clientSecret: "cs",
+                        refreshToken: "rt", accessToken: "at",
+                        accessTokenExpiry: Date().addingTimeInterval(3600),
+                        folderID: "folder-id",
+                        feedFileID: nil  // Lost after reinstall / Keychain wipe
+                    )
+                },
+                channel: makeChannel()
+            )
+
+            try await publisher.regenerateFeed()
+
+            let calls = await fakeClient.calls
+            let methods = calls.map { $0.method }
+
+            // findFile must have been called
+            #expect(methods.contains("findFile"))
+
+            // updateFile must have been called with the adopted ID — not uploadFile
+            let updateCalls = calls.filter { $0.method == "updateFile" && $0.args.first == "existing-feed-id" }
+            #expect(updateCalls.count == 1)
+
+            // uploadFile must NOT have been called for feed.xml
+            let uploadXMLCalls = calls.filter { $0.method == "uploadFile" && $0.args.contains("application/rss+xml") }
+            #expect(uploadXMLCalls.isEmpty)
+
+            // setAnyoneWithLink must have been called for the adopted ID
+            let permCalls = calls.filter { $0.method == "setAnyoneWithLink" && $0.args.first == "existing-feed-id" }
+            #expect(permCalls.count == 1)
+
+            // feedFileID must be persisted: DriveConfig.save writes it to Keychain.
+            let persistedFeedFileID = Keychain.string(for: DriveConfig.Account.feedFileID)
+            #expect(persistedFeedFileID == "existing-feed-id")
+        }
+    }
+
+    @Test func uploadFeed_createsNew_whenFeedFileIDNilAndNoFileInDrive() async throws {
+        try await Self.withIsolatedDriveStorage {
+            let store = makeStore()
+            let fakeClient = FakeDriveClient()
+            // existingFilesByName intentionally empty — Drive has no feed.xml
+
+            let publisher = LibraryPublisher(
+                store: store,
+                driveClient: fakeClient,
+                configProvider: {
+                    DriveConfig(
+                        clientID: "cid", clientSecret: "cs",
+                        refreshToken: "rt", accessToken: "at",
+                        accessTokenExpiry: Date().addingTimeInterval(3600),
+                        folderID: "folder-id",
+                        feedFileID: nil
+                    )
+                },
+                channel: makeChannel()
+            )
+
+            try await publisher.regenerateFeed()
+
+            let calls = await fakeClient.calls
+            let methods = calls.map { $0.method }
+
+            // findFile was called (returned nil)
+            #expect(methods.contains("findFile"))
+
+            // uploadFile was called for feed.xml (creates new)
+            let uploadXMLCalls = calls.filter { $0.method == "uploadFile" && $0.args.contains("application/rss+xml") }
+            #expect(uploadXMLCalls.count == 1)
+
+            // setAnyoneWithLink called for new feed ID
+            #expect(methods.contains("setAnyoneWithLink"))
+
+            // updateFile NOT called
+            #expect(!methods.contains("updateFile"))
+        }
+    }
+
+    @Test func uploadFeed_skipsLookup_whenFeedFileIDPresent() async throws {
+        let store = makeStore()
+        let fakeClient = FakeDriveClient()
+
+        let publisher = LibraryPublisher(
+            store: store,
+            driveClient: fakeClient,
+            configProvider: {
+                DriveConfig(
+                    clientID: "cid", clientSecret: "cs",
+                    refreshToken: "rt", accessToken: "at",
+                    accessTokenExpiry: Date().addingTimeInterval(3600),
+                    folderID: "folder-id",
+                    feedFileID: "known-id"  // feedFileID already set — no lookup needed
+                )
+            },
+            channel: makeChannel()
+        )
+
+        try await publisher.regenerateFeed()
+
+        let calls = await fakeClient.calls
+        let methods = calls.map { $0.method }
+
+        // findFile must NOT have been called
+        #expect(!methods.contains("findFile"))
+
+        // updateFile must have been called
+        #expect(methods.contains("updateFile"))
+    }
+
+    @Test func uploadFeed_tolerates_findFileError() async throws {
+        try await Self.withIsolatedDriveStorage {
+            let store = makeStore()
+            let fakeClient = FakeDriveClient()
+            await fakeClient.setFindFileShouldThrow(true)
+
+            let publisher = LibraryPublisher(
+                store: store,
+                driveClient: fakeClient,
+                configProvider: {
+                    DriveConfig(
+                        clientID: "cid", clientSecret: "cs",
+                        refreshToken: "rt", accessToken: "at",
+                        accessTokenExpiry: Date().addingTimeInterval(3600),
+                        folderID: "folder-id",
+                        feedFileID: nil
+                    )
+                },
+                channel: makeChannel()
+            )
+
+            // Must not throw — graceful fallthrough to create-new path
+            try await publisher.regenerateFeed()
+
+            let calls = await fakeClient.calls
+            let methods = calls.map { $0.method }
+
+            // findFile was called (threw)
+            #expect(methods.contains("findFile"))
+
+            // uploadFile still called as fallback
+            let uploadXMLCalls = calls.filter { $0.method == "uploadFile" && $0.args.contains("application/rss+xml") }
+            #expect(uploadXMLCalls.count == 1)
+        }
     }
 
     @Test func syncSkipsFeedRegenWhenNothingChanged() async throws {
