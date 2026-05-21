@@ -40,33 +40,33 @@ enum ReaderModeExtractor {
 
         // SPAs (x.com, Next.js docs) fire didFinish before React hydrates; Readability returns null.
         // Poll with capped backoff so the first attempt on static pages pays zero extra latency.
+        // callAsyncJavaScript is required here: evaluateJavaScript returns a Promise object rather
+        // than awaiting it, so the backoff delays would never execute and the cast to String fails.
         let js = """
-        (async () => {
-            const delays = [0, 250, 500, 1000, 1500, 2000];
-            let lastResult = null;
-            for (const delay of delays) {
-                await new Promise(r => setTimeout(r, delay));
-                let result = null;
-                try {
-                    result = new Readability(document.cloneNode(true)).parse();
-                } catch (e) {
-                    result = null;
-                }
-                if (result && typeof result.textContent === 'string' && result.textContent.length >= 200) {
-                    return JSON.stringify({title: result.title || '', textContent: result.textContent});
-                }
-                if (result !== null) {
-                    lastResult = result;
-                }
+        const delays = [0, 250, 500, 1000, 1500, 2000];
+        let lastResult = null;
+        for (const delay of delays) {
+            await new Promise(r => setTimeout(r, delay));
+            let result = null;
+            try {
+                result = new Readability(document.cloneNode(true)).parse();
+            } catch (e) {
+                result = null;
             }
-            if (lastResult !== null) {
-                return JSON.stringify({title: lastResult.title || '', textContent: lastResult.textContent});
+            if (result && typeof result.textContent === 'string' && result.textContent.length >= 200) {
+                return JSON.stringify({title: result.title || null, textContent: result.textContent});
             }
-            return null;
-        })()
+            if (result !== null) {
+                lastResult = result;
+            }
+        }
+        if (lastResult !== null) {
+            return JSON.stringify({title: lastResult.title || null, textContent: lastResult.textContent});
+        }
+        return null;
         """
 
-        let result = try await webView.evaluateJavaScript(js)
+        let result = try await webView.callAsyncJavaScript(js, arguments: [:], in: nil, contentWorld: .page)
 
         guard let jsonString = result as? String else {
             throw BackendError.extractFailed("reader returned no content")
