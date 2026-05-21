@@ -2,12 +2,12 @@ import Foundation
 
 actor ArticleExtractor {
     private let session: URLSession
-    private let swiftSoupExtract: @Sendable (String, String) -> (text: String, title: String?)?
+    private let swiftSoupExtract: @Sendable (String, String) -> (text: String, title: String?, containerTag: String?, linkTextLength: Int, totalTextLength: Int)?
     private let readerExtract: @Sendable (String) async throws -> (text: String, title: String?)
 
     init(
         session: URLSession = .shared,
-        swiftSoupExtract: @escaping @Sendable (String, String) -> (text: String, title: String?)? = SwiftSoupExtractor.extract,
+        swiftSoupExtract: @escaping @Sendable (String, String) -> (text: String, title: String?, containerTag: String?, linkTextLength: Int, totalTextLength: Int)? = SwiftSoupExtractor.extract,
         readerExtract: @escaping @Sendable (String) async throws -> (text: String, title: String?) = ReaderModeExtractor.extract
     ) {
         self.session = session
@@ -46,7 +46,12 @@ actor ArticleExtractor {
         var title: String?
 
         if let soupResult = swiftSoupExtract(html, url),
-           soupResult.text.filter({ !$0.isWhitespace }).count >= 100 {
+           ExtractionQualityGate.score(
+               text: soupResult.text,
+               containerTag: soupResult.containerTag,
+               linkTextLength: soupResult.linkTextLength,
+               totalTextLength: soupResult.totalTextLength
+           ) >= ExtractionQualityGate.acceptThreshold {
             text = soupResult.text
             title = soupResult.title
         } else {

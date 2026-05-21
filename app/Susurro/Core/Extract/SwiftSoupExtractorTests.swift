@@ -113,6 +113,33 @@ struct SwiftSoupExtractorTests {
         #expect(result == nil)
     }
 
+    @Test("containerTag is 'article' for blog post and 'main' for news fixture")
+    func containerTagValues() throws {
+        let blogResult = try #require(SwiftSoupExtractor.extract(html: blogPostHTML, url: "https://example.com/post"))
+        #expect(blogResult.containerTag == "article")
+
+        let newsResult = try #require(SwiftSoupExtractor.extract(html: newsSiteHTML, url: "https://news.example.com/article"))
+        #expect(newsResult.containerTag == "main")
+    }
+
+    @Test("containerTag is 'main' for div with role=main")
+    func roleMainContainerNormalisedToMain() throws {
+        let html = """
+        <!DOCTYPE html>
+        <html>
+        <head><title>Role Main Page</title></head>
+        <body>
+        <div role="main">
+            <p>This is the primary content area of the page, wrapped in a div with role main.</p>
+            <p>A second paragraph confirms that the extractor identifies the container correctly.</p>
+        </div>
+        </body>
+        </html>
+        """
+        let result = try #require(SwiftSoupExtractor.extract(html: html, url: "https://example.com/rolemain"))
+        #expect(result.containerTag == "main")
+    }
+
     @Test("blockquote with nested paragraphs does not duplicate text")
     func nestedBlockquoteDoesNotDuplicate() throws {
         let html = """

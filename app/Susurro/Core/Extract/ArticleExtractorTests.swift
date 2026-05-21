@@ -62,12 +62,14 @@ struct ArticleExtractorTests {
     @Test("happy path: SwiftSoup result > 100 chars, reader not invoked")
     func happyPathSwiftSoup() async throws {
         let session = makeMockSession(html: longArticleHTML)
-        let longText = String(repeating: "This is extracted article content. ", count: 5)
+        // Use enough long words (>3 chars) so the quality gate accepts the result.
+        // 90 × 1 long word "fascinating" → word count ≥ 80 → +1; article container → +2; score = 3 ≥ 2.
+        let longText = Array(repeating: "fascinating", count: 90).joined(separator: " ")
         let readerInvokedBox = ActorBox(false)
 
         let extractor = ArticleExtractor(
             session: session,
-            swiftSoupExtract: { _, _ in (longText, "Long Article") },
+            swiftSoupExtract: { _, _ in (longText, "Long Article", "article", 0, longText.count) },
             readerExtract: { _ in
                 await readerInvokedBox.set(true)
                 return ("reader text", nil)
@@ -90,7 +92,7 @@ struct ArticleExtractorTests {
 
         let extractor = ArticleExtractor(
             session: session,
-            swiftSoupExtract: { _, _ in ("short", nil) },
+            swiftSoupExtract: { _, _ in ("short", nil, "body", 0, 5) },
             readerExtract: { _ in
                 await readerInvokedBox.set(true)
                 return (readerText, "Reader Title")
@@ -108,7 +110,7 @@ struct ArticleExtractorTests {
     func badURLScheme() async throws {
         let extractor = ArticleExtractor(
             session: makeMockSession(html: ""),
-            swiftSoupExtract: { _, _ in nil },
+            swiftSoupExtract: { (_, _) -> (text: String, title: String?, containerTag: String?, linkTextLength: Int, totalTextLength: Int)? in nil },
             readerExtract: { _ in ("", nil) }
         )
 
@@ -123,7 +125,7 @@ struct ArticleExtractorTests {
 
         let extractor = ArticleExtractor(
             session: session,
-            swiftSoupExtract: { _, _ in nil },
+            swiftSoupExtract: { (_, _) -> (text: String, title: String?, containerTag: String?, linkTextLength: Int, totalTextLength: Int)? in nil },
             readerExtract: { _ in ("", nil) }
         )
 
@@ -139,12 +141,86 @@ struct ArticleExtractorTests {
 
         let extractor = ArticleExtractor(
             session: session,
-            swiftSoupExtract: { _, _ in (spanishText, "Título") },
+            swiftSoupExtract: { _, _ in (spanishText, "Título", "article", 0, spanishText.count) },
             readerExtract: { _ in ("", nil) }
         )
 
         let article = try await extractor.extract(url: "https://example.es/articulo")
         #expect(article.language == "es")
+    }
+
+    // MARK: - Tier-1 quality gate tests
+
+    @Test("tier1: consent banner (EN) forces tier-2 reader invocation")
+    func tier1RejectedForConsentBannerEnglish() async throws {
+        // Three distinct EN consent phrases embedded in short text → gate rejects.
+        let bannerText = """
+        We use cookies to personalise content. Accept cookies to continue. \
+        Our cookie policy explains how we use essential cookies and personalised ads \
+        to improve your experience on our website.
+        """
+        let session = makeMockSession(html: "<html><body><p>x</p></body></html>")
+        let readerInvokedBox = ActorBox(false)
+        let readerText = String(repeating: "Real content from reader. ", count: 10)
+
+        let extractor = ArticleExtractor(
+            session: session,
+            swiftSoupExtract: { _, _ in (bannerText, nil, "body", 0, bannerText.count) },
+            readerExtract: { _ in
+                await readerInvokedBox.set(true)
+                return (readerText, nil)
+            }
+        )
+
+        _ = try await extractor.extract(url: "https://example.com/article")
+        let invoked = await readerInvokedBox.value
+        #expect(invoked)
+    }
+
+    @Test("tier1: link-list page forces tier-2 reader invocation")
+    func tier1RejectedForLinkListPage() async throws {
+        // 50 long words but link density > 0.5 with body container → gate rejects.
+        let linkText = String(repeating: "navigating through links ", count: 10) // ~50 words, all anchor
+        let session = makeMockSession(html: "<html><body><p>x</p></body></html>")
+        let readerInvokedBox = ActorBox(false)
+        let readerText = String(repeating: "Real content from reader. ", count: 10)
+
+        let extractor = ArticleExtractor(
+            session: session,
+            // linkTextLength == totalTextLength → density = 1.0 > 0.5, body → gate rejects
+            swiftSoupExtract: { _, _ in (linkText, nil, "body", linkText.count, linkText.count) },
+            readerExtract: { _ in
+                await readerInvokedBox.set(true)
+                return (readerText, nil)
+            }
+        )
+
+        _ = try await extractor.extract(url: "https://example.com/links")
+        let invoked = await readerInvokedBox.value
+        #expect(invoked)
+    }
+
+    @Test("tier1: article container with 250 long words and no consent phrases is accepted without tier-2")
+    func tier1AcceptedForRealArticleWithArticleContainer() async throws {
+        // 250+ long words, article container, 0 consent phrases, low link density.
+        // Score: wordCount ≥150 → +3; article → +2; total score = 5 ≥ 2 → accepted.
+        let articleWords = (Array(repeating: "fascinating incredible amazing discovery", count: 65)).joined(separator: " ")
+        // 65 × 4 words = 260 words > 150 → +3; article → +2; total score = 5 ≥ 2 → accepted
+        let session = makeMockSession(html: "<html><body><p>x</p></body></html>")
+        let readerInvokedBox = ActorBox(false)
+
+        let extractor = ArticleExtractor(
+            session: session,
+            swiftSoupExtract: { _, _ in (articleWords, "Article", "article", 0, articleWords.count) },
+            readerExtract: { _ in
+                await readerInvokedBox.set(true)
+                return ("reader content", nil)
+            }
+        )
+
+        _ = try await extractor.extract(url: "https://example.com/article")
+        let invoked = await readerInvokedBox.value
+        #expect(!invoked)
     }
 }
 
