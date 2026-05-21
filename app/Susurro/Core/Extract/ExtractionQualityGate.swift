@@ -12,7 +12,6 @@ enum ExtractionQualityGate: Sendable {
         "cookie policy",
         "privacy policy",
         "manage preferences",
-        "manage your preferences",
         "by clicking accept",
         "personalised ads",
         "personalized ads",
@@ -81,12 +80,11 @@ enum ExtractionQualityGate: Sendable {
         }
 
         // --- Container-tag signal ---
+        // SwiftSoupExtractor normalises [role=main] → "main" before scoring,
+        // so only the plain tag names need matching here.
         let tag = containerTag ?? ""
         switch tag {
         case "article", "main":
-            score += 2
-        case _ where tag.hasPrefix("[role") || tag == "[role=main]":
-            // [role=main] selector passed through as the tag string
             score += 2
         case "body":
             score -= 2

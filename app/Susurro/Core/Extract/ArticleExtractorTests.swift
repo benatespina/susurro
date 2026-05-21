@@ -110,7 +110,7 @@ struct ArticleExtractorTests {
     func badURLScheme() async throws {
         let extractor = ArticleExtractor(
             session: makeMockSession(html: ""),
-            swiftSoupExtract: { (_, _) -> (text: String, title: String?, containerTag: String?, linkTextLength: Int, totalTextLength: Int)? in nil },
+            swiftSoupExtract: { _, _ in nil },
             readerExtract: { _ in ("", nil) }
         )
 
@@ -125,7 +125,7 @@ struct ArticleExtractorTests {
 
         let extractor = ArticleExtractor(
             session: session,
-            swiftSoupExtract: { (_, _) -> (text: String, title: String?, containerTag: String?, linkTextLength: Int, totalTextLength: Int)? in nil },
+            swiftSoupExtract: { _, _ in nil },
             readerExtract: { _ in ("", nil) }
         )
 
@@ -202,10 +202,8 @@ struct ArticleExtractorTests {
 
     @Test("tier1: article container with 250 long words and no consent phrases is accepted without tier-2")
     func tier1AcceptedForRealArticleWithArticleContainer() async throws {
-        // 250+ long words, article container, 0 consent phrases, low link density.
-        // Score: wordCount ≥150 → +3; article → +2; total score = 5 ≥ 2 → accepted.
+        // 65 × 4 words = 260 long words → +3; article container → +2; total = 5 ≥ 2 → accepted.
         let articleWords = (Array(repeating: "fascinating incredible amazing discovery", count: 65)).joined(separator: " ")
-        // 65 × 4 words = 260 words > 150 → +3; article → +2; total score = 5 ≥ 2 → accepted
         let session = makeMockSession(html: "<html><body><p>x</p></body></html>")
         let readerInvokedBox = ActorBox(false)
 
