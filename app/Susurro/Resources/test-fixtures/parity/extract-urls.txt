@@ -48,3 +48,7 @@ https://openai.com/research/gpt-4
 
 # Wikipedia (additional)
 https://en.wikipedia.org/wiki/WebSocket
+
+# SPA hydration smoke-test (React / Next.js)
+https://x.com/addyosmani/status/2056078124346228860
+https://nextjs.org/docs

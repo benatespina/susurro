@@ -38,14 +38,31 @@ enum ReaderModeExtractor {
         }
         _ = navigationResult
 
+        // SPAs (x.com, Next.js docs) fire didFinish before React hydrates; Readability returns null.
+        // Poll with capped backoff so the first attempt on static pages pays zero extra latency.
         let js = """
-        (function() {
-            try {
-                var doc = new Readability(document.cloneNode(true)).parse();
-                return doc ? JSON.stringify({title: doc.title || null, textContent: doc.textContent || ''}) : null;
-            } catch(e) {
-                return null;
+        (async () => {
+            const delays = [0, 250, 500, 1000, 1500, 2000];
+            let lastResult = null;
+            for (const delay of delays) {
+                await new Promise(r => setTimeout(r, delay));
+                let result = null;
+                try {
+                    result = new Readability(document.cloneNode(true)).parse();
+                } catch (e) {
+                    result = null;
+                }
+                if (result && typeof result.textContent === 'string' && result.textContent.length >= 200) {
+                    return JSON.stringify({title: result.title || '', textContent: result.textContent});
+                }
+                if (result !== null) {
+                    lastResult = result;
+                }
             }
+            if (lastResult !== null) {
+                return JSON.stringify({title: lastResult.title || '', textContent: lastResult.textContent});
+            }
+            return null;
         })()
         """
 
