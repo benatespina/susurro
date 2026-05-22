@@ -45,6 +45,20 @@ actor ArticleExtractor {
             throw BackendError.extractFailed("invalid encoding")
         }
 
+        // Tier-0: host-specific strategies run FIRST.
+        // A strategy declaring canHandle is asserting it is authoritative for this URL.
+        // Tier-1/tier-2 remain as fallback only if every applicable strategy throws.
+        for strategy in strategies where strategy.canHandle(parsedURL) {
+            do {
+                let result = try await strategy.extract(url: parsedURL)
+                let language = LangDetect.detect(result.text)
+                return ExtractedArticle(text: result.text, title: result.title, url: url, language: language)
+            } catch {
+                // Strategy failed — continue to next strategy or fall through to tier-1/tier-2.
+                continue
+            }
+        }
+
         var text: String
         var title: String?
 
@@ -68,20 +82,6 @@ actor ArticleExtractor {
                 text = ""
                 title = nil
                 tier2Error = error
-            }
-
-            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                // Tier-2 failed or returned empty — try per-host strategies.
-                for strategy in strategies where strategy.canHandle(parsedURL) {
-                    do {
-                        let result = try await strategy.extract(url: parsedURL)
-                        text = result.text
-                        title = result.title
-                        break
-                    } catch {
-                        continue
-                    }
-                }
             }
 
             if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

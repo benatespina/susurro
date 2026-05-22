@@ -259,21 +259,28 @@ struct ArticleExtractorTests {
         #expect(!invoked)
     }
 
-    // MARK: - Strategy fallback tests
+    // MARK: - Strategy tests
 
-    @Test("xcom fallback invoked when tier-2 fails")
-    func xcomFallbackInvokedWhenTier2Fails() async throws {
+    @Test("xcom strategy invoked first when canHandle returns true")
+    func xcomStrategyInvokedFirstWhenCanHandle() async throws {
         let session = makeMockSession(html: "<html><body></body></html>")
         let strategyText = "Tweet text from strategy."
         let fakeStrategy = FakeStrategy(
             matchingHost: "x.com",
             result: .success((text: strategyText, title: "Tweet Author"))
         )
+        let readerInvokedBox = ActorBox(false)
 
         let extractor = ArticleExtractor(
             session: session,
-            swiftSoupExtract: { _, _ in nil },
-            readerExtract: { _ in throw BackendError.extractFailed("reader returned no content") },
+            swiftSoupExtract: { _, _ in
+                // Must not be called when strategy canHandle == true
+                return nil
+            },
+            readerExtract: { _ in
+                await readerInvokedBox.set(true)
+                return ("reader text", nil)
+            },
             strategies: [fakeStrategy]
         )
 
@@ -281,10 +288,12 @@ struct ArticleExtractorTests {
         #expect(article.text == strategyText)
         #expect(article.title == "Tweet Author")
         #expect(fakeStrategy.extractCallCount == 1)
+        let readerInvoked = await readerInvokedBox.value
+        #expect(!readerInvoked)
     }
 
-    @Test("xcom fallback skipped when canHandle returns false")
-    func xcomFallbackSkippedWhenCanHandleFalse() async throws {
+    @Test("strategy skipped and tier chain runs when canHandle returns false")
+    func strategySkippedAndTierChainRunsWhenCanHandleFalse() async throws {
         let session = makeMockSession(html: "<html><body></body></html>")
         // Strategy only matches "x.com", but the URL is "example.com" — canHandle returns false.
         let fakeStrategy = FakeStrategy(
@@ -294,7 +303,9 @@ struct ArticleExtractorTests {
 
         let extractor = ArticleExtractor(
             session: session,
-            swiftSoupExtract: { _, _ in nil },
+            swiftSoupExtract: { _, _ in
+                return nil
+            },
             readerExtract: { _ in ("", nil) },
             strategies: [fakeStrategy]
         )
@@ -305,25 +316,65 @@ struct ArticleExtractorTests {
         #expect(fakeStrategy.extractCallCount == 0)
     }
 
-    @Test("original error rethrown when strategy also fails")
-    func originalErrorRethrownWhenStrategyAlsoFails() async throws {
+    @Test("tier chain runs as fallback when strategy throws")
+    func tierChainRunsAsFallbackWhenStrategyThrows() async throws {
         let session = makeMockSession(html: "<html><body></body></html>")
         let fakeStrategy = FakeStrategy(
             matchingHost: "x.com",
             result: .failure(BackendError.extractFailed("oEmbed HTTP 404"))
         )
+        let readerInvokedBox = ActorBox(false)
 
         let extractor = ArticleExtractor(
             session: session,
-            swiftSoupExtract: { _, _ in nil },
-            readerExtract: { _ in throw BackendError.extractFailed("reader returned no content") },
+            swiftSoupExtract: { _, _ in
+                return nil
+            },
+            readerExtract: { _ in
+                await readerInvokedBox.set(true)
+                throw BackendError.extractFailed("reader returned no content")
+            },
             strategies: [fakeStrategy]
         )
 
-        // When the strategy also fails, the ORIGINAL tier-2 error should be re-thrown.
+        // When strategy fails, tier-1 and tier-2 run as fallback; tier-2's error is surfaced.
         await #expect(throws: BackendError.extractFailed("reader returned no content")) {
             try await extractor.extract(url: "https://x.com/someone/status/999")
         }
+        #expect(fakeStrategy.extractCallCount == 1)
+        let readerInvoked = await readerInvokedBox.value
+        #expect(readerInvoked)
+    }
+
+    @Test("strategy success skips all tiers")
+    func strategySuccessSkipsAllTiers() async throws {
+        let session = makeMockSession(html: "<html><body></body></html>")
+        let strategyText = "Strategy-extracted content for this tweet."
+        let fakeStrategy = FakeStrategy(
+            matchingHost: "x.com",
+            result: .success((text: strategyText, title: "Some Author"))
+        )
+        let readerInvokedBox = ActorBox(false)
+
+        let extractor = ArticleExtractor(
+            session: session,
+            swiftSoupExtract: { _, _ in
+                // SwiftSoup must NOT be invoked when strategy succeeds
+                return ("should not reach here", "bad title", "article", 0, 999)
+            },
+            readerExtract: { _ in
+                await readerInvokedBox.set(true)
+                return ("should not reach here", nil)
+            },
+            strategies: [fakeStrategy]
+        )
+
+        let article = try await extractor.extract(url: "https://x.com/someone/status/456")
+        #expect(article.text == strategyText)
+        #expect(article.title == "Some Author")
+        #expect(fakeStrategy.extractCallCount == 1)
+        let readerInvoked = await readerInvokedBox.value
+        #expect(!readerInvoked)
     }
 }
 
