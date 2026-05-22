@@ -5,24 +5,26 @@ actor ChromiumCookieAdapter {
     private let source: BrowserSource
     private let keychain: any KeychainAccessor
     private let reader: @Sendable (URL, [String]) throws -> [RawCookieRow]
+    private let databaseURL: URL
     private var cachedKey: Data?
     private let logger = Logger(subsystem: "com.benatespina.susurro", category: "ChromiumCookieAdapter")
 
     init(
         source: BrowserSource,
         keychain: any KeychainAccessor,
-        reader: @escaping @Sendable (URL, [String]) throws -> [RawCookieRow] = SQLiteCookieReader.readCookies
+        reader: @escaping @Sendable (URL, [String]) throws -> [RawCookieRow] = SQLiteCookieReader.readCookies,
+        databaseURL: URL? = nil
     ) {
         self.source = source
         self.keychain = keychain
         self.reader = reader
+        self.databaseURL = databaseURL ?? source.cookiesDatabasePath
     }
 
     /// Returns decrypted X session cookies (`*.x.com` and `*.twitter.com`).
     /// `domain` is currently informational — the SQL filter is hardcoded to X domains.
     func cookies(forDomain domain: String) async throws -> [BrowserCookie] {
-        let dbURL = source.cookiesDatabasePath
-        guard FileManager.default.fileExists(atPath: dbURL.path) else {
+        guard FileManager.default.fileExists(atPath: databaseURL.path) else {
             throw BrowserCookieError.databaseUnavailable(source)
         }
 
@@ -30,7 +32,7 @@ actor ChromiumCookieAdapter {
 
         let rows: [RawCookieRow]
         do {
-            rows = try reader(dbURL, ["%.x.com", "%.twitter.com"])
+            rows = try reader(databaseURL, ["%.x.com", "%.twitter.com"])
         } catch {
             throw BrowserCookieError.databaseUnavailable(source)
         }

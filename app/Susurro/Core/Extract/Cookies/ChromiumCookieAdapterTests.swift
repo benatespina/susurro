@@ -56,6 +56,14 @@ final class CountingKeychainAccessor: KeychainAccessor, @unchecked Sendable {
         return blob
     }
 
+    /// Creates a temporary placeholder SQLite file and returns its URL.
+    private static func makeTempDB(label: String = UUID().uuidString) -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ChromiumAdapterTest-\(label).sqlite")
+        FileManager.default.createFile(atPath: url.path, contents: Data())
+        return url
+    }
+
     @Test func decryptsCookieValuesEndToEnd() async throws {
         let password = Data("peanuts".utf8)
         let key = ChromiumCrypto.deriveAESKey(fromPassword: password)
@@ -70,12 +78,8 @@ final class CountingKeychainAccessor: KeychainAccessor, @unchecked Sendable {
         }
 
         let fakeKC = CountingKeychainAccessor(password: password)
-        let adapter = ChromiumCookieAdapter(source: .chrome, keychain: fakeKC, reader: fakeReader)
-
-        // Won't actually exist on disk in test env, BUT adapter checks fileExists on the real Chrome path.
-        // Skip hermetically when Chrome isn't installed.
-        let chromePath = BrowserSource.chrome.cookiesDatabasePath.path
-        guard FileManager.default.fileExists(atPath: chromePath) else { return }
+        let tmpDB = Self.makeTempDB(label: "decrypt")
+        let adapter = ChromiumCookieAdapter(source: .chrome, keychain: fakeKC, reader: fakeReader, databaseURL: tmpDB)
 
         let cookies = try await adapter.cookies(forDomain: "x.com")
         #expect(cookies.count == 2)
@@ -86,28 +90,22 @@ final class CountingKeychainAccessor: KeychainAccessor, @unchecked Sendable {
     }
 
     @Test func cachesAESKeyAcrossCalls() async throws {
-        // Skip if Chrome isn't installed — adapter checks real path.
-        let chromePath = BrowserSource.chrome.cookiesDatabasePath.path
-        guard FileManager.default.fileExists(atPath: chromePath) else { return }
-
-        // Reader returns no rows, but adapter still calls keychain once to derive key.
         let fakeReader: @Sendable (URL, [String]) throws -> [RawCookieRow] = { _, _ in [] }
         let fakeKC = CountingKeychainAccessor(password: Data("peanuts".utf8))
-
-        let adapter = ChromiumCookieAdapter(source: .chrome, keychain: fakeKC, reader: fakeReader)
+        let tmpDB = Self.makeTempDB(label: "cache")
+        let adapter = ChromiumCookieAdapter(source: .chrome, keychain: fakeKC, reader: fakeReader, databaseURL: tmpDB)
         _ = try? await adapter.cookies(forDomain: "x.com")
         _ = try? await adapter.cookies(forDomain: "x.com")
         #expect(fakeKC.callCount == 1)
     }
 
     @Test func databaseUnavailableWhenPathMissing() async {
-        // Use Brave as a source whose cookies file is unlikely to exist in most dev envs.
-        let bravePath = BrowserSource.brave.cookiesDatabasePath.path
-        guard !FileManager.default.fileExists(atPath: bravePath) else { return }
+        let missingURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("no-such-db-\(UUID().uuidString).sqlite")
 
         let fakeKC = CountingKeychainAccessor(password: Data())
         let fakeReader: @Sendable (URL, [String]) throws -> [RawCookieRow] = { _, _ in [] }
-        let adapter = ChromiumCookieAdapter(source: .brave, keychain: fakeKC, reader: fakeReader)
+        let adapter = ChromiumCookieAdapter(source: .brave, keychain: fakeKC, reader: fakeReader, databaseURL: missingURL)
 
         do {
             _ = try await adapter.cookies(forDomain: "x.com")
@@ -120,13 +118,10 @@ final class CountingKeychainAccessor: KeychainAccessor, @unchecked Sendable {
     }
 
     @Test func keychainDeniedPropagatesAsBrowserCookieError() async {
-        // Need Chrome installed so the fileExists guard passes.
-        let chromePath = BrowserSource.chrome.cookiesDatabasePath.path
-        guard FileManager.default.fileExists(atPath: chromePath) else { return }
-
         let fakeKC = CountingKeychainAccessor(password: Data(), error: .denied)
         let fakeReader: @Sendable (URL, [String]) throws -> [RawCookieRow] = { _, _ in [] }
-        let adapter = ChromiumCookieAdapter(source: .chrome, keychain: fakeKC, reader: fakeReader)
+        let tmpDB = Self.makeTempDB(label: "keychain-denied")
+        let adapter = ChromiumCookieAdapter(source: .chrome, keychain: fakeKC, reader: fakeReader, databaseURL: tmpDB)
 
         do {
             _ = try await adapter.cookies(forDomain: "x.com")
