@@ -2,7 +2,6 @@ import Foundation
 import os.log
 
 actor DefaultBrowserCookieProvider: BrowserCookieProvider {
-    private let keychain: any KeychainAccessor
     private let adapterFactory: @Sendable (BrowserSource) -> ChromiumCookieAdapter
     private let defaultBrowser: @Sendable () -> BrowserSource?
     private let isSafariOnly: @Sendable () -> Bool
@@ -16,11 +15,8 @@ actor DefaultBrowserCookieProvider: BrowserCookieProvider {
         isSafariOnly: @escaping @Sendable () -> Bool = BrowserDetector.isSafariOnly,
         installedBrowsers: @escaping @Sendable () -> [BrowserSource] = BrowserDetector.installedBrowsers
     ) {
-        self.keychain = keychain
-        // Capture keychain into the default factory so it doesn't reference self.
-        let kc = keychain
         self.adapterFactory = adapterFactory ?? { source in
-            ChromiumCookieAdapter(source: source, keychain: kc)
+            ChromiumCookieAdapter(source: source, keychain: keychain)
         }
         self.defaultBrowser = defaultBrowser
         self.isSafariOnly = isSafariOnly

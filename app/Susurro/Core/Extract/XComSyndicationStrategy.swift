@@ -86,21 +86,17 @@ struct XComSyndicationStrategy: ArticleExtractionStrategy {
             let articleTitle = article.title ?? decoded.user?.name
             if let restId = article.rest_id {
                 let articleURLString = "https://x.com/i/article/\(restId)"
-                var cookies: [HTTPCookie]? = nil
+                var cookies: [HTTPCookie]?
                 if let provider = cookieProvider {
                     do {
                         cookies = try await provider.cookies(forDomain: "x.com")
                     } catch let providerError as BrowserCookieError {
                         // Surface actionable errors to UX, but keep going with cookies = nil (legacy path).
                         switch providerError {
-                        case .onlySafariDetected, .noBrowserDetected:
+                        case .onlySafariDetected, .noBrowserDetected, .noXSessionCookies, .keychainDenied:
                             onProviderError?(providerError)
-                        case .noXSessionCookies(_):
-                            onProviderError?(providerError)
-                        case .keychainDenied(_):
-                            onProviderError?(providerError)
-                        case .databaseUnavailable(_), .keychainNotFound(_), .decryptionFailed(_):
-                            break // silent / log only
+                        case .databaseUnavailable, .keychainNotFound, .decryptionFailed:
+                            break // silent — internal/transient, user can't act on these
                         }
                     } catch {
                         // Other errors: silent

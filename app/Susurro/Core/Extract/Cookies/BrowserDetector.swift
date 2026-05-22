@@ -7,10 +7,7 @@ struct BrowserDetector {
 
     /// Bundle-ID -> BrowserSource mapping (pure function for tests).
     static func source(forBundleIdentifier bundleID: String) -> BrowserSource? {
-        for source in BrowserSource.allCases {
-            if source.bundleIdentifier == bundleID { return source }
-        }
-        return nil
+        BrowserSource.allCases.first { $0.bundleIdentifier == bundleID }
     }
 
     /// System default browser. nil if unresolved or not one of our known browsers/Safari.
