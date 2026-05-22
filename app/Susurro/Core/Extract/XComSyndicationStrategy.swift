@@ -69,7 +69,19 @@ struct XComSyndicationStrategy: ArticleExtractionStrategy {
         }
 
         if let article = decoded.article, let preview = article.preview_text, !preview.isEmpty {
-            return (preview, article.title ?? decoded.user?.name)
+            let articleTitle = article.title ?? decoded.user?.name
+            if let restId = article.rest_id {
+                let articleURLString = "https://x.com/i/article/\(restId)"
+                do {
+                    let rendered = try await ReaderModeExtractor.extract(url: articleURLString)
+                    if rendered.text.count > preview.count {
+                        return (rendered.text, rendered.title ?? articleTitle)
+                    }
+                } catch {
+                    // fall through to preview_text
+                }
+            }
+            return (preview, articleTitle)
         }
 
         let tcoPattern = #"^https?://t\.co/[A-Za-z0-9]+$"#
@@ -102,7 +114,7 @@ struct XComSyndicationStrategy: ArticleExtractionStrategy {
 
 private struct SyndicationResponse: Decodable {
     struct User: Decodable { let name: String? }
-    struct Article: Decodable { let title: String?; let preview_text: String? }
+    struct Article: Decodable { let title: String?; let preview_text: String?; let rest_id: String? }
     let text: String?
     let user: User?
     let article: Article?
