@@ -56,9 +56,10 @@ struct XComSyndicationStrategy: ArticleExtractionStrategy {
 
         let (data, response) = try await session.data(for: request)
 
-        if let httpResponse = response as? HTTPURLResponse,
-           !(200...299).contains(httpResponse.statusCode) {
-            throw BackendError.extractFailed("syndication HTTP \(httpResponse.statusCode)")
+        if let httpResponse = response as? HTTPURLResponse {
+            if !(200...299).contains(httpResponse.statusCode) {
+                throw BackendError.extractFailed("syndication HTTP \(httpResponse.statusCode)")
+            }
         }
 
         let decoded: SyndicationResponse

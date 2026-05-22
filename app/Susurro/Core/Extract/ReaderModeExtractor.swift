@@ -4,7 +4,6 @@ import WebKit
 @MainActor
 enum ReaderModeExtractor {
     static func extract(url: String) async throws -> (text: String, title: String?) {
-        NSLog("[ReaderMode] start url=\(url)")
         guard let resolvedURL = URL(string: url) else {
             throw BackendError.extractFailed("invalid url")
         }
@@ -12,6 +11,7 @@ enum ReaderModeExtractor {
         let readabilityJS = try loadReadabilityJS()
 
         let webView = WKWebView(frame: .zero)
+        webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
         webView.configuration.suppressesIncrementalRendering = true
 
         let userScript = WKUserScript(
@@ -86,7 +86,6 @@ enum ReaderModeExtractor {
             } catch (e) {
                 result = null;
             }
-            console.log(`[ReaderMode JS] delay=${delay} attempt=${i} text_len=${result?.textContent?.length || 0}`);
             if (result && typeof result.textContent === 'string' && result.textContent.length >= 200) {
                 return JSON.stringify({title: result.title || null, textContent: result.textContent});
             }
@@ -102,18 +101,7 @@ enum ReaderModeExtractor {
 
         let result = try await webView.callAsyncJavaScript(js, arguments: [:], in: nil, contentWorld: .page)
 
-        let parsedForLog: [String: Any]? = {
-            guard let json = result as? String,
-                  let data = json.data(using: .utf8),
-                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-            else { return nil }
-            return obj
-        }()
-        let extractedTextLength = (parsedForLog?["textContent"] as? String)?.count ?? 0
-        NSLog("[ReaderMode] url=\(resolvedURL.absoluteString) result_text_len=\(extractedTextLength) title=\(parsedForLog?["title"] as? String ?? "nil")")
-
         guard let jsonString = result as? String else {
-            NSLog("[ReaderMode] throwing extractFailed for url=\(resolvedURL.absoluteString)")
             throw BackendError.extractFailed("reader returned no content")
         }
 
@@ -121,7 +109,6 @@ enum ReaderModeExtractor {
             let data = jsonString.data(using: .utf8),
             let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else {
-            NSLog("[ReaderMode] throwing extractFailed for url=\(resolvedURL.absoluteString)")
             throw BackendError.extractFailed("reader returned no content")
         }
 
