@@ -56,6 +56,36 @@ what might happen next and how readers can stay informed on this ever-evolving t
 
 // MARK: - Tests
 
+// MARK: - Fake strategy helper
+
+private final class FakeStrategy: ArticleExtractionStrategy, @unchecked Sendable {
+    private let hostMatch: String
+    private let result: Result<(text: String, title: String?), any Error>
+    private(set) var extractCallCount = 0
+
+    init(
+        matchingHost: String,
+        result: Result<(text: String, title: String?), any Error>
+    ) {
+        self.hostMatch = matchingHost
+        self.result = result
+    }
+
+    func canHandle(_ url: URL) -> Bool {
+        url.host == hostMatch
+    }
+
+    func extract(url: URL) async throws -> (text: String, title: String?) {
+        extractCallCount += 1
+        switch result {
+        case .success(let value): return value
+        case .failure(let error): throw error
+        }
+    }
+}
+
+// MARK: - Tests
+
 @Suite("ArticleExtractor", .serialized)
 struct ArticleExtractorTests {
 
@@ -73,7 +103,8 @@ struct ArticleExtractorTests {
             readerExtract: { _ in
                 await readerInvokedBox.set(true)
                 return ("reader text", nil)
-            }
+            },
+            strategies: []
         )
 
         let article = try await extractor.extract(url: "https://example.com/article")
@@ -96,7 +127,8 @@ struct ArticleExtractorTests {
             readerExtract: { _ in
                 await readerInvokedBox.set(true)
                 return (readerText, "Reader Title")
-            }
+            },
+            strategies: []
         )
 
         let article = try await extractor.extract(url: "https://example.com/article")
@@ -111,7 +143,8 @@ struct ArticleExtractorTests {
         let extractor = ArticleExtractor(
             session: makeMockSession(html: ""),
             swiftSoupExtract: { _, _ in nil },
-            readerExtract: { _ in ("", nil) }
+            readerExtract: { _ in ("", nil) },
+            strategies: []
         )
 
         await #expect(throws: BackendError.extractFailed("invalid url")) {
@@ -126,7 +159,8 @@ struct ArticleExtractorTests {
         let extractor = ArticleExtractor(
             session: session,
             swiftSoupExtract: { _, _ in nil },
-            readerExtract: { _ in ("", nil) }
+            readerExtract: { _ in ("", nil) },
+            strategies: []
         )
 
         await #expect(throws: BackendError.extractFailed("no readable article content")) {
@@ -142,7 +176,8 @@ struct ArticleExtractorTests {
         let extractor = ArticleExtractor(
             session: session,
             swiftSoupExtract: { _, _ in (spanishText, "Título", "article", 0, spanishText.count) },
-            readerExtract: { _ in ("", nil) }
+            readerExtract: { _ in ("", nil) },
+            strategies: []
         )
 
         let article = try await extractor.extract(url: "https://example.es/articulo")
@@ -169,7 +204,8 @@ struct ArticleExtractorTests {
             readerExtract: { _ in
                 await readerInvokedBox.set(true)
                 return (readerText, nil)
-            }
+            },
+            strategies: []
         )
 
         _ = try await extractor.extract(url: "https://example.com/article")
@@ -192,7 +228,8 @@ struct ArticleExtractorTests {
             readerExtract: { _ in
                 await readerInvokedBox.set(true)
                 return (readerText, nil)
-            }
+            },
+            strategies: []
         )
 
         _ = try await extractor.extract(url: "https://example.com/links")
@@ -213,12 +250,80 @@ struct ArticleExtractorTests {
             readerExtract: { _ in
                 await readerInvokedBox.set(true)
                 return ("reader content", nil)
-            }
+            },
+            strategies: []
         )
 
         _ = try await extractor.extract(url: "https://example.com/article")
         let invoked = await readerInvokedBox.value
         #expect(!invoked)
+    }
+
+    // MARK: - Strategy fallback tests
+
+    @Test("xcom fallback invoked when tier-2 fails")
+    func xcomFallbackInvokedWhenTier2Fails() async throws {
+        let session = makeMockSession(html: "<html><body></body></html>")
+        let strategyText = "Tweet text from strategy."
+        let fakeStrategy = FakeStrategy(
+            matchingHost: "x.com",
+            result: .success((text: strategyText, title: "Tweet Author"))
+        )
+
+        let extractor = ArticleExtractor(
+            session: session,
+            swiftSoupExtract: { _, _ in nil },
+            readerExtract: { _ in throw BackendError.extractFailed("reader returned no content") },
+            strategies: [fakeStrategy]
+        )
+
+        let article = try await extractor.extract(url: "https://x.com/someone/status/123")
+        #expect(article.text == strategyText)
+        #expect(article.title == "Tweet Author")
+        #expect(fakeStrategy.extractCallCount == 1)
+    }
+
+    @Test("xcom fallback skipped when canHandle returns false")
+    func xcomFallbackSkippedWhenCanHandleFalse() async throws {
+        let session = makeMockSession(html: "<html><body></body></html>")
+        // Strategy only matches "x.com", but the URL is "example.com" — canHandle returns false.
+        let fakeStrategy = FakeStrategy(
+            matchingHost: "x.com",
+            result: .success((text: "should not be returned", title: nil))
+        )
+
+        let extractor = ArticleExtractor(
+            session: session,
+            swiftSoupExtract: { _, _ in nil },
+            readerExtract: { _ in ("", nil) },
+            strategies: [fakeStrategy]
+        )
+
+        await #expect(throws: BackendError.extractFailed("no readable article content")) {
+            try await extractor.extract(url: "https://example.com/article")
+        }
+        #expect(fakeStrategy.extractCallCount == 0)
+    }
+
+    @Test("original error rethrown when strategy also fails")
+    func originalErrorRethrownWhenStrategyAlsoFails() async throws {
+        let session = makeMockSession(html: "<html><body></body></html>")
+        let fakeStrategy = FakeStrategy(
+            matchingHost: "x.com",
+            result: .failure(BackendError.extractFailed("oEmbed HTTP 404"))
+        )
+
+        let extractor = ArticleExtractor(
+            session: session,
+            swiftSoupExtract: { _, _ in nil },
+            readerExtract: { _ in throw BackendError.extractFailed("reader returned no content") },
+            strategies: [fakeStrategy]
+        )
+
+        // When the strategy also fails, the ORIGINAL tier-2 error should be re-thrown.
+        await #expect(throws: BackendError.extractFailed("reader returned no content")) {
+            try await extractor.extract(url: "https://x.com/someone/status/999")
+        }
     }
 }
 

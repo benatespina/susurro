@@ -4,15 +4,18 @@ actor ArticleExtractor {
     private let session: URLSession
     private let swiftSoupExtract: @Sendable (String, String) -> (text: String, title: String?, containerTag: String?, linkTextLength: Int, totalTextLength: Int)?
     private let readerExtract: @Sendable (String) async throws -> (text: String, title: String?)
+    private let strategies: [any ArticleExtractionStrategy]
 
     init(
         session: URLSession = .shared,
         swiftSoupExtract: @escaping @Sendable (String, String) -> (text: String, title: String?, containerTag: String?, linkTextLength: Int, totalTextLength: Int)? = SwiftSoupExtractor.extract,
-        readerExtract: @escaping @Sendable (String) async throws -> (text: String, title: String?) = ReaderModeExtractor.extract
+        readerExtract: @escaping @Sendable (String) async throws -> (text: String, title: String?) = ReaderModeExtractor.extract,
+        strategies: [any ArticleExtractionStrategy] = [XComSyndicationStrategy()]
     ) {
         self.session = session
         self.swiftSoupExtract = swiftSoupExtract
         self.readerExtract = readerExtract
+        self.strategies = strategies
     }
 
     func extract(url: String) async throws -> ExtractedArticle {
@@ -55,11 +58,36 @@ actor ArticleExtractor {
             text = soupResult.text
             title = soupResult.title
         } else {
-            let readerResult = try await readerExtract(url)
-            text = readerResult.text
-            title = readerResult.title
+            let tier2Error: (any Error)?
+            do {
+                let readerResult = try await readerExtract(url)
+                text = readerResult.text
+                title = readerResult.title
+                tier2Error = nil
+            } catch {
+                text = ""
+                title = nil
+                tier2Error = error
+            }
 
             if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                // Tier-2 failed or returned empty — try per-host strategies.
+                for strategy in strategies where strategy.canHandle(parsedURL) {
+                    do {
+                        let result = try await strategy.extract(url: parsedURL)
+                        text = result.text
+                        title = result.title
+                        break
+                    } catch {
+                        continue
+                    }
+                }
+            }
+
+            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if let tier2Error {
+                    throw tier2Error
+                }
                 throw BackendError.extractFailed("no readable article content")
             }
         }
