@@ -201,4 +201,122 @@ struct XComSyndicationStrategyTests {
         #expect(result.text == "hello")
         #expect(result.title == "foo")
     }
+
+    // MARK: - Cookie provider integration tests
+
+    @Test("with cookie provider, passes cookies to reader extract")
+    func withCookieProviderPassesCookiesToReader() async throws {
+        let cookie = HTTPCookie(properties: [
+            .name: "auth_token", .value: "tok", .domain: ".x.com", .path: "/",
+            .secure: "TRUE"
+        ])!
+
+        struct MockProvider: BrowserCookieProvider {
+            let cookie: HTTPCookie
+            func cookies(forDomain domain: String) async throws -> [HTTPCookie] { [cookie] }
+        }
+        let provider = MockProvider(cookie: cookie)
+
+        nonisolated(unsafe) var capturedCookies: [HTTPCookie]?
+        let stubReader: @Sendable (String, [HTTPCookie]?) async throws -> (text: String, title: String?) = { _, cookies in
+            capturedCookies = cookies
+            // Return text longer than the preview ("Right now, it's too easy..." = 27 chars)
+            return (String(repeating: "x", count: 1000), "Article Title")
+        }
+
+        // JSON with rest_id to trigger the readerExtract path
+        let json = """
+        {
+          "text": "https://t.co/abc",
+          "user": {"name": "Addy Osmani"},
+          "article": {"title": "Article Title", "preview_text": "Right now, it's too easy...", "rest_id": "99999"}
+        }
+        """
+        let session = makeSyndicationSession(body: json)
+        let strategy = XComSyndicationStrategy(
+            session: session,
+            cookieProvider: provider,
+            readerExtract: stubReader
+        )
+
+        _ = try await strategy.extract(url: URL(string: "https://x.com/foo/status/123")!)
+
+        #expect(capturedCookies?.contains(where: { $0.name == "auth_token" }) == true)
+    }
+
+    @Test("provider error falls back to nil cookies and fires onProviderError")
+    func providerErrorFallsBackToNilCookies() async throws {
+        struct ThrowingProvider: BrowserCookieProvider {
+            func cookies(forDomain domain: String) async throws -> [HTTPCookie] {
+                throw BrowserCookieError.noBrowserDetected
+            }
+        }
+
+        nonisolated(unsafe) var capturedCookies: [HTTPCookie]? = [
+            HTTPCookie(properties: [.name: "sentinel", .value: "1", .domain: ".x.com", .path: "/"])!
+        ]
+        let stubReader: @Sendable (String, [HTTPCookie]?) async throws -> (text: String, title: String?) = { _, cookies in
+            capturedCookies = cookies
+            // Return text shorter than preview so we fall back to preview_text (proving execution continued)
+            return ("short", nil)
+        }
+
+        nonisolated(unsafe) var notifiedError: BrowserCookieError?
+        let onError: @Sendable (BrowserCookieError) -> Void = { err in notifiedError = err }
+
+        let json = """
+        {
+          "text": "https://t.co/abc",
+          "user": {"name": "Addy Osmani"},
+          "article": {"title": "Article Title", "preview_text": "Right now, it's too easy...", "rest_id": "99999"}
+        }
+        """
+        let session = makeSyndicationSession(body: json)
+        let strategy = XComSyndicationStrategy(
+            session: session,
+            cookieProvider: ThrowingProvider(),
+            readerExtract: stubReader,
+            onProviderError: onError
+        )
+
+        let result = try await strategy.extract(url: URL(string: "https://x.com/foo/status/123")!)
+
+        // readerExtract was called with nil cookies (fallback path)
+        #expect(capturedCookies == nil)
+        // onProviderError was fired with the actionable error
+        #expect(notifiedError == .noBrowserDetected)
+        // Strategy still returned the preview_text (no crash, no rethrow)
+        #expect(result.text == "Right now, it's too easy...")
+    }
+
+    @Test("without provider, reader extract receives nil cookies")
+    func withoutProviderBehavesAsBefore() async throws {
+        // Sentinel non-nil value so we can confirm it was overwritten to nil
+        nonisolated(unsafe) var capturedCookies: [HTTPCookie]? = [
+            HTTPCookie(properties: [.name: "sentinel", .value: "1", .domain: ".x.com", .path: "/"])!
+        ]
+        let stubReader: @Sendable (String, [HTTPCookie]?) async throws -> (text: String, title: String?) = { _, cookies in
+            capturedCookies = cookies
+            return (String(repeating: "x", count: 1000), "Title")
+        }
+
+        let json = """
+        {
+          "text": "https://t.co/abc",
+          "user": {"name": "Addy Osmani"},
+          "article": {"title": "Title", "preview_text": "Short preview text.", "rest_id": "99999"}
+        }
+        """
+        let session = makeSyndicationSession(body: json)
+        // cookieProvider: nil (default) — no cookie code should run
+        let strategy = XComSyndicationStrategy(
+            session: session,
+            cookieProvider: nil,
+            readerExtract: stubReader
+        )
+
+        _ = try await strategy.extract(url: URL(string: "https://x.com/foo/status/123")!)
+
+        #expect(capturedCookies == nil)
+    }
 }
