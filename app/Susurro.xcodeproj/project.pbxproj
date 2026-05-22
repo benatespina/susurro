@@ -30,6 +30,10 @@
 		51F19DBB7CB2A78E1F9BEDA1 /* SystemKeychainAccessorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 486CBE4FCBA46BE48D9D31F0 /* SystemKeychainAccessorTests.swift */; };
 		A4FFA895D731D18B4ED1440C /* ChromiumCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B17DAF8B559006D17897F7 /* ChromiumCrypto.swift */; };
 		0EAFFDE4AB6C1A547E73C183 /* ChromiumCryptoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BFB6954D4DD286C89727557 /* ChromiumCryptoTests.swift */; };
+		BCF5AB1E48329C2AA415BB4F /* SQLiteCookieReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B784EEF8D28ED9A2CA7665E /* SQLiteCookieReader.swift */; };
+		08D9AE77F680E87CAC03D5D8 /* ChromiumCookieAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5F74F7650530CD9E842947 /* ChromiumCookieAdapter.swift */; };
+		C6B7BFF92FAF471CBE78276C /* SQLiteCookieReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49191743D31B3A6E654CC482 /* SQLiteCookieReaderTests.swift */; };
+		057A06155EC2C94A7FDDFE06 /* ChromiumCookieAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249A8CE4EBCF09BCA44CDB9 /* ChromiumCookieAdapterTests.swift */; };
 		0C36714781A60213254A0AE1 /* future-schema-transcript.jsonl in Resources */ = {isa = PBXBuildFile; fileRef = 5C6B99238CEF12282C8EA554 /* future-schema-transcript.jsonl */; };
 		10536B68C9C3B043F4282591 /* PanelPositioner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0D54F8279EA5840ACB6EA3 /* PanelPositioner.swift */; };
 		11030CDD46B9724A016BC06E /* GlobalHotkey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61D359F0A13E3E0F97686D73 /* GlobalHotkey.swift */; };
@@ -261,6 +265,10 @@
 		486CBE4FCBA46BE48D9D31F0 /* SystemKeychainAccessorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemKeychainAccessorTests.swift; sourceTree = "<group>"; };
 		07B17DAF8B559006D17897F7 /* ChromiumCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromiumCrypto.swift; sourceTree = "<group>"; };
 		8BFB6954D4DD286C89727557 /* ChromiumCryptoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromiumCryptoTests.swift; sourceTree = "<group>"; };
+		3B784EEF8D28ED9A2CA7665E /* SQLiteCookieReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteCookieReader.swift; sourceTree = "<group>"; };
+		7A5F74F7650530CD9E842947 /* ChromiumCookieAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromiumCookieAdapter.swift; sourceTree = "<group>"; };
+		49191743D31B3A6E654CC482 /* SQLiteCookieReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteCookieReaderTests.swift; sourceTree = "<group>"; };
+		B249A8CE4EBCF09BCA44CDB9 /* ChromiumCookieAdapterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromiumCookieAdapterTests.swift; sourceTree = "<group>"; };
 		33D877B11BEF32928D1E0262 /* BackendClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendClient.swift; sourceTree = "<group>"; };
 		34749B305F84A6D6FCC81D04 /* TTSSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSSettingsTests.swift; sourceTree = "<group>"; };
 		34F83C3D5FC1CACFF805BE87 /* SelectionToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionToolbar.swift; sourceTree = "<group>"; };
@@ -557,9 +565,13 @@
 				8A668D8F66F4CB63529E42F5 /* KeychainAccessor.swift */,
 				08182C3712CFA2A2F3AB3626 /* SystemKeychainAccessor.swift */,
 				07B17DAF8B559006D17897F7 /* ChromiumCrypto.swift */,
+				3B784EEF8D28ED9A2CA7665E /* SQLiteCookieReader.swift */,
+				7A5F74F7650530CD9E842947 /* ChromiumCookieAdapter.swift */,
 				51719F40D37C672BDB853DAB /* BrowserCookieTests.swift */,
 				486CBE4FCBA46BE48D9D31F0 /* SystemKeychainAccessorTests.swift */,
 				8BFB6954D4DD286C89727557 /* ChromiumCryptoTests.swift */,
+				49191743D31B3A6E654CC482 /* SQLiteCookieReaderTests.swift */,
+				B249A8CE4EBCF09BCA44CDB9 /* ChromiumCookieAdapterTests.swift */,
 			);
 			path = Cookies;
 			sourceTree = "<group>";
@@ -1098,6 +1110,8 @@
 				82A619E050CA87493FA9F702 /* KeychainAccessor.swift in Sources */,
 				46AD2C6346F1962427682039 /* SystemKeychainAccessor.swift in Sources */,
 				A4FFA895D731D18B4ED1440C /* ChromiumCrypto.swift in Sources */,
+				BCF5AB1E48329C2AA415BB4F /* SQLiteCookieReader.swift in Sources */,
+				08D9AE77F680E87CAC03D5D8 /* ChromiumCookieAdapter.swift in Sources */,
 				0C0DFEBB1C7AFB79AD6023FC /* XComSyndicationStrategy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1177,6 +1191,8 @@
 				59E653F070288A58C357557D /* BrowserCookieTests.swift in Sources */,
 				51F19DBB7CB2A78E1F9BEDA1 /* SystemKeychainAccessorTests.swift in Sources */,
 				0EAFFDE4AB6C1A547E73C183 /* ChromiumCryptoTests.swift in Sources */,
+				C6B7BFF92FAF471CBE78276C /* SQLiteCookieReaderTests.swift in Sources */,
+				057A06155EC2C94A7FDDFE06 /* ChromiumCookieAdapterTests.swift in Sources */,
 				1B811ED92BF74C31CF7A741F /* XComSyndicationStrategyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
