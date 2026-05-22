@@ -28,6 +28,8 @@
 		82A619E050CA87493FA9F702 /* KeychainAccessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A668D8F66F4CB63529E42F5 /* KeychainAccessor.swift */; };
 		46AD2C6346F1962427682039 /* SystemKeychainAccessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08182C3712CFA2A2F3AB3626 /* SystemKeychainAccessor.swift */; };
 		51F19DBB7CB2A78E1F9BEDA1 /* SystemKeychainAccessorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 486CBE4FCBA46BE48D9D31F0 /* SystemKeychainAccessorTests.swift */; };
+		A4FFA895D731D18B4ED1440C /* ChromiumCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B17DAF8B559006D17897F7 /* ChromiumCrypto.swift */; };
+		0EAFFDE4AB6C1A547E73C183 /* ChromiumCryptoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BFB6954D4DD286C89727557 /* ChromiumCryptoTests.swift */; };
 		0C36714781A60213254A0AE1 /* future-schema-transcript.jsonl in Resources */ = {isa = PBXBuildFile; fileRef = 5C6B99238CEF12282C8EA554 /* future-schema-transcript.jsonl */; };
 		10536B68C9C3B043F4282591 /* PanelPositioner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0D54F8279EA5840ACB6EA3 /* PanelPositioner.swift */; };
 		11030CDD46B9724A016BC06E /* GlobalHotkey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61D359F0A13E3E0F97686D73 /* GlobalHotkey.swift */; };
@@ -257,6 +259,8 @@
 		8A668D8F66F4CB63529E42F5 /* KeychainAccessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainAccessor.swift; sourceTree = "<group>"; };
 		08182C3712CFA2A2F3AB3626 /* SystemKeychainAccessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemKeychainAccessor.swift; sourceTree = "<group>"; };
 		486CBE4FCBA46BE48D9D31F0 /* SystemKeychainAccessorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemKeychainAccessorTests.swift; sourceTree = "<group>"; };
+		07B17DAF8B559006D17897F7 /* ChromiumCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromiumCrypto.swift; sourceTree = "<group>"; };
+		8BFB6954D4DD286C89727557 /* ChromiumCryptoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromiumCryptoTests.swift; sourceTree = "<group>"; };
 		33D877B11BEF32928D1E0262 /* BackendClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendClient.swift; sourceTree = "<group>"; };
 		34749B305F84A6D6FCC81D04 /* TTSSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSSettingsTests.swift; sourceTree = "<group>"; };
 		34F83C3D5FC1CACFF805BE87 /* SelectionToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionToolbar.swift; sourceTree = "<group>"; };
@@ -552,8 +556,10 @@
 				938BD729D5BC991B179FD6DF /* BrowserSource.swift */,
 				8A668D8F66F4CB63529E42F5 /* KeychainAccessor.swift */,
 				08182C3712CFA2A2F3AB3626 /* SystemKeychainAccessor.swift */,
+				07B17DAF8B559006D17897F7 /* ChromiumCrypto.swift */,
 				51719F40D37C672BDB853DAB /* BrowserCookieTests.swift */,
 				486CBE4FCBA46BE48D9D31F0 /* SystemKeychainAccessorTests.swift */,
+				8BFB6954D4DD286C89727557 /* ChromiumCryptoTests.swift */,
 			);
 			path = Cookies;
 			sourceTree = "<group>";
@@ -1091,6 +1097,7 @@
 				CD165635CEAF7D44037AFB83 /* BrowserSource.swift in Sources */,
 				82A619E050CA87493FA9F702 /* KeychainAccessor.swift in Sources */,
 				46AD2C6346F1962427682039 /* SystemKeychainAccessor.swift in Sources */,
+				A4FFA895D731D18B4ED1440C /* ChromiumCrypto.swift in Sources */,
 				0C0DFEBB1C7AFB79AD6023FC /* XComSyndicationStrategy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1169,6 +1176,7 @@
 				48CA1AEA9ACFBC066F46D90B /* Version.swift in Sources */,
 				59E653F070288A58C357557D /* BrowserCookieTests.swift in Sources */,
 				51F19DBB7CB2A78E1F9BEDA1 /* SystemKeychainAccessorTests.swift in Sources */,
+				0EAFFDE4AB6C1A547E73C183 /* ChromiumCryptoTests.swift in Sources */,
 				1B811ED92BF74C31CF7A741F /* XComSyndicationStrategyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
