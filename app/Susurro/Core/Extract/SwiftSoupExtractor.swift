@@ -13,7 +13,7 @@ enum SwiftSoupExtractor {
 
     private static let textSelectors = "p, h1, h2, h3, h4, h5, h6, li, blockquote"
 
-    static func extract(html: String, url: String) -> (text: String, title: String?)? {
+    static func extract(html: String, url: String) -> (text: String, title: String?, containerTag: String?, linkTextLength: Int, totalTextLength: Int)? {
         guard let doc = try? SwiftSoup.parse(html, url) else { return nil }
 
         for selector in stripSelectors {
@@ -34,14 +34,24 @@ enum SwiftSoupExtractor {
         }
 
         var container: Element?
+        var matchedContainerTag: String?
         for selector in containerSelectors {
             if let el = try? doc.select(selector).first(),
                let t = try? el.text(), !t.isEmpty {
                 container = el
+                // Treat <div role="main"> semantically identical to <main> so the
+                // quality-gate +2 container bonus fires for role-main pages.
+                matchedContainerTag = selector == "[role=main]" ? "main" : el.tagName().lowercased()
                 break
             }
         }
         guard let container else { return nil }
+
+        // Compute link text length before stripping any content.
+        let anchors = (try? container.select("a")) ?? Elements()
+        let linkTextLength = anchors.reduce(0) { sum, anchor in
+            sum + ((try? anchor.text()) ?? "").count
+        }
 
         let nodes = (try? container.select(textSelectors)) ?? Elements()
         var parts: [String] = []
@@ -62,7 +72,7 @@ enum SwiftSoupExtractor {
         let text = parts.joined(separator: "\n\n")
         guard !text.isEmpty else { return nil }
 
-        return (text, title)
+        return (text, title, matchedContainerTag, linkTextLength, text.count)
     }
 
     private static let textSelectorTags: Set<String> = [

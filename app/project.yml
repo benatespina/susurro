@@ -12,8 +12,8 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "26.0"
-    CODE_SIGN_STYLE: Manual
-    CODE_SIGN_IDENTITY: "Susurro Dev"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: CCL5FH83TC
     ENABLE_HARDENED_RUNTIME: YES
     SWIFT_STRICT_CONCURRENCY: complete
     ARCHS: arm64
@@ -54,6 +54,8 @@ targets:
       path: Susurro/Susurro.entitlements
       properties:
         com.apple.security.app-sandbox: false
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)com.benatespina.susurro
     dependencies:
       - target: SusurroCLI
         link: false

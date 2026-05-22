@@ -11,6 +11,7 @@ enum ReaderModeExtractor {
         let readabilityJS = try loadReadabilityJS()
 
         let webView = WKWebView(frame: .zero)
+        webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
         webView.configuration.suppressesIncrementalRendering = true
 
         let userScript = WKUserScript(
@@ -38,18 +39,67 @@ enum ReaderModeExtractor {
         }
         _ = navigationResult
 
+        // SPAs (x.com, Next.js docs) fire didFinish before React hydrates; Readability returns null.
+        // Poll with capped backoff so the first attempt on static pages pays zero extra latency.
+        // callAsyncJavaScript is required here: evaluateJavaScript returns a Promise object rather
+        // than awaiting it, so the backoff delays would never execute and the cast to String fails.
+        // Pre-pass dismisses cookie banners on each iteration so Readability sees the article DOM.
+        // Budget: [0, 500, 1500, 3000, 4500, 4500] ≈ 14s total, safely under the outer 15s timeout.
         let js = """
-        (function() {
+        const delays = [0, 500, 1500, 3000, 4500, 4500];
+        let lastResult = null;
+        for (let i = 0; i < delays.length; i++) {
+            const delay = delays[i];
+            await new Promise(r => setTimeout(r, delay));
+            // Dismiss cookie/consent overlays so Readability can see the article.
+            // Heuristic: find buttons whose visible text matches a common accept/agree phrase
+            // and click them; also remove fullscreen dialogs/overlays as a fallback.
             try {
-                var doc = new Readability(document.cloneNode(true)).parse();
-                return doc ? JSON.stringify({title: doc.title || null, textContent: doc.textContent || ''}) : null;
-            } catch(e) {
-                return null;
+              const acceptPattern = /\\b(accept|agree|allow|got it|aceptar|akzeptieren|accepter|accetta|consent)\\b/i;
+              const buttons = Array.from(document.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]'));
+              for (const btn of buttons) {
+                const text = (btn.innerText || btn.value || btn.getAttribute('aria-label') || '').trim();
+                if (text && text.length < 60 && acceptPattern.test(text)) {
+                  try { btn.click(); } catch (e) {}
+                }
+              }
+              // Also remove obvious modal overlays so Readability isn't fooled by their text.
+              const overlaySelectors = [
+                '[role="dialog"][aria-modal="true"]',
+                '[data-testid*="cookie"]',
+                '[id*="cookie-banner"]',
+                '[class*="cookie-banner"]',
+                '[id*="consent"]',
+                '[class*="consent"]',
+              ];
+              for (const sel of overlaySelectors) {
+                document.querySelectorAll(sel).forEach((el) => {
+                  try { el.remove(); } catch (e) {}
+                });
+              }
+            } catch (e) {
+              // never let dismissal failures break extraction
             }
-        })()
+            let result = null;
+            try {
+                result = new Readability(document.cloneNode(true)).parse();
+            } catch (e) {
+                result = null;
+            }
+            if (result && typeof result.textContent === 'string' && result.textContent.length >= 200) {
+                return JSON.stringify({title: result.title || null, textContent: result.textContent});
+            }
+            if (result !== null) {
+                lastResult = result;
+            }
+        }
+        if (lastResult !== null) {
+            return JSON.stringify({title: lastResult.title || null, textContent: lastResult.textContent});
+        }
+        return null;
         """
 
-        let result = try await webView.evaluateJavaScript(js)
+        let result = try await webView.callAsyncJavaScript(js, arguments: [:], in: nil, contentWorld: .page)
 
         guard let jsonString = result as? String else {
             throw BackendError.extractFailed("reader returned no content")

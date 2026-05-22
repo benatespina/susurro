@@ -56,22 +56,55 @@ what might happen next and how readers can stay informed on this ever-evolving t
 
 // MARK: - Tests
 
+// MARK: - Fake strategy helper
+
+private final class FakeStrategy: ArticleExtractionStrategy, @unchecked Sendable {
+    private let hostMatch: String
+    private let result: Result<(text: String, title: String?), any Error>
+    private(set) var extractCallCount = 0
+
+    init(
+        matchingHost: String,
+        result: Result<(text: String, title: String?), any Error>
+    ) {
+        self.hostMatch = matchingHost
+        self.result = result
+    }
+
+    func canHandle(_ url: URL) -> Bool {
+        url.host == hostMatch
+    }
+
+    func extract(url: URL) async throws -> (text: String, title: String?) {
+        extractCallCount += 1
+        switch result {
+        case .success(let value): return value
+        case .failure(let error): throw error
+        }
+    }
+}
+
+// MARK: - Tests
+
 @Suite("ArticleExtractor", .serialized)
 struct ArticleExtractorTests {
 
     @Test("happy path: SwiftSoup result > 100 chars, reader not invoked")
     func happyPathSwiftSoup() async throws {
         let session = makeMockSession(html: longArticleHTML)
-        let longText = String(repeating: "This is extracted article content. ", count: 5)
+        // Use enough long words (>3 chars) so the quality gate accepts the result.
+        // 90 × 1 long word "fascinating" → word count ≥ 80 → +1; article container → +2; score = 3 ≥ 2.
+        let longText = Array(repeating: "fascinating", count: 90).joined(separator: " ")
         let readerInvokedBox = ActorBox(false)
 
         let extractor = ArticleExtractor(
             session: session,
-            swiftSoupExtract: { _, _ in (longText, "Long Article") },
+            swiftSoupExtract: { _, _ in (longText, "Long Article", "article", 0, longText.count) },
             readerExtract: { _ in
                 await readerInvokedBox.set(true)
                 return ("reader text", nil)
-            }
+            },
+            strategies: []
         )
 
         let article = try await extractor.extract(url: "https://example.com/article")
@@ -90,11 +123,12 @@ struct ArticleExtractorTests {
 
         let extractor = ArticleExtractor(
             session: session,
-            swiftSoupExtract: { _, _ in ("short", nil) },
+            swiftSoupExtract: { _, _ in ("short", nil, "body", 0, 5) },
             readerExtract: { _ in
                 await readerInvokedBox.set(true)
                 return (readerText, "Reader Title")
-            }
+            },
+            strategies: []
         )
 
         let article = try await extractor.extract(url: "https://example.com/article")
@@ -109,7 +143,8 @@ struct ArticleExtractorTests {
         let extractor = ArticleExtractor(
             session: makeMockSession(html: ""),
             swiftSoupExtract: { _, _ in nil },
-            readerExtract: { _ in ("", nil) }
+            readerExtract: { _ in ("", nil) },
+            strategies: []
         )
 
         await #expect(throws: BackendError.extractFailed("invalid url")) {
@@ -124,7 +159,8 @@ struct ArticleExtractorTests {
         let extractor = ArticleExtractor(
             session: session,
             swiftSoupExtract: { _, _ in nil },
-            readerExtract: { _ in ("", nil) }
+            readerExtract: { _ in ("", nil) },
+            strategies: []
         )
 
         await #expect(throws: BackendError.extractFailed("no readable article content")) {
@@ -139,12 +175,206 @@ struct ArticleExtractorTests {
 
         let extractor = ArticleExtractor(
             session: session,
-            swiftSoupExtract: { _, _ in (spanishText, "Título") },
-            readerExtract: { _ in ("", nil) }
+            swiftSoupExtract: { _, _ in (spanishText, "Título", "article", 0, spanishText.count) },
+            readerExtract: { _ in ("", nil) },
+            strategies: []
         )
 
         let article = try await extractor.extract(url: "https://example.es/articulo")
         #expect(article.language == "es")
+    }
+
+    // MARK: - Tier-1 quality gate tests
+
+    @Test("tier1: consent banner (EN) forces tier-2 reader invocation")
+    func tier1RejectedForConsentBannerEnglish() async throws {
+        // Three distinct EN consent phrases embedded in short text → gate rejects.
+        let bannerText = """
+        We use cookies to personalise content. Accept cookies to continue. \
+        Our cookie policy explains how we use essential cookies and personalised ads \
+        to improve your experience on our website.
+        """
+        let session = makeMockSession(html: "<html><body><p>x</p></body></html>")
+        let readerInvokedBox = ActorBox(false)
+        let readerText = String(repeating: "Real content from reader. ", count: 10)
+
+        let extractor = ArticleExtractor(
+            session: session,
+            swiftSoupExtract: { _, _ in (bannerText, nil, "body", 0, bannerText.count) },
+            readerExtract: { _ in
+                await readerInvokedBox.set(true)
+                return (readerText, nil)
+            },
+            strategies: []
+        )
+
+        _ = try await extractor.extract(url: "https://example.com/article")
+        let invoked = await readerInvokedBox.value
+        #expect(invoked)
+    }
+
+    @Test("tier1: link-list page forces tier-2 reader invocation")
+    func tier1RejectedForLinkListPage() async throws {
+        // 50 long words but link density > 0.5 with body container → gate rejects.
+        let linkText = String(repeating: "navigating through links ", count: 10) // ~50 words, all anchor
+        let session = makeMockSession(html: "<html><body><p>x</p></body></html>")
+        let readerInvokedBox = ActorBox(false)
+        let readerText = String(repeating: "Real content from reader. ", count: 10)
+
+        let extractor = ArticleExtractor(
+            session: session,
+            // linkTextLength == totalTextLength → density = 1.0 > 0.5, body → gate rejects
+            swiftSoupExtract: { _, _ in (linkText, nil, "body", linkText.count, linkText.count) },
+            readerExtract: { _ in
+                await readerInvokedBox.set(true)
+                return (readerText, nil)
+            },
+            strategies: []
+        )
+
+        _ = try await extractor.extract(url: "https://example.com/links")
+        let invoked = await readerInvokedBox.value
+        #expect(invoked)
+    }
+
+    @Test("tier1: article container with 250 long words and no consent phrases is accepted without tier-2")
+    func tier1AcceptedForRealArticleWithArticleContainer() async throws {
+        // 65 × 4 words = 260 long words → +4 (≥250 tier); article container → +2; total = 6 ≥ 2 → accepted.
+        let articleWords = (Array(repeating: "fascinating incredible amazing discovery", count: 65)).joined(separator: " ")
+        let session = makeMockSession(html: "<html><body><p>x</p></body></html>")
+        let readerInvokedBox = ActorBox(false)
+
+        let extractor = ArticleExtractor(
+            session: session,
+            swiftSoupExtract: { _, _ in (articleWords, "Article", "article", 0, articleWords.count) },
+            readerExtract: { _ in
+                await readerInvokedBox.set(true)
+                return ("reader content", nil)
+            },
+            strategies: []
+        )
+
+        _ = try await extractor.extract(url: "https://example.com/article")
+        let invoked = await readerInvokedBox.value
+        #expect(!invoked)
+    }
+
+    // MARK: - Strategy tests
+
+    @Test("xcom strategy invoked first when canHandle returns true")
+    func xcomStrategyInvokedFirstWhenCanHandle() async throws {
+        let session = makeMockSession(html: "<html><body></body></html>")
+        let strategyText = "Tweet text from strategy."
+        let fakeStrategy = FakeStrategy(
+            matchingHost: "x.com",
+            result: .success((text: strategyText, title: "Tweet Author"))
+        )
+        let readerInvokedBox = ActorBox(false)
+
+        let extractor = ArticleExtractor(
+            session: session,
+            swiftSoupExtract: { _, _ in
+                // Must not be called when strategy canHandle == true
+                return nil
+            },
+            readerExtract: { _ in
+                await readerInvokedBox.set(true)
+                return ("reader text", nil)
+            },
+            strategies: [fakeStrategy]
+        )
+
+        let article = try await extractor.extract(url: "https://x.com/someone/status/123")
+        #expect(article.text == strategyText)
+        #expect(article.title == "Tweet Author")
+        #expect(fakeStrategy.extractCallCount == 1)
+        let readerInvoked = await readerInvokedBox.value
+        #expect(!readerInvoked)
+    }
+
+    @Test("strategy skipped and tier chain runs when canHandle returns false")
+    func strategySkippedAndTierChainRunsWhenCanHandleFalse() async throws {
+        let session = makeMockSession(html: "<html><body></body></html>")
+        // Strategy only matches "x.com", but the URL is "example.com" — canHandle returns false.
+        let fakeStrategy = FakeStrategy(
+            matchingHost: "x.com",
+            result: .success((text: "should not be returned", title: nil))
+        )
+
+        let extractor = ArticleExtractor(
+            session: session,
+            swiftSoupExtract: { _, _ in
+                return nil
+            },
+            readerExtract: { _ in ("", nil) },
+            strategies: [fakeStrategy]
+        )
+
+        await #expect(throws: BackendError.extractFailed("no readable article content")) {
+            try await extractor.extract(url: "https://example.com/article")
+        }
+        #expect(fakeStrategy.extractCallCount == 0)
+    }
+
+    @Test("tier chain runs as fallback when strategy throws")
+    func tierChainRunsAsFallbackWhenStrategyThrows() async throws {
+        let session = makeMockSession(html: "<html><body></body></html>")
+        let fakeStrategy = FakeStrategy(
+            matchingHost: "x.com",
+            result: .failure(BackendError.extractFailed("oEmbed HTTP 404"))
+        )
+        let readerInvokedBox = ActorBox(false)
+
+        let extractor = ArticleExtractor(
+            session: session,
+            swiftSoupExtract: { _, _ in
+                return nil
+            },
+            readerExtract: { _ in
+                await readerInvokedBox.set(true)
+                throw BackendError.extractFailed("reader returned no content")
+            },
+            strategies: [fakeStrategy]
+        )
+
+        // When strategy fails, tier-1 and tier-2 run as fallback; tier-2's error is surfaced.
+        await #expect(throws: BackendError.extractFailed("reader returned no content")) {
+            try await extractor.extract(url: "https://x.com/someone/status/999")
+        }
+        #expect(fakeStrategy.extractCallCount == 1)
+        let readerInvoked = await readerInvokedBox.value
+        #expect(readerInvoked)
+    }
+
+    @Test("strategy success skips all tiers")
+    func strategySuccessSkipsAllTiers() async throws {
+        let session = makeMockSession(html: "<html><body></body></html>")
+        let strategyText = "Strategy-extracted content for this tweet."
+        let fakeStrategy = FakeStrategy(
+            matchingHost: "x.com",
+            result: .success((text: strategyText, title: "Some Author"))
+        )
+        let readerInvokedBox = ActorBox(false)
+
+        let extractor = ArticleExtractor(
+            session: session,
+            swiftSoupExtract: { _, _ in
+                // SwiftSoup must NOT be invoked when strategy succeeds
+                return ("should not reach here", "bad title", "article", 0, 999)
+            },
+            readerExtract: { _ in
+                await readerInvokedBox.set(true)
+                return ("should not reach here", nil)
+            },
+            strategies: [fakeStrategy]
+        )
+
+        let article = try await extractor.extract(url: "https://x.com/someone/status/456")
+        #expect(article.text == strategyText)
+        #expect(article.title == "Some Author")
+        #expect(fakeStrategy.extractCallCount == 1)
+        let readerInvoked = await readerInvokedBox.value
+        #expect(!readerInvoked)
     }
 }
 

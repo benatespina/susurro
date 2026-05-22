@@ -2,17 +2,20 @@ import Foundation
 
 actor ArticleExtractor {
     private let session: URLSession
-    private let swiftSoupExtract: @Sendable (String, String) -> (text: String, title: String?)?
+    private let swiftSoupExtract: @Sendable (String, String) -> (text: String, title: String?, containerTag: String?, linkTextLength: Int, totalTextLength: Int)?
     private let readerExtract: @Sendable (String) async throws -> (text: String, title: String?)
+    private let strategies: [any ArticleExtractionStrategy]
 
     init(
         session: URLSession = .shared,
-        swiftSoupExtract: @escaping @Sendable (String, String) -> (text: String, title: String?)? = SwiftSoupExtractor.extract,
-        readerExtract: @escaping @Sendable (String) async throws -> (text: String, title: String?) = ReaderModeExtractor.extract
+        swiftSoupExtract: @escaping @Sendable (String, String) -> (text: String, title: String?, containerTag: String?, linkTextLength: Int, totalTextLength: Int)? = SwiftSoupExtractor.extract,
+        readerExtract: @escaping @Sendable (String) async throws -> (text: String, title: String?) = ReaderModeExtractor.extract,
+        strategies: [any ArticleExtractionStrategy] = [XComSyndicationStrategy()]
     ) {
         self.session = session
         self.swiftSoupExtract = swiftSoupExtract
         self.readerExtract = readerExtract
+        self.strategies = strategies
     }
 
     func extract(url: String) async throws -> ExtractedArticle {
@@ -42,19 +45,49 @@ actor ArticleExtractor {
             throw BackendError.extractFailed("invalid encoding")
         }
 
+        // Tier-0: host-specific strategies run FIRST.
+        // A strategy declaring canHandle is asserting it is authoritative for this URL.
+        // Tier-1/tier-2 remain as fallback only if every applicable strategy throws.
+        for strategy in strategies where strategy.canHandle(parsedURL) {
+            do {
+                let result = try await strategy.extract(url: parsedURL)
+                let language = LangDetect.detect(result.text)
+                return ExtractedArticle(text: result.text, title: result.title, url: url, language: language)
+            } catch {
+                // Strategy failed — continue to next strategy or fall through to tier-1/tier-2.
+                continue
+            }
+        }
+
         var text: String
         var title: String?
 
         if let soupResult = swiftSoupExtract(html, url),
-           soupResult.text.filter({ !$0.isWhitespace }).count >= 100 {
+           ExtractionQualityGate.score(
+               text: soupResult.text,
+               containerTag: soupResult.containerTag,
+               linkTextLength: soupResult.linkTextLength,
+               totalTextLength: soupResult.totalTextLength
+           ) >= ExtractionQualityGate.acceptThreshold {
             text = soupResult.text
             title = soupResult.title
         } else {
-            let readerResult = try await readerExtract(url)
-            text = readerResult.text
-            title = readerResult.title
+            let tier2Error: (any Error)?
+            do {
+                let readerResult = try await readerExtract(url)
+                text = readerResult.text
+                title = readerResult.title
+                tier2Error = nil
+            } catch {
+                text = ""
+                title = nil
+                tier2Error = error
+            }
 
             if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if let tier2Error {
+                    throw tier2Error
+                }
                 throw BackendError.extractFailed("no readable article content")
             }
         }

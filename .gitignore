@@ -3,6 +3,8 @@
 .idea/
 .vscode/
 build/
+build-debug/
+build-release/
 *.xcuserdata/
 DerivedData/
 app/Susurro.xcodeproj/xcuserdata/
