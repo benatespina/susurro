@@ -42,11 +42,41 @@ enum ReaderModeExtractor {
         // Poll with capped backoff so the first attempt on static pages pays zero extra latency.
         // callAsyncJavaScript is required here: evaluateJavaScript returns a Promise object rather
         // than awaiting it, so the backoff delays would never execute and the cast to String fails.
+        // Pre-pass dismisses cookie banners on each iteration so Readability sees the article DOM.
         let js = """
         const delays = [0, 250, 500, 1000, 1500, 2000];
         let lastResult = null;
         for (const delay of delays) {
             await new Promise(r => setTimeout(r, delay));
+            // Dismiss cookie/consent overlays so Readability can see the article.
+            // Heuristic: find buttons whose visible text matches a common accept/agree phrase
+            // and click them; also remove fullscreen dialogs/overlays as a fallback.
+            try {
+              const acceptPattern = /\\b(accept|agree|allow|got it|aceptar|akzeptieren|accepter|accetta|consent)\\b/i;
+              const buttons = Array.from(document.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]'));
+              for (const btn of buttons) {
+                const text = (btn.innerText || btn.value || btn.getAttribute('aria-label') || '').trim();
+                if (text && text.length < 60 && acceptPattern.test(text)) {
+                  try { btn.click(); } catch (e) {}
+                }
+              }
+              // Also remove obvious modal overlays so Readability isn't fooled by their text.
+              const overlaySelectors = [
+                '[role="dialog"][aria-modal="true"]',
+                '[data-testid*="cookie"]',
+                '[id*="cookie-banner"]',
+                '[class*="cookie-banner"]',
+                '[id*="consent"]',
+                '[class*="consent"]',
+              ];
+              for (const sel of overlaySelectors) {
+                document.querySelectorAll(sel).forEach((el) => {
+                  try { el.remove(); } catch (e) {}
+                });
+              }
+            } catch (e) {
+              // never let dismissal failures break extraction
+            }
             let result = null;
             try {
                 result = new Readability(document.cloneNode(true)).parse();
