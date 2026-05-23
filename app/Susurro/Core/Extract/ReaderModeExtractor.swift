@@ -3,14 +3,49 @@ import WebKit
 
 @MainActor
 enum ReaderModeExtractor {
+    /// Legacy overload — delegates to the cookies overload with `nil`.
     static func extract(url: String) async throws -> (text: String, title: String?) {
+        try await extract(url: url, cookies: nil)
+    }
+
+    /// Extracts article content using Readability.js, optionally injecting HTTP cookies into a
+    /// non-persistent `WKWebsiteDataStore` before loading the page.
+    ///
+    /// - Parameters:
+    ///   - url: The URL string to load.
+    ///   - cookies: When non-nil and non-empty, a fresh `WKWebsiteDataStore.nonPersistent()` is
+    ///     created, all cookies are injected via `WKHTTPCookieStore` before the load, and the
+    ///     `WKWebView` is configured with that store. When nil or empty, the `WKWebView` is
+    ///     constructed with no explicit configuration (identical to the legacy behaviour).
+    static func extract(url: String, cookies: [HTTPCookie]?) async throws -> (text: String, title: String?) {
         guard let resolvedURL = URL(string: url) else {
             throw BackendError.extractFailed("invalid url")
         }
 
         let readabilityJS = try loadReadabilityJS()
 
-        let webView = WKWebView(frame: .zero)
+        let webView: WKWebView
+        if let cookies, !cookies.isEmpty {
+            let config = WKWebViewConfiguration()
+            let dataStore = WKWebsiteDataStore.nonPersistent()
+            config.websiteDataStore = dataStore
+            webView = WKWebView(frame: .zero, configuration: config)
+
+            // Inject all cookies before load. Wait for every setCookie completion before
+            // proceeding so the cookies are available when the WKWebView issues its first request.
+            // Use a sequential loop rather than withTaskGroup to avoid the Swift 6 region-based
+            // isolation checker restriction on @MainActor annotations inside task group closures.
+            for cookie in cookies {
+                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                    dataStore.httpCookieStore.setCookie(cookie) {
+                        continuation.resume()
+                    }
+                }
+            }
+        } else {
+            webView = WKWebView(frame: .zero)
+        }
+
         webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
         webView.configuration.suppressesIncrementalRendering = true
 

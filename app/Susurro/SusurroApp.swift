@@ -54,10 +54,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var menuBarController: MenuBarController?
     private var ipcServer: IPCServer?
     private var registryCancellables = Set<AnyCancellable>()
+    private var backendClient: BackendClient?
+    private var cookieErrorNotifier: BrowserCookieErrorNotifier?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSigtermHandler()
         libraryStore.load()
+
+        // Wire cookie provider → XComSyndicationStrategy → ArticleExtractor.
+        let keychain = SystemKeychainAccessor()
+        let cookieProvider = DefaultBrowserCookieProvider(keychain: keychain)
+        let notifier = BrowserCookieErrorNotifier()
+        cookieErrorNotifier = notifier
+        let onCookieError: @Sendable (BrowserCookieError) -> Void = { error in
+            Task { @MainActor in
+                notifier.notify(error)
+            }
+        }
+        let xStrategy = XComSyndicationStrategy(
+            cookieProvider: cookieProvider,
+            onProviderError: onCookieError
+        )
+        let articleExtractor = ArticleExtractor(strategies: [xStrategy])
+        let backendClientInstance = BackendClient(extractor: articleExtractor)
+        backendClient = backendClientInstance
 
         // Build the library synthesizer.
         let audioDir = FileManager.default
@@ -66,7 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let settings = ttsSettings
         let synthesizer = LibrarySynthesizer(
             store: libraryStore,
-            extractor: ArticleExtractor(),
+            extractor: articleExtractor,
             currentProviderProvider: { await MainActor.run { TTSProviderRegistry.shared.current } },
             durationProbe: AVAudioDurationProbe(),
             langDetect: StaticLangDetector(),
@@ -141,7 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appending(path: "Susurro/ipc.sock")
             .path
-        let server = IPCServer(socketPath: socketPath, speaker: coordinator, settings: ttsSettings)
+        let server = IPCServer(socketPath: socketPath, speaker: coordinator, settings: ttsSettings, client: backendClientInstance)
         ipcServer = server
         Task {
             do {
@@ -412,11 +432,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             AppLogger.app.info("source: browser URL is PDF, downloading via PDFKit")
             return try await PDFKitSource.extractText(fromRemote: parsed)
         }
-        let health = await BackendClient.shared.health()
+        let activeClient = backendClient ?? BackendClient.shared
+        let health = await activeClient.health()
         guard health == .ready else {
             throw ContentExtractionError.backendNotReady
         }
-        let article = try await BackendClient.shared.extract(url: url)
+        let article = try await activeClient.extract(url: url)
         return ResolvedContent(
             text: article.text, title: article.title, language: article.language
         )

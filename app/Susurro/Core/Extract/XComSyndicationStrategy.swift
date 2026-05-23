@@ -3,9 +3,22 @@ import JavaScriptCore
 
 struct XComSyndicationStrategy: ArticleExtractionStrategy {
     private let session: URLSession
+    private let cookieProvider: (any BrowserCookieProvider)?
+    private let readerExtract: @Sendable (String, [HTTPCookie]?) async throws -> (text: String, title: String?)
+    private let onProviderError: (@Sendable (BrowserCookieError) -> Void)?
 
-    init(session: URLSession = .shared) {
+    init(
+        session: URLSession = .shared,
+        cookieProvider: (any BrowserCookieProvider)? = nil,
+        readerExtract: @escaping @Sendable (String, [HTTPCookie]?) async throws -> (text: String, title: String?) = { url, cookies in
+            try await ReaderModeExtractor.extract(url: url, cookies: cookies)
+        },
+        onProviderError: (@Sendable (BrowserCookieError) -> Void)? = nil
+    ) {
         self.session = session
+        self.cookieProvider = cookieProvider
+        self.readerExtract = readerExtract
+        self.onProviderError = onProviderError
     }
 
     func canHandle(_ url: URL) -> Bool {
@@ -73,8 +86,24 @@ struct XComSyndicationStrategy: ArticleExtractionStrategy {
             let articleTitle = article.title ?? decoded.user?.name
             if let restId = article.rest_id {
                 let articleURLString = "https://x.com/i/article/\(restId)"
+                var cookies: [HTTPCookie]?
+                if let provider = cookieProvider {
+                    do {
+                        cookies = try await provider.cookies(forDomain: "x.com")
+                    } catch let providerError as BrowserCookieError {
+                        // Surface actionable errors to UX, but keep going with cookies = nil (legacy path).
+                        switch providerError {
+                        case .onlySafariDetected, .noBrowserDetected, .noXSessionCookies, .keychainDenied:
+                            onProviderError?(providerError)
+                        case .databaseUnavailable, .keychainNotFound, .decryptionFailed:
+                            break // silent — internal/transient, user can't act on these
+                        }
+                    } catch {
+                        // Other errors: silent
+                    }
+                }
                 do {
-                    let rendered = try await ReaderModeExtractor.extract(url: articleURLString)
+                    let rendered = try await readerExtract(articleURLString, cookies)
                     if rendered.text.count > preview.count {
                         return (rendered.text, rendered.title ?? articleTitle)
                     }
