@@ -47,12 +47,18 @@ struct SQLiteCookieReader {
         }
         defer { sqlite3_close(db) }
 
-        // Build "host_key LIKE ? OR host_key LIKE ? OR ..."
-        let placeholders = Array(repeating: "host_key LIKE ?", count: hostFilter.count).joined(separator: " OR ")
+        // Build WHERE clause only when a filter is provided; empty filter selects all rows.
+        let whereClause: String
+        if hostFilter.isEmpty {
+            whereClause = ""
+        } else {
+            let placeholders = Array(repeating: "host_key LIKE ?", count: hostFilter.count).joined(separator: " OR ")
+            whereClause = "WHERE \(placeholders)"
+        }
         let sql = """
         SELECT host_key, name, value, encrypted_value, path, expires_utc, is_secure, is_httponly
         FROM cookies
-        WHERE \(placeholders)
+        \(whereClause)
         """
 
         var stmt: OpaquePointer?
@@ -64,9 +70,11 @@ struct SQLiteCookieReader {
         defer { sqlite3_finalize(stmt) }
 
         // SQLITE_TRANSIENT so SQLite copies the strings
-        let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
-        for (i, pattern) in hostFilter.enumerated() {
-            sqlite3_bind_text(stmt, Int32(i + 1), pattern, -1, SQLITE_TRANSIENT)
+        if !hostFilter.isEmpty {
+            let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+            for (i, pattern) in hostFilter.enumerated() {
+                sqlite3_bind_text(stmt, Int32(i + 1), pattern, -1, SQLITE_TRANSIENT)
+            }
         }
 
         var rows: [RawCookieRow] = []
