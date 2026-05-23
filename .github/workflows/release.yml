@@ -48,6 +48,12 @@ jobs:
           VERSION="${VERSION#v}"
           echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Import Code Signing Certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_DEV_CERT_P12_BASE64 }}
+          p12-password: ${{ secrets.APPLE_DEV_CERT_P12_PASSWORD }}
+
       - name: Build archive
         working-directory: app
         env:
@@ -58,8 +64,10 @@ jobs:
             -scheme Susurro \
             -configuration Release \
             -archivePath "$RUNNER_TEMP/Susurro.xcarchive" \
-            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_IDENTITY="Apple Development: benatespina@gmail.com (5AJ5S5GA7D)" \
             CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=CCL5FH83TC \
+            PROVISIONING_PROFILE_SPECIFIER="" \
             MARKETING_VERSION="$VERSION" \
             ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=NO \
@@ -73,10 +81,10 @@ jobs:
           cp -R "$RUNNER_TEMP/Susurro.xcarchive/Products/Applications/Susurro.app" \
                 "$RUNNER_TEMP/export/Susurro.app"
 
-      - name: Verify ad-hoc signature
+      - name: Verify signature
         run: |
-          # Informational only — does not fail the build
-          codesign -dv "$RUNNER_TEMP/export/Susurro.app" || true
+          codesign -dv --verbose=2 "$RUNNER_TEMP/export/Susurro.app"
+          codesign -d --entitlements - "$RUNNER_TEMP/export/Susurro.app" || true
 
       - name: Create DMG
         env:
