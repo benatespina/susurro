@@ -117,6 +117,22 @@ final class CountingKeychainAccessor: KeychainAccessor, @unchecked Sendable {
         }
     }
 
+    @Test func keychainUnknownErrorMapsToNotFound() async {
+        let fakeKC = CountingKeychainAccessor(password: Data(), error: .unknown(-25291))
+        let fakeReader: @Sendable (URL, [String]) throws -> [RawCookieRow] = { _, _ in [] }
+        let tmpDB = Self.makeTempDB(label: "keychain-unknown")
+        let adapter = ChromiumCookieAdapter(source: .chrome, keychain: fakeKC, reader: fakeReader, databaseURL: tmpDB)
+
+        do {
+            _ = try await adapter.cookies(forDomain: "x.com")
+            Issue.record("Expected throw")
+        } catch let err as BrowserCookieError {
+            #expect(err == .keychainNotFound(.chrome))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test func keychainDeniedPropagatesAsBrowserCookieError() async {
         let fakeKC = CountingKeychainAccessor(password: Data(), error: .denied)
         let fakeReader: @Sendable (URL, [String]) throws -> [RawCookieRow] = { _, _ in [] }

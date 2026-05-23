@@ -27,7 +27,7 @@ final class BrowserCookieHelpWindow {
 
     func show() {
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
     }
 
     func close() {

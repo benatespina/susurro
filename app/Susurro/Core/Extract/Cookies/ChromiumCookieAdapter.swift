@@ -74,7 +74,10 @@ actor ChromiumCookieAdapter {
         } catch KeychainAccessError.notFound {
             throw BrowserCookieError.keychainNotFound(source)
         } catch {
-            throw BrowserCookieError.keychainDenied(source) // unknown OSStatus treated as denied
+            // Unknown OSStatus (e.g. disk full, keychain corrupted) mapped to .keychainNotFound
+            // so it is handled silently (logged by the notifier) rather than surfacing misleading
+            // "Allow Keychain access" advice to the user.
+            throw BrowserCookieError.keychainNotFound(source)
         }
         let derived = ChromiumCrypto.deriveAESKey(fromPassword: password)
         cachedKey = derived

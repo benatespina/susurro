@@ -69,6 +69,19 @@ import SQLite3
         #expect(xRow.isHTTPOnly == true)
     }
 
+    @Test func emptyHostFilterReturnsAllRows() throws {
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("sqlite-empty-filter-test-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        try Self.makeFixture(at: tmp, rows: [
+            (host: ".x.com", name: "auth_token", encValue: Data([0xAA]), path: "/", expires: 0, secure: true, httpOnly: true),
+            (host: ".google.com", name: "SID", encValue: Data([0xBB]), path: "/", expires: 0, secure: true, httpOnly: true),
+        ])
+
+        let rows = try SQLiteCookieReader.readCookies(databaseURL: tmp, hostFilter: [])
+        #expect(rows.count == 2)
+    }
+
     @Test func missingDatabaseThrows() {
         let nonexistent = FileManager.default.temporaryDirectory.appendingPathComponent("nonexistent-\(UUID().uuidString).sqlite")
         do {
