@@ -2,25 +2,29 @@ import Foundation
 import os.log
 
 actor DefaultBrowserCookieProvider: BrowserCookieProvider {
-    private let adapterFactory: @Sendable (BrowserSource) -> ChromiumCookieAdapter
+    private let adapterFactory: @Sendable (BrowserSource, URL) -> ChromiumCookieAdapter
     private let defaultBrowser: @Sendable () -> BrowserSource?
     private let isSafariOnly: @Sendable () -> Bool
     private let installedBrowsers: @Sendable () -> [BrowserSource]
+    private let profilePaths: @Sendable (BrowserSource) -> [URL]
     private let logger = Logger(subsystem: "com.benatespina.susurro", category: "BrowserCookieProvider")
 
     init(
         keychain: any KeychainAccessor,
-        adapterFactory: (@Sendable (BrowserSource) -> ChromiumCookieAdapter)? = nil,
+        adapterFactory: (@Sendable (BrowserSource, URL) -> ChromiumCookieAdapter)? = nil,
         defaultBrowser: @escaping @Sendable () -> BrowserSource? = BrowserDetector.defaultBrowser,
         isSafariOnly: @escaping @Sendable () -> Bool = BrowserDetector.isSafariOnly,
-        installedBrowsers: @escaping @Sendable () -> [BrowserSource] = BrowserDetector.installedBrowsers
+        installedBrowsers: @escaping @Sendable () -> [BrowserSource] = BrowserDetector.installedBrowsers,
+        profilePaths: @escaping @Sendable (BrowserSource) -> [URL] = { $0.cookiesDatabasePaths() }
     ) {
-        self.adapterFactory = adapterFactory ?? { source in
-            ChromiumCookieAdapter(source: source, keychain: keychain)
+        let kc = keychain
+        self.adapterFactory = adapterFactory ?? { source, url in
+            ChromiumCookieAdapter(source: source, keychain: kc, databaseURL: url)
         }
         self.defaultBrowser = defaultBrowser
         self.isSafariOnly = isSafariOnly
         self.installedBrowsers = installedBrowsers
+        self.profilePaths = profilePaths
     }
 
     func cookies(forDomain domain: String) async throws -> [HTTPCookie] {
@@ -45,17 +49,21 @@ actor DefaultBrowserCookieProvider: BrowserCookieProvider {
         var lastTried: BrowserSource?
         for source in ordered {
             lastTried = source
-            let adapter = adapterFactory(source)
-            do {
-                let browserCookies = try await adapter.cookies(forDomain: domain)
-                let httpCookies = browserCookies.compactMap { $0.toHTTPCookie() }
-                if hasMinimumXSessionCookies(httpCookies) {
-                    return httpCookies
+            let paths = profilePaths(source)
+            for path in paths {
+                let adapter = adapterFactory(source, path)
+                do {
+                    let browserCookies = try await adapter.cookies(forDomain: domain)
+                    let httpCookies = browserCookies.compactMap { $0.toHTTPCookie() }
+                    if hasMinimumXSessionCookies(httpCookies) {
+                        logger.info("Found X session in \(source.displayName, privacy: .public) profile \(path.deletingLastPathComponent().lastPathComponent, privacy: .public)")
+                        return httpCookies
+                    }
+                    logger.info("Browser \(source.displayName, privacy: .public) profile \(path.deletingLastPathComponent().lastPathComponent, privacy: .public) had no auth_token+ct0 pair; trying next.")
+                } catch {
+                    logger.warning("Adapter for \(source.displayName, privacy: .public) profile \(path.deletingLastPathComponent().lastPathComponent, privacy: .public) failed: \(String(describing: error))")
+                    continue
                 }
-                logger.info("Browser \(source.displayName, privacy: .public) had no auth_token+ct0 pair; trying next.")
-            } catch {
-                logger.warning("Adapter for \(source.displayName, privacy: .public) failed: \(String(describing: error))")
-                continue
             }
         }
 

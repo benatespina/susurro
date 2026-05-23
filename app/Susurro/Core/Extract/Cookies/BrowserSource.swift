@@ -24,23 +24,40 @@ enum BrowserSource: String, CaseIterable, Sendable {
         }
     }
 
-    var cookiesDatabasePath: URL {
+    var profilesRootDirectory: URL {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let appSupport = home.appendingPathComponent("Library/Application Support")
         switch self {
-        case .chrome:
-            return appSupport
-                .appendingPathComponent("Google/Chrome/Default/Cookies")
-        case .arc:
-            return appSupport
-                .appendingPathComponent("Arc/User Data/Default/Cookies")
-        case .brave:
-            return appSupport
-                .appendingPathComponent("BraveSoftware/Brave-Browser/Default/Cookies")
-        case .edge:
-            return appSupport
-                .appendingPathComponent("Microsoft Edge/Default/Cookies")
+        case .chrome: return home.appendingPathComponent("Library/Application Support/Google/Chrome", isDirectory: true)
+        case .arc:    return home.appendingPathComponent("Library/Application Support/Arc/User Data", isDirectory: true)
+        case .brave:  return home.appendingPathComponent("Library/Application Support/BraveSoftware/Brave-Browser", isDirectory: true)
+        case .edge:   return home.appendingPathComponent("Library/Application Support/Microsoft Edge", isDirectory: true)
         }
+    }
+
+    var cookiesDatabasePath: URL {
+        profilesRootDirectory.appendingPathComponent("Default/Cookies")
+    }
+
+    func cookiesDatabasePaths() -> [URL] {
+        let fm = FileManager.default
+        let root = profilesRootDirectory
+        var paths: [URL] = []
+        let defaultPath = root.appendingPathComponent("Default/Cookies")
+        if fm.fileExists(atPath: defaultPath.path) {
+            paths.append(defaultPath)
+        }
+        if let entries = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) {
+            let profileDirs = entries
+                .filter { $0.lastPathComponent.hasPrefix("Profile ") }
+                .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            for dir in profileDirs {
+                let cookies = dir.appendingPathComponent("Cookies")
+                if fm.fileExists(atPath: cookies.path) {
+                    paths.append(cookies)
+                }
+            }
+        }
+        return paths
     }
 
     var keychainService: String {

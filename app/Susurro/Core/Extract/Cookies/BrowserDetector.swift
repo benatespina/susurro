@@ -24,10 +24,9 @@ struct BrowserDetector {
         defaultBrowserBundleIdentifier() == safariBundleIdentifier
     }
 
-    /// Subset of `BrowserSource.allCases` whose Cookies SQLite file exists on disk.
+    /// Subset of `BrowserSource.allCases` that have at least one profile with a Cookies file.
     static func installedBrowsers() -> [BrowserSource] {
-        let fm = FileManager.default
-        return BrowserSource.allCases.filter { fm.fileExists(atPath: $0.cookiesDatabasePath.path) }
+        BrowserSource.allCases.filter { !$0.cookiesDatabasePaths().isEmpty }
     }
 
     /// True iff Safari is the system default browser AND no Chromium variant is installed.
