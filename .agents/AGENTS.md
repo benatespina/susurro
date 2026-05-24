@@ -16,6 +16,47 @@ tccutil reset Accessibility com.benatespina.susurro
 Multiple `Successfully reset …` lines = stale duplicates, confirms diagnosis.
 Not a code bug — do not touch `AccessibilityPermission`.
 
+## Per-config entitlements: Debug full, Release minimal
+
+Susurro distributes via Homebrew cask without a paid Apple Developer
+Program. DMGs are ad-hoc signed by CI. Ad-hoc signatures cannot
+validate **restricted entitlements** (`keychain-access-groups`,
+`com.apple.developer.*`, `application-groups`, etc.) — AMFI rejects at
+the kernel level before Gatekeeper can show "Open Anyway". This was
+the v0.5.0 cask install bug.
+
+Two entitlements files, wired per-configuration in `app/project.yml`:
+
+- `app/Susurro/Susurro.entitlements` (Debug) — full set including
+  `keychain-access-groups`. Developer machine signs with local Apple
+  Development cert that validates the group.
+- `app/Susurro/Susurro-Release.entitlements` (Release) — minimal,
+  no restricted entitlements. Currently only `app-sandbox=false`.
+  Ad-hoc signing passes AMFI.
+
+```yaml
+# app/project.yml — Susurro target
+settings:
+  configs:
+    Debug:
+      CODE_SIGN_ENTITLEMENTS: Susurro/Susurro.entitlements
+    Release:
+      CODE_SIGN_ENTITLEMENTS: Susurro/Susurro-Release.entitlements
+```
+
+**Regression rule**: any new entitlement added to
+`Susurro.entitlements` must be evaluated for whether it's "restricted"
+(needs cert to validate). If yes, do NOT add to
+`Susurro-Release.entitlements` — accept the runtime cost (e.g. an
+extra macOS prompt when end users first use the feature) instead.
+Adding a restricted entitlement to Release without paid Developer ID
+will break cask install on every machine that isn't yours.
+
+`release.yml` signs Release ad-hoc (`CODE_SIGN_IDENTITY="-"`). Do not
+re-introduce cert install / provisioning profile steps unless the
+project gets a paid Developer ID + notarization workflow (see PRs
+#38, #39, #40 history for context).
+
 ## Test suite parallel-Keychain flake
 
 `DriveConfigTests` + `LibraryPublisherTests` both touch system Keychain.
