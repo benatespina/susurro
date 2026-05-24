@@ -50,12 +50,6 @@ targets:
           - CFBundleURLName: com.benatespina.susurro.oauth
             CFBundleURLSchemes:
               - com.benatespina.susurro
-    entitlements:
-      path: Susurro/Susurro.entitlements
-      properties:
-        com.apple.security.app-sandbox: false
-        keychain-access-groups:
-          - $(AppIdentifierPrefix)com.benatespina.susurro
     dependencies:
       - target: SusurroCLI
         link: false
@@ -73,6 +67,11 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.benatespina.susurro
         GENERATE_INFOPLIST_FILE: NO
+      configs:
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: Susurro/Susurro.entitlements
+        Release:
+          CODE_SIGN_ENTITLEMENTS: Susurro/Susurro-Release.entitlements
   SusurroCLI:
     type: tool
     platform: macOS
