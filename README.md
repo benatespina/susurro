@@ -1,4 +1,11 @@
-# Susurro 🗣️
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.png">
+    <img src="assets/logo-light.png" alt="Susurro" width="120">
+  </picture>
+</p>
+
+# Susurro
 
 [![Latest Release](https://img.shields.io/github/v/release/benatespina/susurro?style=flat-square)](https://github.com/benatespina/susurro/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
