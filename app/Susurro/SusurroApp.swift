@@ -52,7 +52,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var panelController: PanelController?
     private var accessibilityPollTask: Task<Void, Never>?
     private var menuBarController: MenuBarController?
-    private var ipcServer: IPCServer?
     private var registryCancellables = Set<AnyCancellable>()
     private var backendClient: BackendClient?
     private var cookieErrorNotifier: BrowserCookieErrorNotifier?
@@ -157,19 +156,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             isTranslateToSpanishEnabled: { [weak settings] in settings?.translateToSpanish ?? false }
         )
         playbackCoordinator = coordinator
-        let socketPath = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appending(path: "Susurro/ipc.sock")
-            .path
-        let server = IPCServer(socketPath: socketPath, speaker: coordinator, settings: ttsSettings, client: backendClientInstance)
-        ipcServer = server
-        Task {
-            do {
-                try await server.start()
-            } catch {
-                AppLogger.app.error("IPCServer start failed: \(error, privacy: .public)")
-            }
-        }
         installMenuBarController()
 
         // Warm up the TTS registry (live-swap provider).
@@ -254,12 +240,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     private func installMenuBarController() {
-        guard let server = ipcServer, let synthesizer = librarySynthesizer,
+        guard let synthesizer = librarySynthesizer,
               let auth = driveAuth, let client = driveClient else { return }
         let controller = MenuBarController(
             appState: appState,
             settings: ttsSettings,
-            ipcServer: server,
             libraryStore: libraryStore,
             librarySynthesizer: synthesizer,
             librarySynthesisState: librarySynthesisState,
@@ -483,16 +468,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        AppLogger.app.info("applicationShouldTerminate — stopping IPC server")
-        let ipcServer = self.ipcServer
+        AppLogger.app.info("applicationShouldTerminate — shutting down")
+        let senderApp = sender
         Task.detached {
-            await ipcServer?.stop()
             // NSApp.terminate's modal loop runs in NSModalRunLoopMode, which is
             // excluded from NSRunLoopCommonModes. DispatchQueue.main and
             // await MainActor.run use NSDefaultRunLoopMode and are not processed
             // during the modal wait. Scheduling via RunLoop.main with the modal
             // mode ensures reply fires while terminate is blocking.
-            let senderApp = sender
             RunLoop.main.perform(inModes: [.modalPanel, .default]) {
                 // RunLoop.perform always fires on the main thread, satisfying
                 // the main-actor isolation requirement of reply(toApplication...).
