@@ -8,7 +8,6 @@ final class TTSSettings {
     private static let providerKey = "tts.provider"
     private static let azureRegionKey = "tts.azure.region"
     private static let azureKeyAccount = "tts.azure.key"
-    private static let autoReadEnabledKey = "claude.autoRead.enabled"
     private static let translateToSpanishKey = "translation.toSpanish.enabled"
 
     /// Set to true after init so that the registry swap is only triggered post-init.
@@ -22,10 +21,6 @@ final class TTSSettings {
                 await TTSProviderRegistry.shared.swap(to: provider)
             }
         }
-    }
-
-    var autoReadEnabled: Bool {
-        didSet { UserDefaults.standard.set(autoReadEnabled, forKey: Self.autoReadEnabledKey) }
     }
 
     var translateToSpanish: Bool {
@@ -52,7 +47,6 @@ final class TTSSettings {
         if sanitized != storedRegion {
             UserDefaults.standard.set(sanitized, forKey: Self.azureRegionKey)
         }
-        self.autoReadEnabled = UserDefaults.standard.bool(forKey: Self.autoReadEnabledKey)
         self.translateToSpanish = UserDefaults.standard.bool(forKey: Self.translateToSpanishKey)
         self.isInitialized = true
     }

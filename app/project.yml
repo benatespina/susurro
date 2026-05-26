@@ -29,8 +29,6 @@ targets:
       - path: Susurro
         excludes:
           - "**/*Tests.swift"
-      - path: Susurro/Resources/hooks/stop.sh
-        buildPhase: resources
       - path: Susurro/Resources/Readability.js
         buildPhase: resources
       - path: Susurro/Resources/AppIcon.icns
@@ -51,18 +49,7 @@ targets:
             CFBundleURLSchemes:
               - com.benatespina.susurro
     dependencies:
-      - target: SusurroCLI
-        link: false
-        embed: false
       - package: SwiftSoup
-    postBuildScripts:
-      - name: "Embed susurro CLI"
-        script: |
-          BIN_DIR="${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/bin"
-          mkdir -p "${BIN_DIR}"
-          cp "${BUILT_PRODUCTS_DIR}/susurro" "${BIN_DIR}/susurro"
-          codesign --force --sign "${CODE_SIGN_IDENTITY}" "${BIN_DIR}/susurro"
-        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.benatespina.susurro
@@ -72,21 +59,6 @@ targets:
           CODE_SIGN_ENTITLEMENTS: Susurro/Susurro.entitlements
         Release:
           CODE_SIGN_ENTITLEMENTS: Susurro/Susurro-Release.entitlements
-  SusurroCLI:
-    type: tool
-    platform: macOS
-    sources:
-      - path: CLI
-        excludes:
-          - "**/*Tests.swift"
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.benatespina.susurro.cli
-        GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_NAME: susurro
-        SWIFT_MODULE_NAME: SusurroCLI
-        DEFINES_MODULE: NO
-        SKIP_INSTALL: YES
   SusurroTests:
     type: bundle.unit-test
     platform: macOS
@@ -95,13 +67,6 @@ targets:
         includes:
           - "**/*Tests.swift"
           - "**/*TestDoubles.swift"
-      - path: CLI
-        includes:
-          - "Version.swift"
-          - "IPCClient.swift"
-          - "CLITests.swift"
-      - path: Susurro/Resources/hooks/stop.sh
-        buildPhase: resources
       - path: Susurro/Resources/test-fixtures
         buildPhase: resources
     dependencies:

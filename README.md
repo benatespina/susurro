@@ -16,7 +16,6 @@ Susurro is a macOS menu bar app that reads selected text aloud. It detects your 
 - 🎯 Select text in any app, hear it read aloud
 - 🆓 Free voices via Edge TTS (default) or premium voices via Azure TTS
 - 🌐 Optional: auto-translate non-Spanish text to Spanish before reading (on-device)
-- 🤖 Claude Code integration: hear responses spoken as they finish
 - 🔔 Auto-update notifications
 
 > Requires macOS 26 Tahoe · Apple Silicon (arm64)
@@ -84,17 +83,6 @@ Once installed, translation is instant and offline. If translation fails for any
 
 ---
 
-## Claude Code integration
-
-Susurro ships with a `susurro` CLI that hooks into Claude Code's `stop` event — hear Claude's responses as they finish.
-
-- **Install**: menu bar → Claude Code Integration → Install Claude Code hook
-- **Uninstall**: menu bar → Claude Code Integration → Uninstall Claude Code hook
-
-The hook delegates to the running Susurro app for TTS.
-
----
-
 ## Updates
 
 Susurro checks for new versions once a day. When available, you'll get a system notification — click it to open the release page.
@@ -121,7 +109,6 @@ open Susurro.xcodeproj
 
 **Project layout**:
 - `app/Susurro/` — main app (SwiftUI + AppKit menu bar)
-- `app/CLI/` — `susurro` CLI for Claude Code integration
 - `app/SusurroTests/` — Apple Testing framework
 - `app/project.yml` — XcodeGen manifest
 - `scripts/` — build helpers
