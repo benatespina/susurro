@@ -18,6 +18,12 @@ from pathlib import Path
 from PIL import Image
 import numpy as np
 
+# Fraction of the final canvas that the visible ear glyph occupies (both
+# dimensions).  1.0 = tight crop fills the whole canvas (too large on menu bar);
+# 0.78 leaves ~11% transparent margin on each side, matching the internal
+# padding of SF Symbols / emoji in the 22pt menu bar slot.  Tune to taste.
+GLYPH_FRACTION = 0.78
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC = REPO_ROOT / "design" / "susurro-logo.png"
 OUT_DIR = REPO_ROOT / "app" / "Susurro" / "Resources"
@@ -70,9 +76,20 @@ rgba = np.zeros((*rgb.shape[:2], 4), dtype=np.uint8)
 rgba[:, :, 3] = alpha
 
 template_img = Image.fromarray(rgba, "RGBA")
-print(f"Template image size (before resize): {template_img.size}")
+print(f"Template image size (tight ear): {template_img.size}")
 
-# ── 5. Resize and export ───────────────────────────────────────────────────────
+# ── 5. Add transparent padding so the ear fills only GLYPH_FRACTION of canvas ─
+ew, eh = template_img.size
+canvas_w = round(ew / GLYPH_FRACTION)
+canvas_h = round(eh / GLYPH_FRACTION)
+padded_img = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
+paste_x = (canvas_w - ew) // 2
+paste_y = (canvas_h - eh) // 2
+# Use the ear's alpha channel as the paste mask so transparency is preserved.
+padded_img.paste(template_img, (paste_x, paste_y), mask=template_img)
+print(f"After padding ({GLYPH_FRACTION:.0%} glyph fraction): {padded_img.size}")
+
+# ── 6. Resize and export ───────────────────────────────────────────────────────
 def export(src_img: Image.Image, target_height: int, path: Path) -> None:
     tw, th = src_img.size
     aspect = tw / th
@@ -83,6 +100,6 @@ def export(src_img: Image.Image, target_height: int, path: Path) -> None:
     resized.save(path, "PNG")
     print(f"Saved {path.relative_to(REPO_ROOT)}  →  {resized.size[0]}×{resized.size[1]} px")
 
-export(template_img, 44, OUT_DIR / "MenuBarIcon@2x.png")
-export(template_img, 22, OUT_DIR / "MenuBarIcon.png")
+export(padded_img, 44, OUT_DIR / "MenuBarIcon@2x.png")
+export(padded_img, 22, OUT_DIR / "MenuBarIcon.png")
 print("Done.")
