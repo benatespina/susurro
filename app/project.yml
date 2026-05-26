@@ -33,6 +33,10 @@ targets:
         buildPhase: resources
       - path: Susurro/Resources/AppIcon.icns
         buildPhase: resources
+      - path: Susurro/Resources/MenuBarIcon.png
+        buildPhase: resources
+      - path: Susurro/Resources/MenuBarIcon@2x.png
+        buildPhase: resources
     info:
       path: Susurro/Info.plist
       properties:
