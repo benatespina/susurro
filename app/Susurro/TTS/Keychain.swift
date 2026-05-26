@@ -4,15 +4,26 @@ import Security
 enum Keychain {
     private static let service = "com.benatespina.susurro"
 
-    static func set(_ value: String, for account: String) {
-        let data = Data(value.utf8)
-
-        let query: [String: Any] = [
+    // kSecUseDataProtectionKeychain requires the `keychain-access-groups` entitlement,
+    // which is present only in the Debug entitlements file. The ad-hoc Release build
+    // (Homebrew cask) intentionally omits restricted entitlements to pass AMFI, so in
+    // Release we fall back to the standard file-based keychain, which needs no entitlement.
+    private static func baseQuery(for account: String) -> [String: Any] {
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecUseDataProtectionKeychain as String: true,
         ]
+        #if DEBUG
+        query[kSecUseDataProtectionKeychain as String] = true
+        #endif
+        return query
+    }
+
+    static func set(_ value: String, for account: String) {
+        let data = Data(value.utf8)
+
+        let query = baseQuery(for: account)
         let deleteStatus = SecItemDelete(query as CFDictionary)
         if deleteStatus != errSecSuccess && deleteStatus != errSecItemNotFound {
             AppLogger.publishing.error("Keychain delete failed: OSStatus=\(deleteStatus, privacy: .public)")
@@ -30,14 +41,9 @@ enum Keychain {
     }
 
     static func string(for account: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecUseDataProtectionKeychain as String: true,
-        ]
+        var query = baseQuery(for: account)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status != errSecSuccess && status != errSecItemNotFound {
