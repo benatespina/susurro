@@ -15,7 +15,7 @@ Template-image rules:
 """
 
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageFilter
 import numpy as np
 
 # Fraction of the final canvas that the visible ear glyph occupies (both
@@ -23,6 +23,14 @@ import numpy as np
 # 0.78 leaves ~11% transparent margin on each side, matching the internal
 # padding of SF Symbols / emoji in the 22pt menu bar slot.  Tune to taste.
 GLYPH_FRACTION = 0.78
+
+# Extra stroke thickness, expressed in FINAL @2x pixels (tune to taste).
+# Dilation is applied at source crop resolution before downscaling, so the
+# LANCZOS step anti-aliases the result for smooth edges.
+STROKE_WEIGHT_PX = 1.0
+
+# @2x export height (px) — used to compute the source-resolution dilation kernel.
+TARGET_2X_HEIGHT_PX = 44
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC = REPO_ROOT / "design" / "susurro-logo.png"
@@ -77,6 +85,23 @@ rgba[:, :, 3] = alpha
 
 template_img = Image.fromarray(rgba, "RGBA")
 print(f"Template image size (tight ear): {template_img.size}")
+
+# ── 4b. Dilate alpha channel to thicken strokes ───────────────────────────────
+# Scale STROKE_WEIGHT_PX (in @2x output pixels) up to source crop resolution.
+_crop_h = template_img.size[1]
+_scale_factor = _crop_h / TARGET_2X_HEIGHT_PX
+_dilation_radius = max(1, round(STROKE_WEIGHT_PX * _scale_factor))
+_kernel_size = 2 * _dilation_radius + 1   # must be odd; MinFilter/MaxFilter require odd size >= 3
+print(f"Stroke dilation: STROKE_WEIGHT_PX={STROKE_WEIGHT_PX}, scale={_scale_factor:.1f}x, "
+      f"source kernel size={_kernel_size}px (radius {_dilation_radius})")
+
+alpha_channel = template_img.getchannel("A")
+dilated_alpha = alpha_channel.filter(ImageFilter.MaxFilter(_kernel_size))
+
+# Recombine: keep RGB=(0,0,0), replace alpha with dilated version.
+r, g, b, _ = template_img.split()
+template_img = Image.merge("RGBA", (r, g, b, dilated_alpha))
+print(f"Template image size after dilation: {template_img.size}")
 
 # ── 5. Add transparent padding so the ear fills only GLYPH_FRACTION of canvas ─
 ew, eh = template_img.size
