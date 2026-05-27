@@ -120,7 +120,7 @@ final class SelectionObserver {
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         AXObserverAddNotification(observer, appElement, kAXSelectedTextChangedNotification as CFString, refcon)
 
-        if let focusedWindow = focusedWindowElement(forAppElement: appElement) {
+        if let focusedWindow = axElement(attribute: kAXFocusedWindowAttribute, ofAppElement: appElement) {
             AXObserverAddNotification(
                 observer,
                 focusedWindow,
@@ -129,7 +129,7 @@ final class SelectionObserver {
             )
         }
 
-        if let focusedUIElement = focusedUIElement(forAppElement: appElement) {
+        if let focusedUIElement = axElement(attribute: kAXFocusedUIElementAttribute, ofAppElement: appElement) {
             AXObserverAddNotification(
                 observer,
                 focusedUIElement,
@@ -141,17 +141,9 @@ final class SelectionObserver {
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
     }
 
-    private func focusedUIElement(forAppElement appElement: AXUIElement) -> AXUIElement? {
+    private func axElement(attribute: String, ofAppElement appElement: AXUIElement) -> AXUIElement? {
         var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &ref) == .success,
-              let ref
-        else { return nil }
-        return (ref as! AXUIElement) // swiftlint:disable:this force_cast
-    }
-
-    private func focusedWindowElement(forAppElement appElement: AXUIElement) -> AXUIElement? {
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &ref) == .success,
+        guard AXUIElementCopyAttributeValue(appElement, attribute as CFString, &ref) == .success,
               let ref
         else { return nil }
         return (ref as! AXUIElement) // swiftlint:disable:this force_cast
