@@ -129,7 +129,24 @@ final class SelectionObserver {
             )
         }
 
+        if let focusedUIElement = focusedUIElement(forAppElement: appElement) {
+            AXObserverAddNotification(
+                observer,
+                focusedUIElement,
+                kAXSelectedTextChangedNotification as CFString,
+                refcon
+            )
+        }
+
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
+    }
+
+    private func focusedUIElement(forAppElement appElement: AXUIElement) -> AXUIElement? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &ref) == .success,
+              let ref
+        else { return nil }
+        return (ref as! AXUIElement) // swiftlint:disable:this force_cast
     }
 
     private func focusedWindowElement(forAppElement appElement: AXUIElement) -> AXUIElement? {
