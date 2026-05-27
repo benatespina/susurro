@@ -7,7 +7,7 @@ enum TextAppSource {
     private static let minTextLength = 40
     private static let minStaticTextChunkLength = 2
 
-    static func extractText(pid: pid_t) -> (text: String, title: String?)? {
+    static func extractText(pid: pid_t, bundleID: String? = nil) -> (text: String, title: String?)? {
         let appElement = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(appElement, 2.0)
         AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, kCFBooleanTrue)
@@ -20,7 +20,7 @@ enum TextAppSource {
         let window = winRef as! AXUIElement // swiftlint:disable:this force_cast
 
         let rawTitle = readWindowTitle(window)
-        let title = rawTitle.map { cleanTitle($0) }
+        let title = rawTitle.map { bundleID == "com.apple.mail" ? cleanTitle($0) : $0 }
         let collected = walkAndCollect(root: window)
 
         if let large = collected.bigTextValue {
@@ -62,6 +62,7 @@ enum TextAppSource {
                     if bigTextValue == nil || text.count > (bigTextValue?.count ?? 0) {
                         bigTextValue = text
                     }
+                    continue // marker gave us the full document text; skip redundant child walk
                 }
             } else if role == "AXStaticText" {
                 if let text = readValue(element), text.count >= minStaticTextChunkLength {
@@ -97,11 +98,11 @@ enum TextAppSource {
             fullRangeRef,
             &stringRef
         ) == .success,
-              let text = stringRef as? String,
-              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+              let text = stringRef as? String
         else { return nil }
 
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     /// Strips app-specific suffixes from window titles so library items get
