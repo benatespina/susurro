@@ -5,13 +5,15 @@
   </picture>
 </p>
 
-# Susurro
+<h1 align="center">Susurro</h1>
 
-[![Latest Release](https://img.shields.io/github/v/release/benatespina/susurro?style=flat-square)](https://github.com/benatespina/susurro/releases/latest)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
-[![CI](https://github.com/benatespina/susurro/actions/workflows/ci.yml/badge.svg)](https://github.com/benatespina/susurro/actions/workflows/ci.yml)
+<p align="center">
+  <a href="https://github.com/benatespina/susurro/releases/latest"><img src="https://img.shields.io/github/v/release/benatespina/susurro?style=flat-square" alt="Latest Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License: MIT"></a>
+  <a href="https://github.com/benatespina/susurro/actions/workflows/ci.yml"><img src="https://github.com/benatespina/susurro/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
 
-> **Read aloud anything you select on macOS.** Select text in any app — get instant text-to-speech with native voices.
+<p align="center"><b>Read aloud anything you select on macOS.</b> Select text in any app — get instant text-to-speech with native voices.</p>
 
 https://github.com/user-attachments/assets/07872c17-d28e-4eb9-a044-401bc47dbbd3
 
