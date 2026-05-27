@@ -71,8 +71,8 @@ enum SelectionReader {
 
     /// Returns true if the element carries a non-empty selected text via either
     /// the plain kAXSelectedTextAttribute or the WebKit AXTextMarker path.
-    /// Used by both readSelection and hasNonEmptySelectedText so that AXWebArea
-    /// elements are discoverable during BFS as well as direct reads.
+    /// Used during BFS so that AXWebArea elements are discoverable, and as a
+    /// fast check before the more expensive readSelection call.
     private static func elementHasNonEmptySelection(_ element: AXUIElement) -> Bool {
         var textRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &textRef) == .success,
@@ -175,10 +175,6 @@ enum SelectionReader {
             }
         }
         return nil
-    }
-
-    private static func hasNonEmptySelectedText(_ element: AXUIElement) -> Bool {
-        elementHasNonEmptySelection(element)
     }
 
     private static func children(of element: AXUIElement) -> [AXUIElement] {
