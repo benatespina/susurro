@@ -11,3 +11,7 @@ app/Susurro.xcodeproj/xcuserdata/
 app/Susurro.xcodeproj/project.xcworkspace/
 *.profraw
 .claude/
+
+# stray local build artifacts
+/gatetest
+/maactor2
