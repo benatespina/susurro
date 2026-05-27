@@ -19,6 +19,7 @@ enum SourceResolver {
     static let supportedTextAppBundles: Set<String> = [
         "com.apple.Notes",
         "com.apple.TextEdit",
+        "com.apple.mail",
         "com.iwork.pages",
         "notion.id",
         "md.obsidian",
@@ -45,7 +46,7 @@ enum SourceResolver {
             AppLogger.app.error("source: PDF app \(bundleID, privacy: .public) matched but no document URL via AX")
         }
         if supportedTextAppBundles.contains(bundleID) {
-            if let result = TextAppSource.extractText(pid: app.processIdentifier) {
+            if let result = TextAppSource.extractText(pid: app.processIdentifier, bundleID: bundleID) {
                 return .fullText(text: result.text, title: result.title)
             }
             AppLogger.app.error("source: text app \(bundleID, privacy: .public) matched but AX walk found no text")
