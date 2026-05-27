@@ -7,12 +7,13 @@ struct Selection: Equatable, Sendable {
 }
 
 enum SelectionReader {
-    private static let maxSearchDepth = 8
+    private static let maxSearchDepth = 10
     private static let maxSearchNodes = 400
 
     static func current() -> Selection? {
         guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier else { return nil }
         let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(appElement, 2.0)
         activateAccessibility(appElement: appElement)
 
         var focusedRef: CFTypeRef?
@@ -66,16 +67,96 @@ enum SelectionReader {
         return rect
     }
 
-    private static func readSelection(from element: AXUIElement) -> Selection? {
+    // MARK: - Unified selection predicate
+
+    /// Returns true if the element carries a non-empty selected text via either
+    /// the plain kAXSelectedTextAttribute or the WebKit AXTextMarker path.
+    /// Used during BFS so that AXWebArea elements are discoverable, and as a
+    /// fast check before the more expensive readSelection call.
+    private static func elementHasNonEmptySelection(_ element: AXUIElement) -> Bool {
         var textRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &textRef) == .success,
-              let text = textRef as? String,
+        if AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &textRef) == .success,
+           let text = textRef as? String,
+           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        return selectedTextWithMarker(from: element) != nil
+    }
+
+    // MARK: - Plain-attribute path
+
+    private static func readSelection(from element: AXUIElement) -> Selection? {
+        // Plain attribute path (standard AppKit / most apps)
+        var textRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &textRef) == .success,
+           let text = textRef as? String,
+           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let bounds = readBounds(from: element)
+            return Selection(text: text, bounds: bounds)
+        }
+
+        // WebKit / AXWebArea path (Mail, Safari, App Store, WKWebView)
+        if let (text, markerRange) = selectedTextWithMarker(from: element) {
+            let bounds = markerBounds(from: element, range: markerRange)
+            return Selection(text: text, bounds: bounds)
+        }
+
+        return nil
+    }
+
+    // MARK: - WebKit AXTextMarker helpers
+
+    /// Reads the selected text from a WebKit AXWebArea element using the opaque
+    /// AXTextMarker API. The marker range is treated as an opaque CFTypeRef
+    /// throughout — it is never bridged to a concrete Swift type.
+    ///
+    /// Returns the trimmed non-empty text and the opaque marker range (needed for
+    /// bounds resolution), or nil if the element does not carry a marker selection.
+    private static func selectedTextWithMarker(from element: AXUIElement) -> (text: String, markerRange: CFTypeRef)? {
+        var markerRangeRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element,
+            "AXSelectedTextMarkerRange" as CFString,
+            &markerRangeRef
+        ) == .success,
+              let markerRange = markerRangeRef
+        else { return nil }
+
+        var stringRef: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(
+            element,
+            "AXStringForTextMarkerRange" as CFString,
+            markerRange,
+            &stringRef
+        ) == .success,
+              let text = stringRef as? String,
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return nil }
 
-        let bounds = readBounds(from: element)
-        return Selection(text: text, bounds: bounds)
+        return (text, markerRange)
     }
+
+    /// Resolves screen bounds for a selection described by an opaque AXTextMarker
+    /// range, reusing the existing cgRect(from:) and isUsable(_:) helpers.
+    /// Returns nil on any failure; PanelController already falls back to positionNearMouse.
+    private static func markerBounds(from element: AXUIElement, range markerRange: CFTypeRef) -> CGRect? {
+        var boundsRef: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(
+            element,
+            "AXBoundsForTextMarkerRange" as CFString,
+            markerRange,
+            &boundsRef
+        ) == .success,
+              let boundsRef
+        else { return nil }
+
+        guard let rect = cgRect(from: boundsRef as! AXValue), // swiftlint:disable:this force_cast
+              isUsable(rect)
+        else { return nil }
+        return rect
+    }
+
+    // MARK: - BFS
 
     private static func findSelectionBearer(under root: AXUIElement) -> AXUIElement? {
         var queue: [(AXUIElement, Int)] = [(root, 0)]
@@ -84,7 +165,7 @@ enum SelectionReader {
             let (element, depth) = queue.removeFirst()
             visited += 1
 
-            if hasNonEmptySelectedText(element) {
+            if elementHasNonEmptySelection(element) {
                 return element
             }
 
@@ -94,14 +175,6 @@ enum SelectionReader {
             }
         }
         return nil
-    }
-
-    private static func hasNonEmptySelectedText(_ element: AXUIElement) -> Bool {
-        var textRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &textRef) == .success,
-              let text = textRef as? String
-        else { return false }
-        return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private static func children(of element: AXUIElement) -> [AXUIElement] {
