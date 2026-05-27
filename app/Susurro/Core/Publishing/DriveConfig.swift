@@ -28,7 +28,7 @@ struct DriveConfig: Sendable, Equatable {
     }
 
     /// Name of the root folder created/looked up on Google Drive.
-    static let folderName = "Susurro Library"
+    static let folderName = "Susurro"
 
     // MARK: - Storage keys
 
