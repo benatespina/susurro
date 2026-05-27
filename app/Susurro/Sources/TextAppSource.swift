@@ -9,6 +9,7 @@ enum TextAppSource {
 
     static func extractText(pid: pid_t) -> (text: String, title: String?)? {
         let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(appElement, 2.0)
         AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, kCFBooleanTrue)
         AXUIElementSetAttributeValue(appElement, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
 
@@ -18,7 +19,8 @@ enum TextAppSource {
         ) == .success, let winRef else { return nil }
         let window = winRef as! AXUIElement // swiftlint:disable:this force_cast
 
-        let title = readWindowTitle(window)
+        let rawTitle = readWindowTitle(window)
+        let title = rawTitle.map { cleanTitle($0) }
         let collected = walkAndCollect(root: window)
 
         if let large = collected.bigTextValue {
@@ -55,6 +57,12 @@ enum TextAppSource {
                         bigTextValue = text
                     }
                 }
+            } else if role == "AXWebArea" {
+                if let text = fullDocumentTextViaMarker(element), text.count >= minTextLength {
+                    if bigTextValue == nil || text.count > (bigTextValue?.count ?? 0) {
+                        bigTextValue = text
+                    }
+                }
             } else if role == "AXStaticText" {
                 if let text = readValue(element), text.count >= minStaticTextChunkLength {
                     staticChunks.append(text)
@@ -67,6 +75,43 @@ enum TextAppSource {
             }
         }
         return Collected(bigTextValue: bigTextValue, staticTextChunks: staticChunks)
+    }
+
+    /// Reads the full document text from a WebKit AXWebArea using the opaque
+    /// AXTextMarker API. The marker range is treated as an opaque CFTypeRef
+    /// throughout — never bridged to a concrete Swift type — mirroring the
+    /// pattern used in SelectionReader.selectedTextWithMarker(from:).
+    private static func fullDocumentTextViaMarker(_ element: AXUIElement) -> String? {
+        var fullRangeRef: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(
+            element,
+            "AXTextMarkerRangeForUIElement" as CFString,
+            element as CFTypeRef,
+            &fullRangeRef
+        ) == .success, let fullRangeRef else { return nil }
+
+        var stringRef: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(
+            element,
+            "AXStringForTextMarkerRange" as CFString,
+            fullRangeRef,
+            &stringRef
+        ) == .success,
+              let text = stringRef as? String,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return nil }
+
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Strips app-specific suffixes from window titles so library items get
+    /// clean, human-readable titles. Currently handles Mail (" — Mail" suffix).
+    private static func cleanTitle(_ title: String) -> String {
+        let mailSuffix = " \u{2014} Mail"
+        if title.hasSuffix(mailSuffix) {
+            return String(title.dropLast(mailSuffix.count))
+        }
+        return title
     }
 
     private static func readRole(_ element: AXUIElement) -> String? {

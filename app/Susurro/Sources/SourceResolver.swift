@@ -19,6 +19,7 @@ enum SourceResolver {
     static let supportedTextAppBundles: Set<String> = [
         "com.apple.Notes",
         "com.apple.TextEdit",
+        "com.apple.mail",
         "com.iwork.pages",
         "notion.id",
         "md.obsidian",
